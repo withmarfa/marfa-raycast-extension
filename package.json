@@ -5,7 +5,10 @@
   "description": "Browse, search, and capture items in your Myme data layer",
   "icon": "icon.png",
   "author": "aicayzer",
-  "categories": ["Productivity", "Data"],
+  "categories": [
+    "Productivity",
+    "Data"
+  ],
   "license": "MIT",
   "commands": [
     {
@@ -61,7 +64,7 @@
     "typescript": "^5.8.2"
   },
   "scripts": {
-    "build": "ray build",
+    "build": "ray build -o .",
     "dev": "ray develop",
     "fix-lint": "ray lint --fix",
     "lint": "ray lint"
