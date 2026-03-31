@@ -1,0 +1,51 @@
+import { List } from "@raycast/api";
+import { useCachedPromise } from "@raycast/utils";
+import { useState } from "react";
+import { searchItems } from "./api";
+import { ItemListItem } from "./components/ItemListItem";
+import { TypeFilterDropdown } from "./components/TypeFilterDropdown";
+
+export default function SearchCommand() {
+  const [searchText, setSearchText] = useState("");
+  const [type, setType] = useState("");
+
+  const { data, isLoading, revalidate } = useCachedPromise(
+    async (q: string, typeFilter: string) => {
+      if (!q.trim()) return [];
+      const response = await searchItems({
+        q,
+        type: typeFilter || undefined,
+        limit: 20,
+      });
+      return response.results;
+    },
+    [searchText, type],
+    { keepPreviousData: true },
+  );
+
+  return (
+    <List
+      isLoading={isLoading}
+      onSearchTextChange={setSearchText}
+      searchBarPlaceholder="Search items..."
+      searchBarAccessory={<TypeFilterDropdown onChange={(value) => setType(value)} />}
+      throttle
+    >
+      {!searchText.trim() ? (
+        <List.EmptyView title="Search Myme" description="Type to search your items" icon="icon.png" />
+      ) : data?.length === 0 ? (
+        <List.EmptyView title="No results" description={`No items matching "${searchText}"`} />
+      ) : (
+        data?.map((result) => (
+          <ItemListItem
+            key={result.item.id}
+            item={result.item}
+            metadata={result.metadata}
+            snippet={result.snippet}
+            onRefresh={revalidate}
+          />
+        ))
+      )}
+    </List>
+  );
+}
