@@ -1,9 +1,9 @@
-import { ActionPanel, Color, Detail } from "@raycast/api";
-import { useCachedPromise } from "@raycast/utils";
-import { getItem } from "../api";
-import { TYPE_CONFIG, STATE_CONFIG } from "../constants";
-import { getItemTitle, formatDate, formatTime } from "../helpers";
-import { ItemActionSections } from "./ItemActions";
+import { ActionPanel, Color, Detail } from '@raycast/api';
+import { useCachedPromise } from '@raycast/utils';
+import { getClient } from '../client';
+import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
+import { getItemTitle, formatDate, formatTime } from '../helpers';
+import { ItemActionSections } from './ItemActions';
 
 interface ItemDetailViewProps {
   itemId: string;
@@ -12,7 +12,14 @@ interface ItemDetailViewProps {
 
 export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   const { data, isLoading, revalidate } = useCachedPromise(
-    async (id: string) => getItem(id),
+    async (id: string) => {
+      const client = getClient();
+      const [item, metadata] = await Promise.all([
+        client.items.get(id),
+        client.metadata.get(id),
+      ]);
+      return { item, metadata };
+    },
     [itemId],
   );
 
@@ -24,14 +31,14 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   const typeConfig = TYPE_CONFIG[item.type] ?? { label: item.type, icon: undefined, color: Color.PrimaryText };
   const stateConfig = STATE_CONFIG[item.state];
 
-  const lines: string[] = [`# ${getItemTitle(item)}`, ""];
+  const lines: string[] = [`# ${getItemTitle(item)}`, ''];
   const p = item.properties;
 
-  if (typeof p.body === "string") lines.push(p.body, "");
-  if (typeof p.description === "string") lines.push(p.description, "");
-  if (typeof p.url === "string") lines.push(`[${p.url}](${p.url})`, "");
+  if (typeof p.body === 'string') lines.push(p.body, '');
+  if (typeof p.description === 'string') lines.push(p.description, '');
+  if (typeof p.url === 'string') lines.push(`[${p.url}](${p.url})`, '');
 
-  const skip = new Set(["title", "name", "body", "description", "url"]);
+  const skip = new Set(['title', 'name', 'body', 'description', 'url']);
   for (const [key, value] of Object.entries(p)) {
     if (!skip.has(key) && value != null) {
       lines.push(`**${key}:** ${String(value)}`);
@@ -46,7 +53,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   return (
     <Detail
       isLoading={isLoading}
-      markdown={lines.join("\n")}
+      markdown={lines.join('\n')}
       navigationTitle={getItemTitle(item)}
       metadata={
         <Detail.Metadata>

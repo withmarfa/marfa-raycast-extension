@@ -52,6 +52,7 @@
     }
   ],
   "dependencies": {
+    "@mymehq/sdk": "^1.0.0",
     "@raycast/api": "^1.104.0",
     "@raycast/utils": "^2.2.0"
   },

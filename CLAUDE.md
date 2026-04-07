@@ -15,19 +15,18 @@ pnpm lint        # lint with Raycast rules
 
 Extension preferences (set in Raycast):
 
-- **API URL** — Myme server URL
-- **API Key** — authentication key
+- **API URL** -- Myme server URL
+- **API Key** -- authentication key
 
 ## Commands
 
-- **Browse** — list items with date grouping and type icons
-- **Search** — full-text search with debounced input
-- **Quick Capture** — create items with type-specific fields
+- **Browse** -- list items with date grouping and type icons
+- **Search** -- full-text search with debounced input
+- **Quick Capture** -- create items with type-specific fields
 
 ## Dependencies
 
-Uses a custom HTTP client (`src/api.ts`) rather than `@myme/sdk` because the SDK
-is not published to npm and Raycast extensions can't use workspace links.
+- **@mymehq/sdk** -- TypeScript HTTP client (from npm)
 
 ## Conventions
 

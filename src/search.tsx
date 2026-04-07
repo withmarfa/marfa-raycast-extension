@@ -1,23 +1,22 @@
-import { List } from "@raycast/api";
-import { useCachedPromise } from "@raycast/utils";
-import { useState } from "react";
-import { searchItems } from "./api";
-import { ItemListItem } from "./components/ItemListItem";
-import { TypeFilterDropdown } from "./components/TypeFilterDropdown";
+import { List } from '@raycast/api';
+import { useCachedPromise } from '@raycast/utils';
+import { useState } from 'react';
+import { getClient } from './client';
+import { ItemListItem } from './components/ItemListItem';
+import { TypeFilterDropdown } from './components/TypeFilterDropdown';
 
 export default function SearchCommand() {
-  const [searchText, setSearchText] = useState("");
-  const [type, setType] = useState("");
+  const [searchText, setSearchText] = useState('');
+  const [type, setType] = useState('');
 
   const { data, isLoading, revalidate } = useCachedPromise(
     async (q: string, typeFilter: string) => {
       if (!q.trim()) return [];
-      const response = await searchItems({
-        q,
+      const client = getClient();
+      return client.search(q, {
         type: typeFilter || undefined,
         limit: 20,
       });
-      return response.results;
     },
     [searchText, type],
     { keepPreviousData: true },

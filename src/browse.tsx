@@ -1,13 +1,13 @@
-import { Action, ActionPanel, Icon, List, showToast, Toast } from "@raycast/api";
-import { useState, useEffect, useCallback } from "react";
-import { listItems } from "./api";
-import type { Item } from "./types";
-import { groupItemsByDate } from "./helpers";
-import { ItemListItem } from "./components/ItemListItem";
-import { TypeFilterDropdown } from "./components/TypeFilterDropdown";
+import { Action, ActionPanel, Icon, List, showToast, Toast } from '@raycast/api';
+import { useState, useEffect, useCallback } from 'react';
+import type { Item } from '@mymehq/sdk';
+import { getClient } from './client';
+import { groupItemsByDate } from './helpers';
+import { ItemListItem } from './components/ItemListItem';
+import { TypeFilterDropdown } from './components/TypeFilterDropdown';
 
 export default function BrowseCommand() {
-  const [type, setType] = useState("");
+  const [type, setType] = useState('');
   const [items, setItems] = useState<Item[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -16,10 +16,11 @@ export default function BrowseCommand() {
   const loadItems = useCallback(async (typeFilter: string, loadCursor?: string) => {
     setIsLoading(true);
     try {
-      const response = await listItems({
+      const client = getClient();
+      const response = await client.items.list({
         type: typeFilter || undefined,
-        sort: "timestamp",
-        direction: "desc",
+        sort: 'timestamp',
+        direction: 'desc',
         limit: 50,
         cursor: loadCursor ?? undefined,
       });
@@ -31,7 +32,7 @@ export default function BrowseCommand() {
       setCursor(response.cursor);
       setHasMore(response.has_more);
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: "Failed to load items", message: String(error) });
+      await showToast({ style: Toast.Style.Failure, title: 'Failed to load items', message: String(error) });
     } finally {
       setIsLoading(false);
     }

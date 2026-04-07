@@ -1,9 +1,9 @@
-import { ActionPanel, Action, Icon, List, Color } from "@raycast/api";
-import type { Item, Metadata } from "../types";
-import { TYPE_CONFIG, STATE_CONFIG } from "../constants";
-import { getItemTitle, getItemSubtitle, formatTime } from "../helpers";
-import { ItemDetailView } from "./ItemDetailView";
-import { ItemActionSections } from "./ItemActions";
+import { ActionPanel, Action, Icon, List, Color } from '@raycast/api';
+import type { Item, Metadata } from '@mymehq/sdk';
+import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
+import { getItemTitle, getItemSubtitle, formatTime } from '../helpers';
+import { ItemDetailView } from './ItemDetailView';
+import { ItemActionSections } from './ItemActions';
 
 interface ItemListItemProps {
   item: Item;
@@ -19,7 +19,7 @@ export function ItemListItem({ item, metadata, snippet, onRefresh }: ItemListIte
   const accessories: List.Item.Accessory[] = [
     { tag: { value: typeConfig.label, color: typeConfig.color } },
   ];
-  if (stateConfig && item.state !== "active") {
+  if (stateConfig && item.state !== 'active') {
     accessories.push({ tag: { value: stateConfig.label, color: stateConfig.color } });
   }
   accessories.push({ text: formatTime(item.timestamp) });

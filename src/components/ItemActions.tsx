@@ -8,27 +8,28 @@ import {
   useNavigation,
   confirmAlert,
   Alert,
-} from "@raycast/api";
-import type { Item, Metadata, ItemState } from "../types";
-import { transitionItem, addTags, removeTag, deleteItem } from "../api";
-import { getItemTitle } from "../helpers";
+} from '@raycast/api';
+import type { Item, Metadata, ItemState } from '@mymehq/sdk';
+import { getClient } from '../client';
+import { getItemTitle } from '../helpers';
 
 function AddTagForm({ itemId, onComplete }: { itemId: string; onComplete: () => void }) {
   const { pop } = useNavigation();
 
   async function handleSubmit(values: { tags: string }) {
     const tags = values.tags
-      .split(",")
+      .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
     if (tags.length === 0) return;
     try {
-      await addTags(itemId, tags);
-      await showToast({ style: Toast.Style.Success, title: "Tags added" });
+      const client = getClient();
+      await client.metadata.addTags(itemId, tags);
+      await showToast({ style: Toast.Style.Success, title: 'Tags added' });
       onComplete();
       pop();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: "Failed to add tags", message: String(error) });
+      await showToast({ style: Toast.Style.Failure, title: 'Failed to add tags', message: String(error) });
     }
   }
 
@@ -56,46 +57,49 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
 
   async function handleTransition(state: ItemState) {
     try {
-      await transitionItem(item.id, state);
+      const client = getClient();
+      await client.items.transition(item.id, state);
       await showToast({ style: Toast.Style.Success, title: `Moved to ${state}` });
       onRefresh();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: "Failed to transition", message: String(error) });
+      await showToast({ style: Toast.Style.Failure, title: 'Failed to transition', message: String(error) });
     }
   }
 
   async function handleRemoveTag(tag: string) {
     try {
-      await removeTag(item.id, tag);
+      const client = getClient();
+      await client.metadata.removeTag(item.id, tag);
       await showToast({ style: Toast.Style.Success, title: `Removed tag: ${tag}` });
       onRefresh();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: "Failed to remove tag", message: String(error) });
+      await showToast({ style: Toast.Style.Failure, title: 'Failed to remove tag', message: String(error) });
     }
   }
 
   async function handleDelete() {
     const confirmed = await confirmAlert({
-      title: "Delete Item",
+      title: 'Delete Item',
       message: `Are you sure you want to delete "${getItemTitle(item)}"?`,
-      primaryAction: { title: "Delete", style: Alert.ActionStyle.Destructive },
+      primaryAction: { title: 'Delete', style: Alert.ActionStyle.Destructive },
     });
     if (!confirmed) return;
     try {
-      await deleteItem(item.id);
-      await showToast({ style: Toast.Style.Success, title: "Item deleted" });
+      const client = getClient();
+      await client.items.delete(item.id);
+      await showToast({ style: Toast.Style.Success, title: 'Item deleted' });
       onRefresh();
       pop();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: "Failed to delete", message: String(error) });
+      await showToast({ style: Toast.Style.Failure, title: 'Failed to delete', message: String(error) });
     }
   }
 
   const transitions: { state: ItemState; title: string; icon: Icon }[] = [];
-  if (item.state !== "active") transitions.push({ state: "active", title: "Move to Active", icon: Icon.CheckCircle });
-  if (item.state !== "archived")
-    transitions.push({ state: "archived", title: "Archive", icon: Icon.Tray });
-  if (item.state !== "new") transitions.push({ state: "new", title: "Move to New", icon: Icon.Plus });
+  if (item.state !== 'active') transitions.push({ state: 'active', title: 'Move to Active', icon: Icon.CheckCircle });
+  if (item.state !== 'archived')
+    transitions.push({ state: 'archived', title: 'Archive', icon: Icon.Tray });
+  if (item.state !== 'new') transitions.push({ state: 'new', title: 'Move to New', icon: Icon.Plus });
 
   return (
     <>
@@ -103,7 +107,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
         <Action.CopyToClipboard
           title="Copy ID"
           content={item.id}
-          shortcut={{ modifiers: ["cmd"], key: "." }}
+          shortcut={{ modifiers: ['cmd'], key: '.' }}
         />
       </ActionPanel.Section>
 
@@ -111,7 +115,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
         <Action.Push
           title="Add Tag"
           icon={Icon.Tag}
-          shortcut={{ modifiers: ["cmd"], key: "t" }}
+          shortcut={{ modifiers: ['cmd'], key: 't' }}
           target={<AddTagForm itemId={item.id} onComplete={onRefresh} />}
         />
         {metadata?.tags.map((tag) => (
@@ -136,7 +140,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
           icon={Icon.Trash}
           style={Action.Style.Destructive}
           onAction={handleDelete}
-          shortcut={{ modifiers: ["ctrl"], key: "x" }}
+          shortcut={{ modifiers: ['ctrl'], key: 'x' }}
         />
       </ActionPanel.Section>
     </>
