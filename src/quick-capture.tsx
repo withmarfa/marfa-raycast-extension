@@ -1,4 +1,5 @@
-import { Action, ActionPanel, Form, Icon, showToast, Toast, useNavigation } from '@raycast/api';
+import { Action, ActionPanel, Form, Icon, showHUD, showToast, Toast, useNavigation } from '@raycast/api';
+import { showFailureToast } from '@raycast/utils';
 import { useState } from 'react';
 import { getClient } from './client';
 import { CAPTURE_TYPES } from './constants';
@@ -18,9 +19,21 @@ interface FormValues {
 
 export default function QuickCaptureCommand() {
   const [type, setType] = useState('core.note');
+  const [urlError, setUrlError] = useState<string | undefined>();
+  const [titleError, setTitleError] = useState<string | undefined>();
   const { pop } = useNavigation();
 
   async function handleSubmit(values: FormValues) {
+    // Validate required fields
+    if (type === 'core.bookmark' && !values.url?.trim()) {
+      setUrlError('URL is required');
+      return;
+    }
+    if (type === 'core.task' && !values.title?.trim()) {
+      setTitleError('Title is required');
+      return;
+    }
+
     const properties: Record<string, unknown> = {};
 
     switch (type) {
@@ -56,14 +69,10 @@ export default function QuickCaptureCommand() {
     try {
       const client = getClient();
       await client.items.create({ type, properties, tags });
-      await showToast({ style: Toast.Style.Success, title: 'Item captured' });
+      await showHUD('Item captured');
       pop();
     } catch (error) {
-      await showToast({
-        style: Toast.Style.Failure,
-        title: 'Failed to capture',
-        message: String(error),
-      });
+      await showFailureToast(error, { title: 'Failed to capture' });
     }
   }
 
@@ -92,16 +101,36 @@ export default function QuickCaptureCommand() {
 
       {type === 'core.bookmark' && (
         <>
-          <Form.TextField id="url" title="URL" placeholder="https://..." />
+          <Form.TextField
+            id="url"
+            title="URL"
+            placeholder="https://..."
+            error={urlError}
+            onChange={() => setUrlError(undefined)}
+          />
           <Form.TextField id="title" title="Title" placeholder="Bookmark title" />
-          <Form.TextArea id="description" title="Description" placeholder="Optional description" />
+          <Form.TextArea
+            id="description"
+            title="Description"
+            placeholder="Optional description"
+          />
         </>
       )}
 
       {type === 'core.task' && (
         <>
-          <Form.TextField id="title" title="Title" placeholder="Task title" />
-          <Form.TextArea id="description" title="Description" placeholder="Optional description" />
+          <Form.TextField
+            id="title"
+            title="Title"
+            placeholder="Task title"
+            error={titleError}
+            onChange={() => setTitleError(undefined)}
+          />
+          <Form.TextArea
+            id="description"
+            title="Description"
+            placeholder="Optional description"
+          />
           <Form.DatePicker id="due_at" title="Due Date" />
           <Form.Dropdown id="priority" title="Priority" defaultValue="medium">
             <Form.Dropdown.Item title="Low" value="low" />
