@@ -1,5 +1,5 @@
-import { List } from "@raycast/api";
-import { ALL_TYPES } from "../constants";
+import { List } from '@raycast/api';
+import { ALL_TYPES } from '../constants';
 
 export function TypeFilterDropdown({ onChange }: { onChange: (value: string) => void }) {
   return (

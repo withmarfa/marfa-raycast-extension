@@ -9,9 +9,10 @@ import {
   confirmAlert,
   Alert,
 } from '@raycast/api';
+import { showFailureToast } from '@raycast/utils';
 import type { Item, Metadata, ItemState } from '@mymehq/sdk';
 import { getClient } from '../client';
-import { getItemTitle } from '../helpers';
+import { getItemTitle, getItemUrl } from '../helpers';
 
 function AddTagForm({ itemId, onComplete }: { itemId: string; onComplete: () => void }) {
   const { pop } = useNavigation();
@@ -29,7 +30,7 @@ function AddTagForm({ itemId, onComplete }: { itemId: string; onComplete: () => 
       onComplete();
       pop();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: 'Failed to add tags', message: String(error) });
+      await showFailureToast(error, { title: 'Failed to add tags' });
     }
   }
 
@@ -54,6 +55,7 @@ interface ItemActionSectionsProps {
 
 export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSectionsProps) {
   const { pop } = useNavigation();
+  const url = getItemUrl(item);
 
   async function handleTransition(state: ItemState) {
     try {
@@ -62,7 +64,18 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
       await showToast({ style: Toast.Style.Success, title: `Moved to ${state}` });
       onRefresh();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: 'Failed to transition', message: String(error) });
+      await showFailureToast(error, { title: 'Failed to transition' });
+    }
+  }
+
+  async function handleRestore() {
+    try {
+      const client = getClient();
+      await client.items.restore(item.id);
+      await showToast({ style: Toast.Style.Success, title: 'Item restored' });
+      onRefresh();
+    } catch (error) {
+      await showFailureToast(error, { title: 'Failed to restore' });
     }
   }
 
@@ -73,7 +86,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
       await showToast({ style: Toast.Style.Success, title: `Removed tag: ${tag}` });
       onRefresh();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: 'Failed to remove tag', message: String(error) });
+      await showFailureToast(error, { title: 'Failed to remove tag' });
     }
   }
 
@@ -91,19 +104,45 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
       onRefresh();
       pop();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: 'Failed to delete', message: String(error) });
+      await showFailureToast(error, { title: 'Failed to delete' });
     }
   }
 
+  // Build state transitions based on current state
   const transitions: { state: ItemState; title: string; icon: Icon }[] = [];
-  if (item.state !== 'active') transitions.push({ state: 'active', title: 'Move to Active', icon: Icon.CheckCircle });
-  if (item.state !== 'archived')
-    transitions.push({ state: 'archived', title: 'Archive', icon: Icon.Tray });
-  if (item.state !== 'new') transitions.push({ state: 'new', title: 'Move to New', icon: Icon.Plus });
+  if (item.state === 'trashed') {
+    // Trashed items can be restored
+  } else {
+    if (item.state !== 'active')
+      transitions.push({ state: 'active', title: 'Move to Active', icon: Icon.CheckCircle });
+    if (item.state !== 'archived')
+      transitions.push({ state: 'archived', title: 'Archive', icon: Icon.Tray });
+    if (item.state !== 'new')
+      transitions.push({ state: 'new', title: 'Move to New', icon: Icon.Plus });
+    transitions.push({ state: 'trashed', title: 'Trash', icon: Icon.Trash });
+  }
 
   return (
     <>
-      <ActionPanel.Section>
+      {url && (
+        <ActionPanel.Section>
+          <Action.OpenInBrowser url={url} shortcut={{ modifiers: ['cmd'], key: 'o' }} />
+        </ActionPanel.Section>
+      )}
+
+      <ActionPanel.Section title="Copy">
+        <Action.CopyToClipboard
+          title="Copy Title"
+          content={getItemTitle(item)}
+          shortcut={{ modifiers: ['cmd', 'shift'], key: 'c' }}
+        />
+        {url && (
+          <Action.CopyToClipboard
+            title="Copy URL"
+            content={url}
+            shortcut={{ modifiers: ['cmd', 'shift'], key: 'u' }}
+          />
+        )}
         <Action.CopyToClipboard
           title="Copy ID"
           content={item.id}
@@ -129,6 +168,14 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
       </ActionPanel.Section>
 
       <ActionPanel.Section title="State">
+        {item.state === 'trashed' && (
+          <Action
+            title="Restore"
+            icon={Icon.ArrowCounterClockwise}
+            onAction={handleRestore}
+            shortcut={{ modifiers: ['cmd', 'shift'], key: 'r' }}
+          />
+        )}
         {transitions.map(({ state, title, icon }) => (
           <Action key={state} title={title} icon={icon} onAction={() => handleTransition(state)} />
         ))}
@@ -136,7 +183,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
 
       <ActionPanel.Section title="Danger">
         <Action
-          title="Delete"
+          title="Delete Permanently"
           icon={Icon.Trash}
           style={Action.Style.Destructive}
           onAction={handleDelete}

@@ -1,8 +1,8 @@
-import { ActionPanel, Color, Detail } from '@raycast/api';
+import { Action, ActionPanel, Color, Detail, Icon } from '@raycast/api';
 import { useCachedPromise } from '@raycast/utils';
 import { getClient } from '../client';
 import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
-import { getItemTitle, formatDate, formatTime } from '../helpers';
+import { getItemTitle, getItemUrl, formatDate, formatTime } from '../helpers';
 import { ItemActionSections } from './ItemActions';
 
 interface ItemDetailViewProps {
@@ -14,10 +14,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   const { data, isLoading, revalidate } = useCachedPromise(
     async (id: string) => {
       const client = getClient();
-      const [item, metadata] = await Promise.all([
-        client.items.get(id),
-        client.metadata.get(id),
-      ]);
+      const [item, metadata] = await Promise.all([client.items.get(id), client.metadata.get(id)]);
       return { item, metadata };
     },
     [itemId],
@@ -28,7 +25,12 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   }
 
   const { item, metadata } = data;
-  const typeConfig = TYPE_CONFIG[item.type] ?? { label: item.type, icon: undefined, color: Color.PrimaryText };
+  const url = getItemUrl(item);
+  const typeConfig = TYPE_CONFIG[item.type] ?? {
+    label: item.type,
+    icon: undefined,
+    color: Color.PrimaryText,
+  };
   const stateConfig = STATE_CONFIG[item.state];
 
   const lines: string[] = [`# ${getItemTitle(item)}`, ''];
@@ -95,6 +97,15 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
       }
       actions={
         <ActionPanel>
+          <ActionPanel.Section>
+            {url && <Action.OpenInBrowser url={url} />}
+            <Action
+              title="Refresh"
+              icon={Icon.ArrowClockwise}
+              shortcut={{ modifiers: ['cmd'], key: 'r' }}
+              onAction={handleRefresh}
+            />
+          </ActionPanel.Section>
           <ItemActionSections item={item} metadata={metadata} onRefresh={handleRefresh} />
         </ActionPanel>
       }
