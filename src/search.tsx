@@ -2,6 +2,7 @@ import { List } from '@raycast/api';
 import { useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
 import { getClient } from './client';
+import { stripHtmlTags } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
 import { TypeFilterDropdown } from './components/TypeFilterDropdown';
 
@@ -27,7 +28,7 @@ export default function SearchCommand() {
       isLoading={isLoading}
       onSearchTextChange={setSearchText}
       searchBarPlaceholder="Search items..."
-      searchBarAccessory={<TypeFilterDropdown onChange={(value) => setType(value)} />}
+      searchBarAccessory={<TypeFilterDropdown onChange={setType} />}
       throttle
     >
       {!searchText.trim() ? (
@@ -44,7 +45,7 @@ export default function SearchCommand() {
             key={result.item.id}
             item={result.item}
             metadata={result.metadata}
-            snippet={result.snippet}
+            snippet={result.snippet_html ? stripHtmlTags(result.snippet_html) : undefined}
             onRefresh={revalidate}
           />
         ))
