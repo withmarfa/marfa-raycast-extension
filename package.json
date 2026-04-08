@@ -31,6 +31,13 @@
       "subtitle": "Myme",
       "description": "Capture a note, bookmark, task, or event",
       "mode": "view"
+    },
+    {
+      "name": "clipboard-capture",
+      "title": "Clipboard Capture",
+      "subtitle": "Myme",
+      "description": "Capture clipboard content as a bookmark or note",
+      "mode": "no-view"
     }
   ],
   "preferences": [
