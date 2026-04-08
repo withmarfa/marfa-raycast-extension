@@ -38,6 +38,15 @@ export function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
+export function getItemUrl(item: Item): string | undefined {
+  const url = item.properties.url;
+  return typeof url === 'string' && url ? url : undefined;
+}
+
+export function stripHtmlTags(html: string): string {
+  return html.replace(/<[^>]*>/g, '');
+}
+
 export function groupItemsByDate(items: Item[]): Map<string, Item[]> {
   const groups = new Map<string, Item[]>();
   for (const item of items) {
