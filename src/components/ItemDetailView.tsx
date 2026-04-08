@@ -14,10 +14,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   const { data, isLoading, revalidate } = useCachedPromise(
     async (id: string) => {
       const client = getClient();
-      const [item, metadata] = await Promise.all([
-        client.items.get(id),
-        client.metadata.get(id),
-      ]);
+      const [item, metadata] = await Promise.all([client.items.get(id), client.metadata.get(id)]);
       return { item, metadata };
     },
     [itemId],
@@ -28,7 +25,11 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   }
 
   const { item, metadata } = data;
-  const typeConfig = TYPE_CONFIG[item.type] ?? { label: item.type, icon: undefined, color: Color.PrimaryText };
+  const typeConfig = TYPE_CONFIG[item.type] ?? {
+    label: item.type,
+    icon: undefined,
+    color: Color.PrimaryText,
+  };
   const stateConfig = STATE_CONFIG[item.state];
 
   const lines: string[] = [`# ${getItemTitle(item)}`, ''];

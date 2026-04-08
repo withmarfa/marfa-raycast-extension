@@ -13,7 +13,11 @@ interface ItemListItemProps {
 }
 
 export function ItemListItem({ item, metadata, snippet, onRefresh }: ItemListItemProps) {
-  const typeConfig = TYPE_CONFIG[item.type] ?? { label: item.type, icon: Icon.Circle, color: Color.PrimaryText };
+  const typeConfig = TYPE_CONFIG[item.type] ?? {
+    label: item.type,
+    icon: Icon.Circle,
+    color: Color.PrimaryText,
+  };
   const stateConfig = STATE_CONFIG[item.state];
 
   const accessories: List.Item.Accessory[] = [

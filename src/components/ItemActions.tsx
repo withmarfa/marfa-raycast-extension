@@ -29,7 +29,11 @@ function AddTagForm({ itemId, onComplete }: { itemId: string; onComplete: () => 
       onComplete();
       pop();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: 'Failed to add tags', message: String(error) });
+      await showToast({
+        style: Toast.Style.Failure,
+        title: 'Failed to add tags',
+        message: String(error),
+      });
     }
   }
 
@@ -62,7 +66,11 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
       await showToast({ style: Toast.Style.Success, title: `Moved to ${state}` });
       onRefresh();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: 'Failed to transition', message: String(error) });
+      await showToast({
+        style: Toast.Style.Failure,
+        title: 'Failed to transition',
+        message: String(error),
+      });
     }
   }
 
@@ -73,7 +81,11 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
       await showToast({ style: Toast.Style.Success, title: `Removed tag: ${tag}` });
       onRefresh();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: 'Failed to remove tag', message: String(error) });
+      await showToast({
+        style: Toast.Style.Failure,
+        title: 'Failed to remove tag',
+        message: String(error),
+      });
     }
   }
 
@@ -91,15 +103,21 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
       onRefresh();
       pop();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: 'Failed to delete', message: String(error) });
+      await showToast({
+        style: Toast.Style.Failure,
+        title: 'Failed to delete',
+        message: String(error),
+      });
     }
   }
 
   const transitions: { state: ItemState; title: string; icon: Icon }[] = [];
-  if (item.state !== 'active') transitions.push({ state: 'active', title: 'Move to Active', icon: Icon.CheckCircle });
+  if (item.state !== 'active')
+    transitions.push({ state: 'active', title: 'Move to Active', icon: Icon.CheckCircle });
   if (item.state !== 'archived')
     transitions.push({ state: 'archived', title: 'Archive', icon: Icon.Tray });
-  if (item.state !== 'new') transitions.push({ state: 'new', title: 'Move to New', icon: Icon.Plus });
+  if (item.state !== 'new')
+    transitions.push({ state: 'new', title: 'Move to New', icon: Icon.Plus });
 
   return (
     <>

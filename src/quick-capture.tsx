@@ -59,7 +59,11 @@ export default function QuickCaptureCommand() {
       await showToast({ style: Toast.Style.Success, title: 'Item captured' });
       pop();
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: 'Failed to capture', message: String(error) });
+      await showToast({
+        style: Toast.Style.Failure,
+        title: 'Failed to capture',
+        message: String(error),
+      });
     }
   }
 

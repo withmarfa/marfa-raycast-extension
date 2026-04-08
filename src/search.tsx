@@ -31,7 +31,11 @@ export default function SearchCommand() {
       throttle
     >
       {!searchText.trim() ? (
-        <List.EmptyView title="Search Myme" description="Type to search your items" icon="icon.png" />
+        <List.EmptyView
+          title="Search Myme"
+          description="Type to search your items"
+          icon="icon.png"
+        />
       ) : data?.length === 0 ? (
         <List.EmptyView title="No results" description={`No items matching "${searchText}"`} />
       ) : (

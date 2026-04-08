@@ -32,7 +32,11 @@ export default function BrowseCommand() {
       setCursor(response.cursor);
       setHasMore(response.has_more);
     } catch (error) {
-      await showToast({ style: Toast.Style.Failure, title: 'Failed to load items', message: String(error) });
+      await showToast({
+        style: Toast.Style.Failure,
+        title: 'Failed to load items',
+        message: String(error),
+      });
     } finally {
       setIsLoading(false);
     }
