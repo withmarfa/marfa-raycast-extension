@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Form, Icon, showHUD, showToast, Toast, useNavigation } from '@raycast/api';
+import { Action, ActionPanel, Form, Icon, showHUD, useNavigation } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
 import { useState } from 'react';
 import { getClient } from './client';
@@ -109,11 +109,7 @@ export default function QuickCaptureCommand() {
             onChange={() => setUrlError(undefined)}
           />
           <Form.TextField id="title" title="Title" placeholder="Bookmark title" />
-          <Form.TextArea
-            id="description"
-            title="Description"
-            placeholder="Optional description"
-          />
+          <Form.TextArea id="description" title="Description" placeholder="Optional description" />
         </>
       )}
 
@@ -126,11 +122,7 @@ export default function QuickCaptureCommand() {
             error={titleError}
             onChange={() => setTitleError(undefined)}
           />
-          <Form.TextArea
-            id="description"
-            title="Description"
-            placeholder="Optional description"
-          />
+          <Form.TextArea id="description" title="Description" placeholder="Optional description" />
           <Form.DatePicker id="due_at" title="Due Date" />
           <Form.Dropdown id="priority" title="Priority" defaultValue="medium">
             <Form.Dropdown.Item title="Low" value="low" />

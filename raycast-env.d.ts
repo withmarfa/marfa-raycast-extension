@@ -24,6 +24,8 @@ declare namespace Preferences {
   export type Search = ExtensionPreferences & {}
   /** Preferences accessible in the `quick-capture` command */
   export type QuickCapture = ExtensionPreferences & {}
+  /** Preferences accessible in the `clipboard-capture` command */
+  export type ClipboardCapture = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
@@ -33,5 +35,7 @@ declare namespace Arguments {
   export type Search = {}
   /** Arguments passed to the `quick-capture` command */
   export type QuickCapture = {}
+  /** Arguments passed to the `clipboard-capture` command */
+  export type ClipboardCapture = {}
 }
 

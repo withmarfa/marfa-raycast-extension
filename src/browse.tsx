@@ -30,22 +30,21 @@ export default function BrowseCommand() {
   const [type, setType] = useState('');
 
   const { data, isLoading, revalidate, pagination } = useCachedPromise(
-    (typeFilter: string) =>
-      async (options: { page: number; cursor?: string }) => {
-        const client = getClient();
-        const response = await client.items.listWithMetadata({
-          type: typeFilter || undefined,
-          sort: 'timestamp',
-          direction: 'desc',
-          limit: 50,
-          cursor: options.cursor,
-        });
-        return {
-          data: response.data,
-          hasMore: response.has_more,
-          cursor: response.cursor,
-        };
-      },
+    (typeFilter: string) => async (options: { page: number; cursor?: string }) => {
+      const client = getClient();
+      const response = await client.items.listWithMetadata({
+        type: typeFilter || undefined,
+        sort: 'timestamp',
+        direction: 'desc',
+        limit: 50,
+        cursor: options.cursor,
+      });
+      return {
+        data: response.data,
+        hasMore: response.has_more,
+        cursor: response.cursor,
+      };
+    },
     [type],
   );
 
@@ -64,12 +63,7 @@ export default function BrowseCommand() {
         Array.from(groups.entries()).map(([date, entries]) => (
           <List.Section key={date} title={date}>
             {entries.map(({ item, metadata }) => (
-              <ItemListItem
-                key={item.id}
-                item={item}
-                metadata={metadata}
-                onRefresh={revalidate}
-              />
+              <ItemListItem key={item.id} item={item} metadata={metadata} onRefresh={revalidate} />
             ))}
           </List.Section>
         ))
