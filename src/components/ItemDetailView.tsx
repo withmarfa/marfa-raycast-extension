@@ -84,8 +84,6 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label title="ID" text={item.id} />
           {item.source && <Detail.Metadata.Label title="Source" text={item.source} />}
-          {item.parent_id && <Detail.Metadata.Label title="Parent" text={item.parent_id} />}
-          {item.thread_id && <Detail.Metadata.Label title="Thread" text={item.thread_id} />}
           {metadata.tags.length > 0 && (
             <Detail.Metadata.TagList title="Tags">
               {metadata.tags.map((tag) => (
