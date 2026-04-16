@@ -3,14 +3,7 @@ import { getFavicon } from '@raycast/utils';
 import type { ReactNode } from 'react';
 import type { Item, Metadata } from '@mymehq/sdk';
 import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
-import {
-  getItemTitle,
-  getItemSubtitle,
-  getItemUrl,
-  formatTime,
-  formatDate,
-  formatRelativeTime,
-} from '../helpers';
+import { getItemTitle, getItemUrl, formatTime, formatDate, formatRelativeTime } from '../helpers';
 import { ItemDetailView } from './ItemDetailView';
 import { ItemActionSections } from './ItemActions';
 
@@ -55,7 +48,7 @@ export function ItemListItem({
     <List.Item
       id={item.id}
       title={getItemTitle(item)}
-      subtitle={snippet ?? getItemSubtitle(item)}
+      subtitle={snippet}
       icon={icon}
       accessories={accessories}
       keywords={[typeConfig.label, ...(metadata?.tags ?? [])]}
