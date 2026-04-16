@@ -71,6 +71,34 @@ export function toTitleCase(key: string): string {
   ].join(' ');
 }
 
+export type ImageSource =
+  | { kind: 'url'; url: string; alt: string }
+  | { kind: 'blob'; blobRef: string; mimeType: string; alt: string };
+
+const COVER_URL_KEYS = ['cover_url', 'image_url', 'thumbnail_url', 'poster_url', 'artwork_url'];
+
+export function getImageSource(item: Item): ImageSource | null {
+  const p = item.properties;
+  for (const key of COVER_URL_KEYS) {
+    const candidate = p[key];
+    if (
+      typeof candidate === 'string' &&
+      (candidate.startsWith('http://') || candidate.startsWith('https://'))
+    ) {
+      return { kind: 'url', url: candidate, alt: getItemTitle(item) };
+    }
+  }
+  if (item.type === 'core.file.image' && typeof p.blob_ref === 'string' && p.blob_ref) {
+    const mimeType = typeof p.mime_type === 'string' && p.mime_type ? p.mime_type : 'image/jpeg';
+    return { kind: 'blob', blobRef: p.blob_ref, mimeType, alt: getItemTitle(item) };
+  }
+  return null;
+}
+
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  return Buffer.from(buffer).toString('base64');
+}
+
 export function groupItemsByDate(items: Item[]): Map<string, Item[]> {
   const groups = new Map<string, Item[]>();
   for (const item of items) {

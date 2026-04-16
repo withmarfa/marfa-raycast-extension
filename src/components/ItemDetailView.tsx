@@ -9,6 +9,8 @@ import {
   formatTime,
   formatRelativeTime,
   toTitleCase,
+  getImageSource,
+  arrayBufferToBase64,
 } from '../helpers';
 import { ItemActionSections } from './ItemActions';
 
@@ -87,7 +89,22 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
         client.metadata.get(id),
         client.items.edges(id, { limit: 100 }),
       ]);
-      return { item, metadata, edges: edgesResponse.data };
+      const source = getImageSource(item);
+      let imageMarkdownUrl: string | null = null;
+      let imageAlt = '';
+      if (source?.kind === 'url') {
+        imageMarkdownUrl = source.url;
+        imageAlt = source.alt;
+      } else if (source?.kind === 'blob') {
+        try {
+          const bytes = await client.blobs.download(source.blobRef);
+          imageMarkdownUrl = `data:${source.mimeType};base64,${arrayBufferToBase64(bytes)}`;
+          imageAlt = source.alt;
+        } catch {
+          imageMarkdownUrl = null;
+        }
+      }
+      return { item, metadata, edges: edgesResponse.data, imageMarkdownUrl, imageAlt };
     },
     [itemId],
   );
@@ -96,7 +113,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
     return <Detail isLoading={isLoading} />;
   }
 
-  const { item, metadata, edges } = data;
+  const { item, metadata, edges, imageMarkdownUrl, imageAlt } = data;
   const url = getItemUrl(item);
   const typeConfig = TYPE_CONFIG[item.type] ?? {
     label: item.type,
@@ -105,7 +122,11 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   };
   const stateConfig = STATE_CONFIG[item.state];
 
-  const lines: string[] = [`# ${getItemTitle(item)}`, ''];
+  const lines: string[] = [];
+  if (imageMarkdownUrl) {
+    lines.push(`![${imageAlt}](${imageMarkdownUrl})`, '');
+  }
+  lines.push(`# ${getItemTitle(item)}`, '');
   const p = item.properties;
 
   if (typeof p.body === 'string' && p.body) lines.push(p.body, '');
