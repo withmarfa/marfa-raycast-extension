@@ -1,7 +1,16 @@
-import { Action, ActionPanel, Detail, Form, Icon, useNavigation } from '@raycast/api';
+import {
+  Action,
+  ActionPanel,
+  Detail,
+  Form,
+  Icon,
+  showToast,
+  Toast,
+  useNavigation,
+} from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
 import { useState } from 'react';
-import type { ApiKey } from '@mymehq/sdk';
+import type { ApiKey, UpdateKeyInput } from '@mymehq/sdk';
 import { ForbiddenError, MymeError } from '@mymehq/sdk';
 import { getClient } from '../client';
 
@@ -208,6 +217,136 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         title="Edge Permissions"
         placeholder={EDGE_PLACEHOLDER}
         info='JSON object mapping edge type to "read" | "write". Supports "*" wildcard. Empty means no edge access.'
+        error={edgeError}
+        onChange={() => setEdgeError(undefined)}
+      />
+    </Form>
+  );
+}
+
+interface EditValues {
+  label: string;
+  default_origin: string;
+  default_library: boolean;
+  type_permissions: string;
+  extension_permissions: string;
+  edge_permissions: string;
+}
+
+export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () => void }) {
+  const { pop } = useNavigation();
+  const [labelError, setLabelError] = useState<string | undefined>();
+  const [typeError, setTypeError] = useState<string | undefined>();
+  const [extError, setExtError] = useState<string | undefined>();
+  const [edgeError, setEdgeError] = useState<string | undefined>();
+
+  async function handleSubmit(values: EditValues) {
+    let invalid = false;
+    if (!values.label?.trim()) {
+      setLabelError('Label is required');
+      invalid = true;
+    }
+    const type = parsePermissionField(values.type_permissions, 'Type permissions');
+    if ('error' in type) {
+      setTypeError(type.error);
+      invalid = true;
+    }
+    const ext = parsePermissionField(values.extension_permissions, 'Extension permissions');
+    if ('error' in ext) {
+      setExtError(ext.error);
+      invalid = true;
+    }
+    const edge = parsePermissionField(values.edge_permissions, 'Edge permissions');
+    if ('error' in edge) {
+      setEdgeError(edge.error);
+      invalid = true;
+    }
+    if (invalid) return;
+
+    const input: UpdateKeyInput = {
+      label: values.label.trim(),
+      default_origin: values.default_origin as 'user' | 'ai' | 'worker',
+      default_library: values.default_library,
+      type_permissions: ('value' in type ? type.value : {}) as Record<
+        string,
+        'read' | 'write' | 'none'
+      >,
+      extension_permissions: ('value' in ext ? ext.value : {}) as Record<string, 'read' | 'write'>,
+      edge_permissions: ('value' in edge ? edge.value : {}) as Record<string, 'read' | 'write'>,
+    };
+
+    try {
+      const client = getClient();
+      await client.keys.update(apiKey.id, input);
+      await showToast({ style: Toast.Style.Success, title: 'Key updated' });
+      onSaved();
+      pop();
+    } catch (error) {
+      if (error instanceof MymeError && error.status === 400 && error.code === 'validation_error') {
+        await showFailureToast(error, { title: error.message });
+      } else if (error instanceof ForbiddenError) {
+        await showFailureToast(error, { title: 'Admin credentials required' });
+      } else {
+        await showFailureToast(error, { title: 'Failed to update key' });
+      }
+    }
+  }
+
+  return (
+    <Form
+      navigationTitle={`Edit ${apiKey.label}`}
+      actions={
+        <ActionPanel>
+          <Action.SubmitForm title="Save Changes" icon={Icon.Check} onSubmit={handleSubmit} />
+        </ActionPanel>
+      }
+    >
+      <Form.TextField
+        id="label"
+        title="Label"
+        defaultValue={apiKey.label}
+        error={labelError}
+        onChange={() => setLabelError(undefined)}
+      />
+      <Form.Description title="Source" text={`${apiKey.source} (immutable)`} />
+      <Form.Description title="Role" text={`${apiKey.role} (immutable)`} />
+      <Form.Dropdown
+        id="default_origin"
+        title="Default Origin"
+        defaultValue={apiKey.default_origin}
+      >
+        <Form.Dropdown.Item value="user" title="User" />
+        <Form.Dropdown.Item value="ai" title="AI" />
+        <Form.Dropdown.Item value="worker" title="Worker" />
+      </Form.Dropdown>
+      <Form.Checkbox
+        id="default_library"
+        title="Library"
+        label="Default new items to library: true"
+        defaultValue={apiKey.default_library}
+      />
+      <Form.Separator />
+      <Form.TextArea
+        id="type_permissions"
+        title="Type Permissions"
+        defaultValue={JSON.stringify(apiKey.type_permissions ?? {}, null, 2)}
+        info='JSON object mapping type pattern to "read" | "write" | "none".'
+        error={typeError}
+        onChange={() => setTypeError(undefined)}
+      />
+      <Form.TextArea
+        id="extension_permissions"
+        title="Extension Permissions"
+        defaultValue={JSON.stringify(apiKey.extension_permissions ?? {}, null, 2)}
+        info='JSON object mapping extension namespace to "read" | "write".'
+        error={extError}
+        onChange={() => setExtError(undefined)}
+      />
+      <Form.TextArea
+        id="edge_permissions"
+        title="Edge Permissions"
+        defaultValue={JSON.stringify(apiKey.edge_permissions ?? {}, null, 2)}
+        info='JSON object mapping edge type to "read" | "write".'
         error={edgeError}
         onChange={() => setEdgeError(undefined)}
       />
