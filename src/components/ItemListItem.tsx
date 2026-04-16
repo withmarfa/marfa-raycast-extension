@@ -2,7 +2,14 @@ import { ActionPanel, Action, Icon, List, Color } from '@raycast/api';
 import { getFavicon } from '@raycast/utils';
 import type { Item, Metadata } from '@mymehq/sdk';
 import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
-import { getItemTitle, getItemSubtitle, getItemUrl, formatTime } from '../helpers';
+import {
+  getItemTitle,
+  getItemSubtitle,
+  getItemUrl,
+  formatTime,
+  formatDate,
+  formatRelativeTime,
+} from '../helpers';
 import { ItemDetailView } from './ItemDetailView';
 import { ItemActionSections } from './ItemActions';
 
@@ -26,18 +33,15 @@ export function ItemListItem({ item, metadata, snippet, onRefresh }: ItemListIte
     ? getFavicon(url, { fallback: Icon.Link })
     : { source: typeConfig.icon, tintColor: typeConfig.color };
 
-  const accessories: List.Item.Accessory[] = [
-    { tag: { value: typeConfig.label, color: typeConfig.color } },
-  ];
+  const accessories: List.Item.Accessory[] = [];
   if (stateConfig && item.state !== 'active') {
     accessories.push({ tag: { value: stateConfig.label, color: stateConfig.color } });
   }
-  accessories.push({ text: formatTime(item.timestamp) });
-  if (metadata?.tags) {
-    for (const tag of metadata.tags.slice(0, 2)) {
-      accessories.push({ tag: { value: tag } });
-    }
-  }
+  accessories.push({ tag: item.source });
+  accessories.push({
+    text: formatRelativeTime(item.timestamp),
+    tooltip: `${formatDate(item.timestamp)} ${formatTime(item.timestamp)}`,
+  });
 
   return (
     <List.Item
