@@ -1,16 +1,19 @@
 import { Action, ActionPanel, Color, Detail, Icon } from '@raycast/api';
 import { useCachedPromise } from '@raycast/utils';
-import type { Edge } from '@mymehq/sdk';
 import { getClient } from '../client';
 import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
-import {
-  getItemTitle,
-  getItemUrl,
-  formatDate,
-  formatTime,
-  formatRelativeTime,
-} from '../helpers';
+import { getItemTitle, getItemUrl, formatDate, formatTime, formatRelativeTime } from '../helpers';
 import { ItemActionSections } from './ItemActions';
+
+interface Edge {
+  id: string;
+  source_id: string;
+  target_id: string;
+  edge_type: string;
+  properties: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
 
 interface ItemDetailViewProps {
   itemId: string;
@@ -62,7 +65,14 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   if (extensionNamespaces.length > 0) {
     lines.push('', '## Extensions', '');
     for (const ns of extensionNamespaces) {
-      lines.push(`### ${ns}`, '', '```json', JSON.stringify(metadata.extensions[ns], null, 2), '```', '');
+      lines.push(
+        `### ${ns}`,
+        '',
+        '```json',
+        JSON.stringify(metadata.extensions[ns], null, 2),
+        '```',
+        '',
+      );
     }
   }
 
