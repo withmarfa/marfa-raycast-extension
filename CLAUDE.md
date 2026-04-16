@@ -58,3 +58,4 @@ Trashed items: Restore action
 - ESLint 9 flat config via `@raycast/eslint-config@2.x`
 - Prettier with single quotes, 100 char width
 - Build outputs to `./dist/` (gitignored). Do not output to repo root — that path is destructive and removes `assets/` between runs.
+- Lint uses `ray lint --relaxed` — this repo is pnpm-based, and `--relaxed` skips ray's npm-specific `package-lock.json` check (plus the store-publish icon validation, which isn't relevant for private use). If this extension is ever submitted to the Raycast store, drop `--relaxed` and generate `package-lock.json` first.
