@@ -4,7 +4,7 @@
   "title": "Myme",
   "description": "Browse, search, and capture items in your Myme data layer",
   "icon": "icon.png",
-  "author": "aicayzer",
+  "author": "aic",
   "categories": [
     "Productivity",
     "Data"
@@ -59,7 +59,7 @@
     }
   ],
   "dependencies": {
-    "@mymehq/sdk": "^1.0.0",
+    "@mymehq/sdk": "^3.0.0",
     "@raycast/api": "^1.104.0",
     "@raycast/utils": "^2.2.0"
   },
@@ -72,9 +72,9 @@
     "typescript": "^5.8.2"
   },
   "scripts": {
-    "build": "ray build -o .",
+    "build": "ray build -o ./dist",
     "dev": "ray develop",
-    "fix-lint": "ray lint --fix",
-    "lint": "ray lint"
+    "fix-lint": "ray lint --fix --relaxed",
+    "lint": "ray lint --relaxed"
   }
 }

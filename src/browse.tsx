@@ -34,6 +34,7 @@ export default function BrowseCommand() {
       const client = getClient();
       const response = await client.items.listWithMetadata({
         type: typeFilter || undefined,
+        library: true,
         sort: 'timestamp',
         direction: 'desc',
         limit: 50,
