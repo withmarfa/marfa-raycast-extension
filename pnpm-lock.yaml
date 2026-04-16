@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@mymehq/sdk':
-        specifier: ^1.0.0
-        version: 1.0.1
+        specifier: ^3.0.0
+        version: 3.0.0
       '@raycast/api':
         specifier: ^1.104.0
         version: 1.104.11(@types/node@22.13.10)(@types/react@19.0.10)
@@ -383,11 +383,11 @@ packages:
       '@types/node':
         optional: true
 
-  '@mymehq/sdk@1.0.1':
-    resolution: {integrity: sha512-cSosAnhU9y2k0W1nVqT15SdjUgPAU0A0O1IhxBgXi8pboOAtgEMrSlZLcFQPnaFB6ijuGfytoB/YMC/gDlsX9g==}
+  '@mymehq/sdk@3.0.0':
+    resolution: {integrity: sha512-YeJOE0Y4S3XXPTcomMPXYcPMUBqe0ZkCKYw2HeSVijeMexNBBDxnTZif2t0kOPZjBbRZ1S9NeaBphbg56S0U9A==}
 
-  '@mymehq/shared@1.0.0':
-    resolution: {integrity: sha512-uS5/4O0qtJ7dKtQ8PB7qbS1e/FBPZefsbTS+BFfNUzlIa9eFvLMMngkXiTLH4F+ElQRFWuxL3C841M01UidjMg==}
+  '@mymehq/shared@3.0.0':
+    resolution: {integrity: sha512-JJMlpwO2ZCFZsN70elJiy/Yy9fzMvmfiRd8flY6XDo/YI1BQ0fDlkzuBKu/fnsMPGBxq2ZJ2t3M51rBpl9Yn3A==}
 
   '@oclif/core@4.10.5':
     resolution: {integrity: sha512-qcdCF7NrdWPfme6Kr34wwljRCXbCVpL1WVxiNy0Ep6vbWKjxAjFQwuhqkoyL0yjI+KdwtLcOCGn5z2yzdijc8w==}
@@ -1287,11 +1287,11 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.13.10
 
-  '@mymehq/sdk@1.0.1':
+  '@mymehq/sdk@3.0.0':
     dependencies:
-      '@mymehq/shared': 1.0.0
+      '@mymehq/shared': 3.0.0
 
-  '@mymehq/shared@1.0.0':
+  '@mymehq/shared@3.0.0':
     dependencies:
       uuidv7: 1.2.1
       zod: 4.3.6
