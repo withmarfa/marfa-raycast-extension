@@ -26,12 +26,14 @@ export default async function ClipboardCaptureCommand() {
       await client.items.create({
         type: 'core.bookmark',
         properties: { url: content, title: content },
+        library: true,
       });
       await showHUD('Bookmark captured');
     } else {
       await client.items.create({
         type: 'core.note',
         properties: { body: content },
+        library: true,
       });
       await showHUD('Note captured');
     }

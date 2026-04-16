@@ -16,6 +16,7 @@ export default function SearchCommand() {
       const client = getClient();
       return client.search(q, {
         type: typeFilter || undefined,
+        library: true,
         limit: 20,
       });
     },
