@@ -10,6 +10,7 @@ import {
   Alert,
 } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
+import { useState } from 'react';
 import type { Item, Metadata, ItemState } from '@mymehq/sdk';
 import { getClient } from '../client';
 import { getItemTitle, getItemUrl } from '../helpers';
@@ -43,6 +44,53 @@ function AddTagForm({ itemId, onComplete }: { itemId: string; onComplete: () => 
       }
     >
       <Form.TextField id="tags" title="Tags" placeholder="tag1, tag2, tag3 (comma-separated)" />
+    </Form>
+  );
+}
+
+function ReplyForm({ targetItemId, onComplete }: { targetItemId: string; onComplete: () => void }) {
+  const { pop } = useNavigation();
+  const [bodyError, setBodyError] = useState<string | undefined>();
+
+  async function handleSubmit(values: { title: string; body: string }) {
+    if (!values.body?.trim()) {
+      setBodyError('Body is required');
+      return;
+    }
+    const properties: Record<string, unknown> = { body: values.body };
+    if (values.title?.trim()) properties.title = values.title;
+    try {
+      const client = getClient();
+      await client.items.create({
+        type: 'core.note',
+        properties,
+        edges: { 'in-thread': [targetItemId] },
+        library: true,
+      });
+      await showToast({ style: Toast.Style.Success, title: 'Reply sent' });
+      onComplete();
+      pop();
+    } catch (error) {
+      await showFailureToast(error, { title: 'Failed to reply' });
+    }
+  }
+
+  return (
+    <Form
+      actions={
+        <ActionPanel>
+          <Action.SubmitForm title="Reply" icon={Icon.Reply} onSubmit={handleSubmit} />
+        </ActionPanel>
+      }
+    >
+      <Form.TextField id="title" title="Title" placeholder="Optional" />
+      <Form.TextArea
+        id="body"
+        title="Body"
+        placeholder="Your reply..."
+        error={bodyError}
+        onChange={() => setBodyError(undefined)}
+      />
     </Form>
   );
 }
@@ -145,6 +193,14 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
           title="Copy ID"
           content={item.id}
           shortcut={{ modifiers: ['cmd'], key: '.' }}
+        />
+      </ActionPanel.Section>
+
+      <ActionPanel.Section title="Edges">
+        <Action.Push
+          title="Reply"
+          icon={Icon.Reply}
+          target={<ReplyForm targetItemId={item.id} onComplete={onRefresh} />}
         />
       </ActionPanel.Section>
 
