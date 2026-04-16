@@ -30,6 +30,7 @@ Extension preferences (set in Raycast):
 - **Search** -- full-text search with debounced input. Shows snippets and metadata
 - **Quick Capture** -- create notes, bookmarks, tasks, or events with type-specific fields and validation
 - **Clipboard Capture** -- no-view command. Reads clipboard, detects URL vs text, creates a bookmark or note instantly
+- **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default origin/library, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Member keys see an "admin credentials required" empty state instead
 
 ## Action panel
 
@@ -41,7 +42,7 @@ Trashed items: Restore action
 
 ## Dependencies
 
-- **@mymehq/sdk** -- TypeScript HTTP client (from npm), pinned to `^3.0.0` (V0)
+- **@mymehq/sdk** -- TypeScript HTTP client (from npm), pinned to `^3.1.0` (adds `client.keys.update` for the Manage Keys edit flow)
 - **@raycast/utils** -- useCachedPromise, showFailureToast, getFavicon
 
 ## V0 contract notes
@@ -59,3 +60,15 @@ Trashed items: Restore action
 - Prettier with single quotes, 100 char width
 - Build outputs to `./dist/` (gitignored). Do not output to repo root — that path is destructive and removes `assets/` between runs.
 - Lint uses `ray lint --relaxed` — this repo is pnpm-based, and `--relaxed` skips ray's npm-specific `package-lock.json` check (plus the store-publish icon validation, which isn't relevant for private use). If this extension is ever submitted to the Raycast store, drop `--relaxed` and generate `package-lock.json` first.
+
+## Local install
+
+Standard Raycast extension idiom — the extension lives in your Raycast app, not in this repo, after a one-time dev-mode registration.
+
+1. **First time after cloning:** `pnpm install && pnpm dev` in this repo. Wait for the "Built extension" message — that means Raycast has registered it.
+2. Hit `Ctrl+C` to stop dev mode.
+3. The extension stays installed and usable in Raycast forever. Search for any of its commands (Browse, Search, Quick Capture, Clipboard Capture, Manage Keys) from the Raycast root. No terminal needed; no plist; no auto-start.
+
+What you lose by stopping dev: hot reload (file edits don't propagate) and console-log streaming. What you keep: the extension itself — fully functional.
+
+**Update ritual after pulling new code** (e.g. after a PR merges to main): run `pnpm dev` briefly so Raycast picks up the fresh build, then `Ctrl+C` again.
