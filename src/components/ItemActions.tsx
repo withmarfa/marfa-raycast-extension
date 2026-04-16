@@ -117,8 +117,6 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
       transitions.push({ state: 'active', title: 'Move to Active', icon: Icon.CheckCircle });
     if (item.state !== 'archived')
       transitions.push({ state: 'archived', title: 'Archive', icon: Icon.Tray });
-    if (item.state !== 'new')
-      transitions.push({ state: 'new', title: 'Move to New', icon: Icon.Plus });
     transitions.push({ state: 'trashed', title: 'Trash', icon: Icon.Trash });
   }
 
