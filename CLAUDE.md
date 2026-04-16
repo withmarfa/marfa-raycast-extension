@@ -20,7 +20,7 @@ Extension preferences (set in Raycast):
 
 ## Testing
 
-- **Staging:** `http://100.127.105.110:8601`
+- **Staging:** `http://100.127.105.110:8602` (V0 server)
 - **Staging API key:** in `~/aic-local/Dev/MymeHQ/mock-myme/.env`
 - Use staging for testing. Do not write test data to production
 
@@ -33,7 +33,7 @@ Extension preferences (set in Raycast):
 
 ## Action panel
 
-All items: View Detail, Copy Title, Copy ID, Add/Remove Tags, State transitions (Active/Archived/New/Trash), Delete Permanently
+All items: View Detail, Copy Title/ID, Add/Remove Tags, Reply (in-thread edge), Annotate (annotates edge → core.highlight), State transitions (Active/Archived/Trash), Delete Permanently
 
 Bookmarks additionally: Open in Browser (primary action), Copy URL
 
@@ -41,8 +41,15 @@ Trashed items: Restore action
 
 ## Dependencies
 
-- **@mymehq/sdk** -- TypeScript HTTP client (from npm)
+- **@mymehq/sdk** -- TypeScript HTTP client (from npm), pinned to `^3.0.0` (V0)
 - **@raycast/utils** -- useCachedPromise, showFailureToast, getFavicon
+
+## V0 contract notes
+
+- **Lifecycle is three-value:** `active | archived | trashed`. There is no `new` state.
+- **Library filter is opt-in:** the V0 server no longer defaults `library: true` on `/items` or `/search`. Browse and Search pass `library: true` explicitly to preserve curated-only behaviour. Quick Capture and Clipboard Capture stamp `library: true` to mirror the user-captured intent.
+- **Typed edges:** the Item shape no longer carries `parent_id`, `thread_id`, or `metadata.about`. Relationships are first-class typed edges. Reply creates an `in-thread` edge; Annotate creates an `annotates` edge. Atomic edge writes go through the `edges` field on `client.items.create`.
+- **Source is server-stamped** from the credential — never set by the client.
 
 ## Conventions
 
@@ -50,3 +57,4 @@ Trashed items: Restore action
 - Follows Raycast extension patterns (useCachedPromise, Form, List, Detail)
 - ESLint 9 flat config via `@raycast/eslint-config@2.x`
 - Prettier with single quotes, 100 char width
+- Build outputs to `./dist/` (gitignored). Do not output to repo root — that path is destructive and removes `assets/` between runs.
