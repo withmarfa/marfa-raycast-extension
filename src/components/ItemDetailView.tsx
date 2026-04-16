@@ -2,8 +2,18 @@ import { Action, ActionPanel, Color, Detail, Icon } from '@raycast/api';
 import { useCachedPromise } from '@raycast/utils';
 import { getClient } from '../client';
 import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
-import { getItemTitle, getItemUrl, formatDate, formatTime } from '../helpers';
+import { getItemTitle, getItemUrl, formatDate, formatTime, formatRelativeTime } from '../helpers';
 import { ItemActionSections } from './ItemActions';
+
+interface Edge {
+  id: string;
+  source_id: string;
+  target_id: string;
+  edge_type: string;
+  properties: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
 
 interface ItemDetailViewProps {
   itemId: string;
@@ -14,8 +24,12 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   const { data, isLoading, revalidate } = useCachedPromise(
     async (id: string) => {
       const client = getClient();
-      const [item, metadata] = await Promise.all([client.items.get(id), client.metadata.get(id)]);
-      return { item, metadata };
+      const [item, metadata, edgesResponse] = await Promise.all([
+        client.items.get(id),
+        client.metadata.get(id),
+        client.items.edges(id, { limit: 100 }),
+      ]);
+      return { item, metadata, edges: edgesResponse.data };
     },
     [itemId],
   );
@@ -24,7 +38,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
     return <Detail isLoading={isLoading} />;
   }
 
-  const { item, metadata } = data;
+  const { item, metadata, edges } = data;
   const url = getItemUrl(item);
   const typeConfig = TYPE_CONFIG[item.type] ?? {
     label: item.type,
@@ -45,6 +59,26 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
     if (!skip.has(key) && value != null) {
       lines.push(`**${key}:** ${String(value)}`);
     }
+  }
+
+  const extensionNamespaces = Object.keys(metadata.extensions);
+  if (extensionNamespaces.length > 0) {
+    lines.push('', '## Extensions', '');
+    for (const ns of extensionNamespaces) {
+      lines.push(
+        `### ${ns}`,
+        '',
+        '```json',
+        JSON.stringify(metadata.extensions[ns], null, 2),
+        '```',
+        '',
+      );
+    }
+  }
+
+  const edgeCounts = new Map<string, number>();
+  for (const edge of edges) {
+    edgeCounts.set(edge.edge_type, (edgeCounts.get(edge.edge_type) ?? 0) + 1);
   }
 
   function handleRefresh() {
@@ -69,6 +103,15 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
             />
           </Detail.Metadata.TagList>
           <Detail.Metadata.Separator />
+          <Detail.Metadata.Label title="Source" text={item.source} />
+          <Detail.Metadata.Label title="Origin" text={item.origin} />
+          <Detail.Metadata.TagList title="Library">
+            <Detail.Metadata.TagList.Item
+              text={item.library ? 'Library' : 'Ambient'}
+              color={item.library ? Color.Green : Color.SecondaryText}
+            />
+          </Detail.Metadata.TagList>
+          <Detail.Metadata.Separator />
           <Detail.Metadata.Label
             title="Timestamp"
             text={`${formatDate(item.timestamp)} ${formatTime(item.timestamp)}`}
@@ -79,17 +122,47 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
           />
           <Detail.Metadata.Label
             title="Updated"
-            text={`${formatDate(item.updated_at)} ${formatTime(item.updated_at)}`}
+            text={`${formatDate(item.updated_at)} ${formatTime(item.updated_at)} (${formatRelativeTime(item.updated_at)})`}
           />
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label title="ID" text={item.id} />
-          {item.source && <Detail.Metadata.Label title="Source" text={item.source} />}
+          <Detail.Metadata.Label title="Version" text={`v${item.version}`} />
+          <Detail.Metadata.Label title="Schema version" text={`v${item.schema_version}`} />
+          {item.source_id && <Detail.Metadata.Label title="Source ID" text={item.source_id} />}
+          {item.device && <Detail.Metadata.Label title="Device" text={item.device} />}
           {metadata.tags.length > 0 && (
-            <Detail.Metadata.TagList title="Tags">
-              {metadata.tags.map((tag) => (
-                <Detail.Metadata.TagList.Item key={tag} text={tag} />
-              ))}
-            </Detail.Metadata.TagList>
+            <>
+              <Detail.Metadata.Separator />
+              <Detail.Metadata.TagList title="Tags">
+                {metadata.tags.map((tag) => (
+                  <Detail.Metadata.TagList.Item key={tag} text={tag} />
+                ))}
+              </Detail.Metadata.TagList>
+            </>
+          )}
+          {edgeCounts.size > 0 && (
+            <>
+              <Detail.Metadata.Separator />
+              <Detail.Metadata.TagList title="Edges">
+                {Array.from(edgeCounts.entries()).map(([edgeType, count]) => (
+                  <Detail.Metadata.TagList.Item
+                    key={edgeType}
+                    text={`${edgeType} (${count})`}
+                    color={Color.SecondaryText}
+                  />
+                ))}
+              </Detail.Metadata.TagList>
+            </>
+          )}
+          {extensionNamespaces.length > 0 && (
+            <>
+              <Detail.Metadata.Separator />
+              <Detail.Metadata.TagList title="Extensions">
+                {extensionNamespaces.map((ns) => (
+                  <Detail.Metadata.TagList.Item key={ns} text={ns} color={Color.SecondaryText} />
+                ))}
+              </Detail.Metadata.TagList>
+            </>
           )}
         </Detail.Metadata>
       }
@@ -103,10 +176,37 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
               shortcut={{ modifiers: ['cmd'], key: 'r' }}
               onAction={handleRefresh}
             />
+            {edges.length > 0 && (
+              <Action.Push
+                title="View Edges"
+                icon={Icon.Link}
+                target={<EdgesDetailView itemTitle={getItemTitle(item)} edges={edges} />}
+              />
+            )}
           </ActionPanel.Section>
           <ItemActionSections item={item} metadata={metadata} onRefresh={handleRefresh} />
         </ActionPanel>
       }
     />
   );
+}
+
+function EdgesDetailView({ itemTitle, edges }: { itemTitle: string; edges: Edge[] }) {
+  const grouped = new Map<string, Edge[]>();
+  for (const edge of edges) {
+    const list = grouped.get(edge.edge_type);
+    if (list) {
+      list.push(edge);
+    } else {
+      grouped.set(edge.edge_type, [edge]);
+    }
+  }
+
+  const lines: string[] = [`# Edges — ${itemTitle}`, ''];
+  for (const [edgeType, edgesOfType] of grouped.entries()) {
+    lines.push(`## ${edgeType} (${edgesOfType.length})`, '');
+    lines.push('```json', JSON.stringify(edgesOfType, null, 2), '```', '');
+  }
+
+  return <Detail markdown={lines.join('\n')} navigationTitle={`Edges — ${itemTitle}`} />;
 }
