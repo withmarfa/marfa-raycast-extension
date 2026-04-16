@@ -129,7 +129,10 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
           string,
           'read' | 'write' | 'none'
         >,
-        extension_permissions: ('value' in ext ? ext.value : {}) as Record<string, 'read' | 'write'>,
+        extension_permissions: ('value' in ext ? ext.value : {}) as Record<
+          string,
+          'read' | 'write'
+        >,
         edge_permissions: ('value' in edge ? edge.value : {}) as Record<string, 'read' | 'write'>,
       });
       onCreated();
