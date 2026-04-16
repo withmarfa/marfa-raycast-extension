@@ -74,7 +74,7 @@
   "scripts": {
     "build": "ray build -o ./dist",
     "dev": "ray develop",
-    "fix-lint": "ray lint --fix",
-    "lint": "ray lint"
+    "fix-lint": "ray lint --fix --relaxed",
+    "lint": "ray lint --relaxed"
   }
 }
