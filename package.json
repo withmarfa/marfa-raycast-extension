@@ -38,6 +38,13 @@
       "subtitle": "Myme",
       "description": "Capture clipboard content as a bookmark or note",
       "mode": "no-view"
+    },
+    {
+      "name": "manage-keys",
+      "title": "Manage Keys",
+      "subtitle": "Myme",
+      "description": "Admin: list, create, edit, and revoke API keys",
+      "mode": "view"
     }
   ],
   "preferences": [
@@ -59,7 +66,7 @@
     }
   ],
   "dependencies": {
-    "@mymehq/sdk": "^3.0.0",
+    "@mymehq/sdk": "^3.1.0",
     "@raycast/api": "^1.104.0",
     "@raycast/utils": "^2.2.0"
   },
