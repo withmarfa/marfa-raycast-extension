@@ -1,5 +1,6 @@
 import { ActionPanel, Action, Icon, List, Color } from '@raycast/api';
 import { getFavicon } from '@raycast/utils';
+import type { ReactNode } from 'react';
 import type { Item, Metadata } from '@mymehq/sdk';
 import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
 import {
@@ -18,9 +19,16 @@ interface ItemListItemProps {
   metadata?: Metadata;
   snippet?: string;
   onRefresh: () => void;
+  topActions?: ReactNode;
 }
 
-export function ItemListItem({ item, metadata, snippet, onRefresh }: ItemListItemProps) {
+export function ItemListItem({
+  item,
+  metadata,
+  snippet,
+  onRefresh,
+  topActions,
+}: ItemListItemProps) {
   const typeConfig = TYPE_CONFIG[item.type] ?? {
     label: item.type,
     icon: Icon.Circle,
@@ -62,6 +70,7 @@ export function ItemListItem({ item, metadata, snippet, onRefresh }: ItemListIte
               shortcut={url ? { modifiers: ['cmd'], key: 'return' } : undefined}
             />
           </ActionPanel.Section>
+          {topActions}
           <ItemActionSections item={item} metadata={metadata} onRefresh={onRefresh} />
         </ActionPanel>
       }
