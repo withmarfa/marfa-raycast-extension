@@ -95,6 +95,59 @@ function ReplyForm({ targetItemId, onComplete }: { targetItemId: string; onCompl
   );
 }
 
+function AnnotateForm({
+  targetItemId,
+  onComplete,
+}: {
+  targetItemId: string;
+  onComplete: () => void;
+}) {
+  const { pop } = useNavigation();
+  const [textError, setTextError] = useState<string | undefined>();
+
+  async function handleSubmit(values: { text: string; note: string }) {
+    if (!values.text?.trim()) {
+      setTextError('Highlighted text is required');
+      return;
+    }
+    const properties: Record<string, unknown> = { text: values.text };
+    if (values.note?.trim()) properties.note = values.note;
+    try {
+      const client = getClient();
+      await client.items.create({
+        type: 'core.highlight',
+        properties,
+        edges: { annotates: [targetItemId] },
+        library: true,
+      });
+      await showToast({ style: Toast.Style.Success, title: 'Highlight saved' });
+      onComplete();
+      pop();
+    } catch (error) {
+      await showFailureToast(error, { title: 'Failed to save highlight' });
+    }
+  }
+
+  return (
+    <Form
+      actions={
+        <ActionPanel>
+          <Action.SubmitForm title="Save Highlight" icon={Icon.Highlight} onSubmit={handleSubmit} />
+        </ActionPanel>
+      }
+    >
+      <Form.TextArea
+        id="text"
+        title="Highlighted Text"
+        placeholder="The passage you're highlighting..."
+        error={textError}
+        onChange={() => setTextError(undefined)}
+      />
+      <Form.TextArea id="note" title="Note" placeholder="Optional commentary" />
+    </Form>
+  );
+}
+
 interface ItemActionSectionsProps {
   item: Item;
   metadata?: Metadata;
@@ -201,6 +254,11 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
           title="Reply"
           icon={Icon.Reply}
           target={<ReplyForm targetItemId={item.id} onComplete={onRefresh} />}
+        />
+        <Action.Push
+          title="Annotate"
+          icon={Icon.Highlight}
+          target={<AnnotateForm targetItemId={item.id} onComplete={onRefresh} />}
         />
       </ActionPanel.Section>
 
