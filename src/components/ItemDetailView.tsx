@@ -2,8 +2,66 @@ import { Action, ActionPanel, Color, Detail, Icon } from '@raycast/api';
 import { useCachedPromise } from '@raycast/utils';
 import { getClient } from '../client';
 import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
-import { getItemTitle, getItemUrl, formatDate, formatTime, formatRelativeTime } from '../helpers';
+import {
+  getItemTitle,
+  getItemUrl,
+  formatDate,
+  formatTime,
+  formatRelativeTime,
+  toTitleCase,
+} from '../helpers';
 import { ItemActionSections } from './ItemActions';
+
+const BODY_PROPERTY_KEYS = new Set([
+  'title',
+  'name',
+  'body',
+  'description',
+  'url',
+  'text',
+  'notes',
+]);
+
+const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T/;
+
+type ScalarSidebarEntry =
+  | { kind: 'datetime'; key: string; value: string }
+  | { kind: 'url'; key: string; value: string }
+  | { kind: 'boolean'; key: string; value: boolean }
+  | { kind: 'number'; key: string; value: number }
+  | { kind: 'string'; key: string; value: string }
+  | { kind: 'array'; key: string; value: string };
+
+function isPrimitive(v: unknown): v is string | number | boolean {
+  return typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
+}
+
+function classifyProperty(
+  key: string,
+  value: unknown,
+): ScalarSidebarEntry | { kind: 'complex'; key: string; value: unknown } | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    if (value === '') return null;
+    if (ISO_DATETIME_RE.test(value)) return { kind: 'datetime', key, value };
+    if (value.startsWith('http://') || value.startsWith('https://'))
+      return { kind: 'url', key, value };
+    return { kind: 'string', key, value };
+  }
+  if (typeof value === 'boolean') return { kind: 'boolean', key, value };
+  if (typeof value === 'number') return { kind: 'number', key, value };
+  if (Array.isArray(value)) {
+    if (value.length === 0) return null;
+    if (value.every(isPrimitive)) {
+      return { kind: 'array', key, value: value.map((v) => String(v)).join(', ') };
+    }
+    return { kind: 'complex', key, value };
+  }
+  if (typeof value === 'object') {
+    return { kind: 'complex', key, value };
+  }
+  return null;
+}
 
 interface Edge {
   id: string;
@@ -50,15 +108,31 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   const lines: string[] = [`# ${getItemTitle(item)}`, ''];
   const p = item.properties;
 
-  if (typeof p.body === 'string') lines.push(p.body, '');
-  if (typeof p.description === 'string') lines.push(p.description, '');
-  if (typeof p.url === 'string') lines.push(`[${p.url}](${p.url})`, '');
+  if (typeof p.body === 'string' && p.body) lines.push(p.body, '');
+  if (typeof p.description === 'string' && p.description) lines.push(p.description, '');
+  if (typeof p.text === 'string' && p.text) lines.push(p.text, '');
+  if (typeof p.notes === 'string' && p.notes) lines.push(p.notes, '');
+  if (typeof p.url === 'string' && p.url) lines.push(`[${p.url}](${p.url})`, '');
 
-  const skip = new Set(['title', 'name', 'body', 'description', 'url']);
+  const sidebarEntries: ScalarSidebarEntry[] = [];
+  const complexEntries: Array<{ key: string; value: unknown }> = [];
   for (const [key, value] of Object.entries(p)) {
-    if (!skip.has(key) && value != null) {
-      lines.push(`**${key}:** ${String(value)}`);
+    if (BODY_PROPERTY_KEYS.has(key)) continue;
+    const classified = classifyProperty(key, value);
+    if (!classified) continue;
+    if (classified.kind === 'complex') {
+      complexEntries.push({ key: classified.key, value: classified.value });
+    } else {
+      sidebarEntries.push(classified);
     }
+  }
+
+  if (complexEntries.length > 0) {
+    lines.push('## Extended properties', '', '```json');
+    lines.push(
+      JSON.stringify(Object.fromEntries(complexEntries.map((e) => [e.key, e.value])), null, 2),
+    );
+    lines.push('```', '');
   }
 
   const extensionNamespaces = Object.keys(metadata.extensions);
@@ -102,6 +176,12 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
               color={stateConfig?.color ?? Color.PrimaryText}
             />
           </Detail.Metadata.TagList>
+          {sidebarEntries.length > 0 && (
+            <>
+              <Detail.Metadata.Separator />
+              {sidebarEntries.map((entry) => renderSidebarEntry(entry))}
+            </>
+          )}
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label title="Source" text={item.source} />
           <Detail.Metadata.Label title="Origin" text={item.origin} />
@@ -189,6 +269,43 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
       }
     />
   );
+}
+
+function renderSidebarEntry(entry: ScalarSidebarEntry) {
+  const title = toTitleCase(entry.key);
+  switch (entry.kind) {
+    case 'datetime':
+      return (
+        <Detail.Metadata.Label
+          key={entry.key}
+          title={title}
+          text={`${formatDate(entry.value)} ${formatTime(entry.value)}`}
+        />
+      );
+    case 'url':
+      return (
+        <Detail.Metadata.Link
+          key={entry.key}
+          title={title}
+          target={entry.value}
+          text={entry.value}
+        />
+      );
+    case 'boolean':
+      return (
+        <Detail.Metadata.TagList key={entry.key} title={title}>
+          <Detail.Metadata.TagList.Item
+            text={entry.value ? 'Yes' : 'No'}
+            color={entry.value ? Color.Green : Color.SecondaryText}
+          />
+        </Detail.Metadata.TagList>
+      );
+    case 'number':
+      return <Detail.Metadata.Label key={entry.key} title={title} text={String(entry.value)} />;
+    case 'string':
+    case 'array':
+      return <Detail.Metadata.Label key={entry.key} title={title} text={entry.value} />;
+  }
 }
 
 function EdgesDetailView({ itemTitle, edges }: { itemTitle: string; edges: Edge[] }) {

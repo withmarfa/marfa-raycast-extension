@@ -61,6 +61,16 @@ export function stripHtmlTags(html: string): string {
   return html.replace(/<[^>]*>/g, '');
 }
 
+export function toTitleCase(key: string): string {
+  const words = key.split('_').filter(Boolean);
+  if (words.length === 0) return key;
+  const [first, ...rest] = words;
+  return [
+    first.charAt(0).toUpperCase() + first.slice(1).toLowerCase(),
+    ...rest.map((w) => w.toLowerCase()),
+  ].join(' ');
+}
+
 export function groupItemsByDate(items: Item[]): Map<string, Item[]> {
   const groups = new Map<string, Item[]>();
   for (const item of items) {
