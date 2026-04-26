@@ -20,9 +20,8 @@ Extension preferences (set in Raycast):
 
 ## Testing
 
-- **Staging:** `http://100.127.105.110:8602` (V0 server)
-- **Staging API key:** in `~/aic-local/Dev/MymeHQ/mock-myme/.env`
-- Use staging for testing. Do not write test data to production
+- Point the extension at a non-production V0 server during development; never write test data to a production instance.
+- The staging URL and admin key live in your local `.env` for the conformance suite — re-use them rather than hardcoding here.
 
 ## Commands
 
