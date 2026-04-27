@@ -65,7 +65,7 @@ function ReplyForm({ targetItemId, onComplete }: { targetItemId: string; onCompl
         type: 'core.note',
         properties,
         edges: { 'in-thread': [targetItemId] },
-        library: true,
+        tier: 'library',
       });
       await showToast({ style: Toast.Style.Success, title: 'Reply sent' });
       onComplete();
@@ -118,7 +118,7 @@ function AnnotateForm({
         type: 'core.highlight',
         properties,
         edges: { annotates: [targetItemId] },
-        library: true,
+        tier: 'library',
       });
       await showToast({ style: Toast.Style.Success, title: 'Highlight saved' });
       onComplete();

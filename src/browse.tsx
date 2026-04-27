@@ -6,23 +6,17 @@ import { getClient } from './client';
 import { ALL_TYPES } from './constants';
 import { formatDate } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
-import { LibraryFilterDropdown, type LibraryFilter } from './components/LibraryFilterDropdown';
+import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 
 interface ItemWithMetadata {
   item: Item;
   metadata: Metadata;
 }
 
-const LIBRARY_PARAM: Record<LibraryFilter, boolean | undefined> = {
-  all: undefined,
-  library: true,
-  ambient: false,
-};
-
-const LIBRARY_LABEL: Record<LibraryFilter, string> = {
+const TIER_LABEL: Record<TierFilter, string> = {
   all: 'All items',
   library: 'Library only',
-  ambient: 'Ambient only',
+  feed: 'Feed only',
 };
 
 function groupByDate(entries: ItemWithMetadata[]): Map<string, ItemWithMetadata[]> {
@@ -40,16 +34,16 @@ function groupByDate(entries: ItemWithMetadata[]): Map<string, ItemWithMetadata[
 }
 
 export default function BrowseCommand() {
-  const [library, setLibrary] = useState<LibraryFilter>('all');
+  const [tier, setTier] = useState<TierFilter>('all');
   const [type, setType] = useState('');
 
   const { data, isLoading, revalidate, pagination } = useCachedPromise(
-    (typeFilter: string, libraryFilter: LibraryFilter) =>
+    (typeFilter: string, tierFilter: TierFilter) =>
       async (options: { page: number; cursor?: string }) => {
         const client = getClient();
         const response = await client.items.listWithMetadata({
           type: typeFilter || undefined,
-          library: LIBRARY_PARAM[libraryFilter],
+          tier: tierFilter,
           sort: 'timestamp',
           direction: 'desc',
           limit: 50,
@@ -61,14 +55,12 @@ export default function BrowseCommand() {
           cursor: response.cursor,
         };
       },
-    [type, library],
+    [type, tier],
   );
 
   const groups = groupByDate(data ?? []);
   const typeLabel = type ? (ALL_TYPES.find((t) => t.value === type)?.label ?? null) : null;
-  const navigationTitle = typeLabel
-    ? `${LIBRARY_LABEL[library]} · ${typeLabel}`
-    : LIBRARY_LABEL[library];
+  const navigationTitle = typeLabel ? `${TIER_LABEL[tier]} · ${typeLabel}` : TIER_LABEL[tier];
 
   const typeSubmenu = (
     <ActionPanel.Submenu
@@ -93,7 +85,7 @@ export default function BrowseCommand() {
       filtering
       pagination={pagination}
       navigationTitle={navigationTitle}
-      searchBarAccessory={<LibraryFilterDropdown onChange={setLibrary} />}
+      searchBarAccessory={<TierFilterDropdown onChange={setTier} />}
     >
       {!isLoading && data?.length === 0 ? (
         <List.EmptyView

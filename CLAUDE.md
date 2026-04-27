@@ -29,7 +29,7 @@ Extension preferences (set in Raycast):
 - **Search** -- full-text search with debounced input. Shows snippets and metadata
 - **Quick Capture** -- create notes, bookmarks, tasks, or events with type-specific fields and validation
 - **Clipboard Capture** -- no-view command. Reads clipboard, detects URL vs text, creates a bookmark or note instantly
-- **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default origin/library, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Member keys see an "admin credentials required" empty state instead
+- **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default origin, default tier, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Member keys see an "admin credentials required" empty state instead
 
 ## Action panel
 
@@ -41,13 +41,13 @@ Trashed items: Restore action
 
 ## Dependencies
 
-- **@mymehq/sdk** -- TypeScript HTTP client (from npm), pinned to `^3.1.0` (adds `client.keys.update` for the Manage Keys edit flow)
+- **@mymehq/sdk** -- TypeScript HTTP client (from npm), pinned to `^4.0.0` (TSC42: tier rename, system.* set, semver-diff at registration)
 - **@raycast/utils** -- useCachedPromise, showFailureToast, getFavicon
 
-## V0 contract notes
+## Server contract notes
 
-- **Lifecycle is three-value:** `active | archived | trashed`. There is no `new` state.
-- **Library filter is opt-in:** the V0 server no longer defaults `library: true` on `/items` or `/search`. Browse and Search pass `library: true` explicitly to preserve curated-only behaviour. Quick Capture and Clipboard Capture stamp `library: true` to mirror the user-captured intent.
+- **Lifecycle:** `active | archived | trashed | revoked`. core/custom items use the active/archived/trashed graph; system.* items use active/revoked. The extension only operates on user-facing items, so it surfaces the three-state subset.
+- **Tier:** items carry `tier: 'library' | 'feed'` (renamed from the old boolean `library`). Quick Capture, Clipboard Capture, Reply, and Annotate stamp `tier: 'library'` to mirror the user-captured intent. Browse and Search pass an explicit `tier` filter (`library` | `feed` | `all`). `system.*` items have no tier — the detail view renders `—` if it ever encounters one.
 - **Typed edges:** the Item shape no longer carries `parent_id`, `thread_id`, or `metadata.about`. Relationships are first-class typed edges. Reply creates an `in-thread` edge; Annotate creates an `annotates` edge. Atomic edge writes go through the `edges` field on `client.items.create`.
 - **Source is server-stamped** from the credential — never set by the client.
 
