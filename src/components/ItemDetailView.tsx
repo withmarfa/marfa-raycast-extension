@@ -206,10 +206,16 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label title="Source" text={item.source} />
           <Detail.Metadata.Label title="Origin" text={item.origin} />
-          <Detail.Metadata.TagList title="Library">
+          <Detail.Metadata.TagList title="Tier">
             <Detail.Metadata.TagList.Item
-              text={item.library ? 'Library' : 'Ambient'}
-              color={item.library ? Color.Green : Color.SecondaryText}
+              text={item.tier === 'library' ? 'Library' : item.tier === 'feed' ? 'Feed' : '—'}
+              color={
+                item.tier === 'library'
+                  ? Color.Green
+                  : item.tier === 'feed'
+                    ? Color.SecondaryText
+                    : Color.SecondaryText
+              }
             />
           </Detail.Metadata.TagList>
           <Detail.Metadata.Separator />

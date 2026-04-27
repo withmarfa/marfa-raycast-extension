@@ -85,7 +85,7 @@ interface CreateValues {
   source: string;
   role: string;
   default_origin: string;
-  default_library: boolean;
+  default_tier: string;
   type_permissions: string;
   extension_permissions: string;
   edge_permissions: string;
@@ -133,7 +133,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         source: values.source.trim(),
         role: values.role as 'admin' | 'member',
         default_origin: values.default_origin as 'user' | 'ai' | 'worker',
-        default_library: values.default_library,
+        default_tier: values.default_tier as 'library' | 'feed',
         type_permissions: ('value' in type ? type.value : {}) as Record<
           string,
           'read' | 'write' | 'none'
@@ -189,12 +189,10 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         <Form.Dropdown.Item value="ai" title="AI" />
         <Form.Dropdown.Item value="worker" title="Worker" />
       </Form.Dropdown>
-      <Form.Checkbox
-        id="default_library"
-        title="Library"
-        label="Default new items to library: true"
-        defaultValue={false}
-      />
+      <Form.Dropdown id="default_tier" title="Default Tier" defaultValue="library">
+        <Form.Dropdown.Item value="library" title="Library" />
+        <Form.Dropdown.Item value="feed" title="Feed" />
+      </Form.Dropdown>
       <Form.Separator />
       <Form.TextArea
         id="type_permissions"
@@ -227,7 +225,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
 interface EditValues {
   label: string;
   default_origin: string;
-  default_library: boolean;
+  default_tier: string;
   type_permissions: string;
   extension_permissions: string;
   edge_permissions: string;
@@ -266,7 +264,7 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
     const input: UpdateKeyInput = {
       label: values.label.trim(),
       default_origin: values.default_origin as 'user' | 'ai' | 'worker',
-      default_library: values.default_library,
+      default_tier: values.default_tier as 'library' | 'feed',
       type_permissions: ('value' in type ? type.value : {}) as Record<
         string,
         'read' | 'write' | 'none'
@@ -319,12 +317,10 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
         <Form.Dropdown.Item value="ai" title="AI" />
         <Form.Dropdown.Item value="worker" title="Worker" />
       </Form.Dropdown>
-      <Form.Checkbox
-        id="default_library"
-        title="Library"
-        label="Default new items to library: true"
-        defaultValue={apiKey.default_library}
-      />
+      <Form.Dropdown id="default_tier" title="Default Tier" defaultValue={apiKey.default_tier}>
+        <Form.Dropdown.Item value="library" title="Library" />
+        <Form.Dropdown.Item value="feed" title="Feed" />
+      </Form.Dropdown>
       <Form.Separator />
       <Form.TextArea
         id="type_permissions"

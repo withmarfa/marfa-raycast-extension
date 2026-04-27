@@ -80,10 +80,10 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
           <Detail.Metadata.Label title="Source" text={apiKey.source} />
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label title="Default origin" text={apiKey.default_origin} />
-          <Detail.Metadata.TagList title="Default library">
+          <Detail.Metadata.TagList title="Default tier">
             <Detail.Metadata.TagList.Item
-              text={apiKey.default_library ? 'library' : 'ambient'}
-              color={apiKey.default_library ? Color.Green : Color.SecondaryText}
+              text={apiKey.default_tier}
+              color={apiKey.default_tier === 'library' ? Color.Green : Color.SecondaryText}
             />
           </Detail.Metadata.TagList>
           <Detail.Metadata.Separator />

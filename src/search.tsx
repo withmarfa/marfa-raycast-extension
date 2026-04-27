@@ -5,30 +5,24 @@ import { getClient } from './client';
 import { ALL_TYPES } from './constants';
 import { stripHtmlTags } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
-import { LibraryFilterDropdown, type LibraryFilter } from './components/LibraryFilterDropdown';
-
-const LIBRARY_PARAM: Record<LibraryFilter, boolean | undefined> = {
-  all: undefined,
-  library: true,
-  ambient: false,
-};
+import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 
 export default function SearchCommand() {
   const [searchText, setSearchText] = useState('');
   const [type, setType] = useState('');
-  const [library, setLibrary] = useState<LibraryFilter>('all');
+  const [tier, setTier] = useState<TierFilter>('all');
 
   const { data, isLoading, revalidate } = useCachedPromise(
-    async (q: string, typeFilter: string, libraryFilter: LibraryFilter) => {
+    async (q: string, typeFilter: string, tierFilter: TierFilter) => {
       if (!q.trim()) return [];
       const client = getClient();
       return client.search(q, {
         type: typeFilter || undefined,
-        library: LIBRARY_PARAM[libraryFilter],
+        tier: tierFilter,
         limit: 20,
       });
     },
-    [searchText, type, library],
+    [searchText, type, tier],
     { keepPreviousData: true },
   );
 
@@ -54,7 +48,7 @@ export default function SearchCommand() {
       isLoading={isLoading}
       onSearchTextChange={setSearchText}
       searchBarPlaceholder="Search items..."
-      searchBarAccessory={<LibraryFilterDropdown onChange={setLibrary} />}
+      searchBarAccessory={<TierFilterDropdown onChange={setTier} />}
       throttle
     >
       {!searchText.trim() ? (
