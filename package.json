@@ -54,8 +54,7 @@
       "description": "Myme server URL",
       "type": "textfield",
       "required": true,
-      "default": "http://localhost:8600",
-      "placeholder": "http://localhost:8600"
+      "placeholder": "http://localhost:8602"
     },
     {
       "name": "apiKey",

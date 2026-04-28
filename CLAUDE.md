@@ -15,7 +15,7 @@ pnpm lint        # lint with Raycast rules (ESLint 9 flat config)
 
 Extension preferences (set in Raycast):
 
-- **API URL** -- Myme server URL (default: `http://localhost:8600`)
+- **API URL** -- Myme server URL (required; no default — Raycast prompts on first run)
 - **API Key** -- authentication key (password field)
 
 ## Testing
@@ -41,7 +41,7 @@ Trashed items: Restore action
 
 ## Dependencies
 
-- **@mymehq/sdk** -- TypeScript HTTP client (from npm), pinned to `^4.0.0` (TSC42: tier rename, system.* set, semver-diff at registration)
+- **@mymehq/sdk** -- TypeScript HTTP client (from npm). `package.json` is the source of truth for the version floor.
 - **@raycast/utils** -- useCachedPromise, showFailureToast, getFavicon
 
 ## Server contract notes
