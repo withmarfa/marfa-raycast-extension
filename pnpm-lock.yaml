@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@mymehq/sdk':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.7.1
+        version: 5.7.1
       '@raycast/api':
         specifier: ^1.104.0
         version: 1.104.11(@types/node@22.13.10)(@types/react@19.0.10)
@@ -383,11 +383,11 @@ packages:
       '@types/node':
         optional: true
 
-  '@mymehq/sdk@4.0.0':
-    resolution: {integrity: sha512-3YI27260B3DacNeXipvAZP4Fdd+lJ3496XpBIg81ybzH21P6n7h1tSEzxlLGJHc2mSERYl9qTwn9rMRX8d/KMg==}
+  '@mymehq/sdk@5.7.1':
+    resolution: {integrity: sha512-zSbKnweeU/kyaoSuLkTmO0ujPmGWMiBnte3jI7i1iquceWfiO4FFS1dgdfgEfROC4mFHeHqv5vwXteSgLXJ8HQ==}
 
-  '@mymehq/shared@4.0.0':
-    resolution: {integrity: sha512-QXecXn/ZIY/dyOkRHH43hN4FcSNTMXYE4c3I78fgNkWEz9hYpt16tY+4p8uE3gDXVxW+lL7QQw9Ps1OLyQKPiw==}
+  '@mymehq/shared@5.7.0':
+    resolution: {integrity: sha512-jjQG7re04cypMoYl4/rgDKDt0GpgTviq/dB1s4HS+azEbPoH0NOi63H3hdIqCaLC83K4VvvLLFyM0hy14g9kZg==}
 
   '@oclif/core@4.10.5':
     resolution: {integrity: sha512-qcdCF7NrdWPfme6Kr34wwljRCXbCVpL1WVxiNy0Ep6vbWKjxAjFQwuhqkoyL0yjI+KdwtLcOCGn5z2yzdijc8w==}
@@ -1022,8 +1022,8 @@ packages:
     resolution: {integrity: sha512-U/PBtDf35ff0D8X8D0jfdzHYEPFxAI7jJlxZXwCSez5M3190m+QobIfh+sWDWSHMCWWJN2AWamkegn6vr6YBTw==}
     engines: {node: '>=18'}
 
-  zod@4.3.6:
-    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
 
@@ -1287,14 +1287,14 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.13.10
 
-  '@mymehq/sdk@4.0.0':
+  '@mymehq/sdk@5.7.1':
     dependencies:
-      '@mymehq/shared': 4.0.0
+      '@mymehq/shared': 5.7.0
 
-  '@mymehq/shared@4.0.0':
+  '@mymehq/shared@5.7.0':
     dependencies:
       uuidv7: 1.2.1
-      zod: 4.3.6
+      zod: 4.4.3
 
   '@oclif/core@4.10.5':
     dependencies:
@@ -1949,4 +1949,4 @@ snapshots:
 
   yoctocolors-cjs@2.1.3: {}
 
-  zod@4.3.6: {}
+  zod@4.4.3: {}
