@@ -39,7 +39,8 @@ The static API-key preference remains as a dev / escape-hatch fallback. Preceden
 - **Browse** -- list items with date grouping, type icons, metadata. Paginated with auto-loading. Native Raycast filtering within loaded items. Type filter dropdown
 - **Search** -- full-text search with debounced input. Shows snippets and metadata
 - **Quick Capture** -- create notes, bookmarks, tasks, or events with type-specific fields and validation
-- **Clipboard Capture** -- no-view command. Reads clipboard, detects URL vs text, creates a bookmark or note instantly
+- **Clipboard Capture** -- no-view command. Reads clipboard, routes by content: URL → bookmark; image file → `core.file.image`; other file → `core.file`; HTML-rich text → note (with `html` preserved); plain text → note. Uploads blobs to `client.blobs.upload` for the file paths
+- **Clipboard Capture (Edit)** -- view command. Pre-fills a form from the clipboard, lets the user adjust type / fields before submitting. Type picker includes file-shaped types (greyed when no file is on the clipboard)
 - **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Non-admin principals see an "admin credentials required" empty state instead
 
 ## Action panel

@@ -3,6 +3,7 @@ import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
 import { getClient, MymeAuthMissingError } from './client';
 import { CAPTURE_TYPES } from './constants';
+import { CaptureFields } from './components/CaptureFields';
 import { SignInRequiredDetail } from './components/SignInRequiredView';
 
 interface FormValues {
@@ -115,54 +116,13 @@ export default function QuickCaptureCommand() {
 
       <Form.Separator />
 
-      {type === 'core.note' && (
-        <>
-          <Form.TextField id="title" title="Title" placeholder="Note title" />
-          <Form.TextArea id="body" title="Body" placeholder="Write your note..." />
-        </>
-      )}
-
-      {type === 'core.bookmark' && (
-        <>
-          <Form.TextField
-            id="url"
-            title="URL"
-            placeholder="https://..."
-            error={urlError}
-            onChange={() => setUrlError(undefined)}
-          />
-          <Form.TextField id="title" title="Title" placeholder="Bookmark title" />
-          <Form.TextArea id="description" title="Description" placeholder="Optional description" />
-        </>
-      )}
-
-      {type === 'core.task' && (
-        <>
-          <Form.TextField
-            id="title"
-            title="Title"
-            placeholder="Task title"
-            error={titleError}
-            onChange={() => setTitleError(undefined)}
-          />
-          <Form.TextArea id="description" title="Description" placeholder="Optional description" />
-          <Form.DatePicker id="due_at" title="Due Date" />
-          <Form.Dropdown id="priority" title="Priority" defaultValue="medium">
-            <Form.Dropdown.Item title="Low" value="low" />
-            <Form.Dropdown.Item title="Medium" value="medium" />
-            <Form.Dropdown.Item title="High" value="high" />
-            <Form.Dropdown.Item title="Urgent" value="urgent" />
-          </Form.Dropdown>
-        </>
-      )}
-
-      {type === 'core.event' && (
-        <>
-          <Form.TextField id="title" title="Title" placeholder="Event title" />
-          <Form.DatePicker id="starts_at" title="Starts At" />
-          <Form.TextField id="place" title="Place" placeholder="Location" />
-        </>
-      )}
+      <CaptureFields
+        type={type}
+        urlError={urlError}
+        titleError={titleError}
+        onUrlChange={() => setUrlError(undefined)}
+        onTitleChange={() => setTitleError(undefined)}
+      />
 
       <Form.Separator />
       <Form.TextField id="tags" title="Tags" placeholder="tag1, tag2 (comma-separated)" />

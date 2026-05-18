@@ -50,8 +50,15 @@
       "name": "clipboard-capture",
       "title": "Clipboard Capture",
       "subtitle": "Myme",
-      "description": "Capture clipboard content as a bookmark or note",
+      "description": "Capture clipboard content — bookmark, image, file, or note — instantly",
       "mode": "no-view"
+    },
+    {
+      "name": "clipboard-capture-edit",
+      "title": "Clipboard Capture (Edit)",
+      "subtitle": "Myme",
+      "description": "Capture clipboard content with a form to shape type and properties before submitting",
+      "mode": "view"
     },
     {
       "name": "manage-keys",
