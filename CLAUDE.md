@@ -9,7 +9,10 @@ pnpm install
 pnpm dev         # development mode in Raycast
 pnpm build       # production build
 pnpm lint        # lint with Raycast rules (ESLint 9 flat config)
+pnpm typecheck   # tsc --noEmit. Faster signal than `ray build` for type errors during dev work
 ```
+
+*`pnpm-workspace.yaml` exists solely to satisfy pnpm 11's `allowBuilds` approval gate for `esbuild`'s postinstall — required because `ray build` invokes `pnpm install` internally and the gate would otherwise fail. Not a real workspace; this repo is single-package.*
 
 ## Configuration
 
