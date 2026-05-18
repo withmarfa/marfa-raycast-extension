@@ -1,10 +1,11 @@
 import { Action, ActionPanel, Icon, List } from '@raycast/api';
-import { useCachedPromise } from '@raycast/utils';
+import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
-import { getClient } from './client';
+import { getClient, MymeAuthMissingError } from './client';
 import { ALL_TYPES } from './constants';
 import { stripHtmlTags } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
+import { SignInRequiredEmptyView } from './components/SignInRequiredView';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 
 export default function SearchCommand() {
@@ -12,7 +13,7 @@ export default function SearchCommand() {
   const [type, setType] = useState('');
   const [tier, setTier] = useState<TierFilter>('all');
 
-  const { data, isLoading, revalidate } = useCachedPromise(
+  const { data, isLoading, error, revalidate } = useCachedPromise(
     async (q: string, typeFilter: string, tierFilter: TierFilter) => {
       if (!q.trim()) return [];
       const client = await getClient();
@@ -23,7 +24,13 @@ export default function SearchCommand() {
       });
     },
     [searchText, type, tier],
-    { keepPreviousData: true },
+    {
+      keepPreviousData: true,
+      onError: async (err) => {
+        if (err instanceof MymeAuthMissingError) return;
+        await showFailureToast(err, { title: 'Search failed' });
+      },
+    },
   );
 
   const typeSubmenu = (
@@ -51,7 +58,9 @@ export default function SearchCommand() {
       searchBarAccessory={<TierFilterDropdown onChange={setTier} />}
       throttle
     >
-      {!searchText.trim() ? (
+      {error instanceof MymeAuthMissingError ? (
+        <SignInRequiredEmptyView />
+      ) : !searchText.trim() ? (
         <List.EmptyView
           title="Search Myme"
           description="Type to search your items"

@@ -1,6 +1,6 @@
-import { Clipboard, showHUD } from '@raycast/api';
+import { Clipboard, LaunchType, launchCommand, showHUD, showToast, Toast } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
-import { getClient } from './client';
+import { getClient, MymeAuthMissingError } from './client';
 
 function isUrl(text: string): boolean {
   try {
@@ -19,7 +19,27 @@ export default async function ClipboardCaptureCommand() {
   }
 
   const content = text.trim();
-  const client = await getClient();
+  let client;
+  try {
+    client = await getClient();
+  } catch (err) {
+    if (err instanceof MymeAuthMissingError) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: 'Sign in to Myme',
+        message: 'Run the Sign in to Myme command first.',
+        primaryAction: {
+          title: 'Sign In',
+          onAction: () => {
+            void launchCommand({ name: 'login', type: LaunchType.UserInitiated });
+          },
+        },
+      });
+      return;
+    }
+    await showFailureToast(err, { title: 'Failed to capture' });
+    return;
+  }
 
   try {
     if (isUrl(content)) {

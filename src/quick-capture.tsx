@@ -1,8 +1,9 @@
 import { Action, ActionPanel, Form, Icon, showHUD, useNavigation } from '@raycast/api';
-import { showFailureToast } from '@raycast/utils';
+import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
-import { getClient } from './client';
+import { getClient, MymeAuthMissingError } from './client';
 import { CAPTURE_TYPES } from './constants';
+import { SignInRequiredDetail } from './components/SignInRequiredView';
 
 interface FormValues {
   type: string;
@@ -22,6 +23,28 @@ export default function QuickCaptureCommand() {
   const [urlError, setUrlError] = useState<string | undefined>();
   const [titleError, setTitleError] = useState<string | undefined>();
   const { pop } = useNavigation();
+
+  // Probe credentials before rendering the form — if no session, surface
+  // the Sign In screen rather than a form that 401s on submit.
+  const { error: authError, isLoading: authLoading } = useCachedPromise(
+    async () => {
+      await getClient();
+      return true;
+    },
+    [],
+    {
+      onError: async (err) => {
+        if (err instanceof MymeAuthMissingError) return;
+        await showFailureToast(err);
+      },
+    },
+  );
+  if (authError instanceof MymeAuthMissingError) {
+    return <SignInRequiredDetail />;
+  }
+  if (authLoading) {
+    return <Form isLoading actions={null} />;
+  }
 
   async function handleSubmit(values: FormValues) {
     // Validate required fields

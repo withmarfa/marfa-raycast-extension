@@ -38,7 +38,11 @@ export function ItemListItem({
   if (stateConfig && item.state !== 'active') {
     accessories.push({ tag: { value: stateConfig.label, color: stateConfig.color } });
   }
-  accessories.push({ tag: item.source });
+  // Show user-curated tags (up to 2) instead of the credential source stamp.
+  // Source remains visible on the Detail view alongside other audit fields.
+  for (const tag of (metadata?.tags ?? []).slice(0, 2)) {
+    accessories.push({ tag });
+  }
   accessories.push({
     text: formatRelativeTime(item.timestamp),
     tooltip: `${formatDate(item.timestamp)} ${formatTime(item.timestamp)}`,

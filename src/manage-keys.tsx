@@ -12,10 +12,11 @@ import {
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import type { ApiKey } from '@mymehq/sdk';
 import { ForbiddenError } from '@mymehq/sdk';
-import { getClient } from './client';
+import { getClient, MymeAuthMissingError } from './client';
 import { formatRelativeTime } from './helpers';
 import { CreateKeyForm, EditKeyForm } from './components/KeyForms';
 import { KeyDetailView } from './components/KeyDetailView';
+import { SignInRequiredEmptyView } from './components/SignInRequiredView';
 
 export default function ManageKeysCommand() {
   const {
@@ -32,6 +33,7 @@ export default function ManageKeysCommand() {
     {
       onError: async (e) => {
         if (e instanceof ForbiddenError) return;
+        if (e instanceof MymeAuthMissingError) return;
         await showFailureToast(e, { title: 'Failed to load keys' });
       },
     },
@@ -58,13 +60,21 @@ export default function ManageKeysCommand() {
     }
   }
 
+  if (error instanceof MymeAuthMissingError) {
+    return (
+      <List isLoading={isLoading}>
+        <SignInRequiredEmptyView />
+      </List>
+    );
+  }
+
   if (error instanceof ForbiddenError) {
     return (
       <List isLoading={isLoading}>
         <List.EmptyView
           icon={{ source: Icon.Lock, tintColor: Color.Yellow }}
           title="Admin credentials required"
-          description="The API key in extension preferences cannot list keys. Replace it with an admin key in Raycast preferences."
+          description="This account doesn't have admin role. Sign in with an admin account, or paste an admin API key in Preferences."
         />
       </List>
     );

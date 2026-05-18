@@ -1,11 +1,12 @@
 import { Action, ActionPanel, Icon, List } from '@raycast/api';
-import { useCachedPromise } from '@raycast/utils';
+import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
 import type { Item, Metadata } from '@mymehq/sdk';
-import { getClient } from './client';
+import { getClient, MymeAuthMissingError } from './client';
 import { ALL_TYPES } from './constants';
 import { formatDate } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
+import { SignInRequiredEmptyView } from './components/SignInRequiredView';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 
 interface ItemWithMetadata {
@@ -37,7 +38,7 @@ export default function BrowseCommand() {
   const [tier, setTier] = useState<TierFilter>('all');
   const [type, setType] = useState('');
 
-  const { data, isLoading, revalidate, pagination } = useCachedPromise(
+  const { data, isLoading, error, revalidate, pagination } = useCachedPromise(
     (typeFilter: string, tierFilter: TierFilter) =>
       async (options: { page: number; cursor?: string }) => {
         const client = await getClient();
@@ -56,6 +57,12 @@ export default function BrowseCommand() {
         };
       },
     [type, tier],
+    {
+      onError: async (err) => {
+        if (err instanceof MymeAuthMissingError) return;
+        await showFailureToast(err, { title: 'Failed to load items' });
+      },
+    },
   );
 
   const groups = groupByDate(data ?? []);
@@ -87,7 +94,9 @@ export default function BrowseCommand() {
       navigationTitle={navigationTitle}
       searchBarAccessory={<TierFilterDropdown onChange={setTier} />}
     >
-      {!isLoading && data?.length === 0 ? (
+      {error instanceof MymeAuthMissingError ? (
+        <SignInRequiredEmptyView />
+      ) : !isLoading && data?.length === 0 ? (
         <List.EmptyView
           title="No items"
           description="Nothing here yet"

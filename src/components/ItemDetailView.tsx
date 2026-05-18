@@ -24,6 +24,32 @@ const BODY_PROPERTY_KEYS = new Set([
   'notes',
 ]);
 
+/**
+ * Keys that the property walker must skip because they shadow first-class
+ * Item fields rendered elsewhere in the sidebar (e.g. a custom type that
+ * declares `properties.device` collides with `item.device`). Mirrors the
+ * `BODY_PROPERTY_KEYS` pattern — silently drops the duplicate rather than
+ * letting the sidebar show two same-titled labels.
+ */
+const FIRST_CLASS_SHADOW_KEYS = new Set([
+  'id',
+  'type',
+  'state',
+  'tier',
+  'tenant_id',
+  'properties',
+  'created_at',
+  'updated_at',
+  'timestamp',
+  'source',
+  'source_id',
+  'version',
+  'schema_version',
+  'device',
+  'capture_latitude',
+  'capture_longitude',
+]);
+
 const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T/;
 
 type ScalarSidebarEntry =
@@ -139,6 +165,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   const complexEntries: Array<{ key: string; value: unknown }> = [];
   for (const [key, value] of Object.entries(p)) {
     if (BODY_PROPERTY_KEYS.has(key)) continue;
+    if (FIRST_CLASS_SHADOW_KEYS.has(key)) continue;
     const classified = classifyProperty(key, value);
     if (!classified) continue;
     if (classified.kind === 'complex') {
@@ -232,8 +259,8 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
           />
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label title="ID" text={item.id} />
-          <Detail.Metadata.Label title="Version" text={`v${item.version}`} />
-          <Detail.Metadata.Label title="Schema version" text={`v${item.schema_version}`} />
+          <Detail.Metadata.Label title="Revision" text={String(item.version)} />
+          <Detail.Metadata.Label title="Schema version" text={String(item.schema_version)} />
           {item.source_id && <Detail.Metadata.Label title="Source ID" text={item.source_id} />}
           {item.device && <Detail.Metadata.Label title="Device" text={item.device} />}
           {metadata.tags.length > 0 && (
