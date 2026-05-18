@@ -43,6 +43,11 @@ The static API-key preference remains as a dev / escape-hatch fallback. Preceden
 - **Clipboard Capture (Edit)** -- view command. Pre-fills a form from the clipboard, lets the user adjust type / fields before submitting. Type picker includes file-shaped types (greyed when no file is on the clipboard)
 - **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Non-admin principals see an "admin credentials required" empty state instead
 
+### Platform controls (off by default — enable in Raycast Preferences → Extensions → Myme)
+
+- **Server Info** -- read-only view of the connected instance, auth mode, and signed-in identity. Sign Out action surfaces here too
+- **Type Registry** -- read-only list of every type registered on the instance (core / custom / system). Detail per type shows the full schema JSON
+
 ## Action panel
 
 All items: View Detail, Copy Title/ID, Add/Remove Tags, Reply (in-thread edge), Annotate (annotates edge → core.highlight), State transitions (Active/Archived/Trash), Delete Permanently

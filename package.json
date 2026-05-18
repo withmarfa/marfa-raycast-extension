@@ -66,6 +66,22 @@
       "subtitle": "Myme",
       "description": "Admin: list, create, edit, and revoke API keys",
       "mode": "view"
+    },
+    {
+      "name": "server-info",
+      "title": "Server Info",
+      "subtitle": "Myme",
+      "description": "Read-only view of the connected instance, auth mode, and signed-in identity",
+      "mode": "view",
+      "disabledByDefault": true
+    },
+    {
+      "name": "type-registry",
+      "title": "Type Registry",
+      "subtitle": "Myme",
+      "description": "Browse every type registered on the instance (core, custom, system)",
+      "mode": "view",
+      "disabledByDefault": true
     }
   ],
   "preferences": [
