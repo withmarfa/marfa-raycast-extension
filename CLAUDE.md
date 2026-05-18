@@ -40,6 +40,7 @@ Trashed items: Restore action
 
 ## Dependencies
 
+- **@raycast/api** -- Raycast platform SDK. Carries every Raycast primitive (`List`, `Form`, `Detail`, `Action`, `OAuth.PKCEClient`, `LocalStorage`, `Clipboard`, etc.). `package.json` is the source of truth for the version floor.
 - **@mymehq/sdk** -- TypeScript HTTP client (from npm). `package.json` is the source of truth for the version floor.
 - **@raycast/utils** -- useCachedPromise, showFailureToast, getFavicon
 
