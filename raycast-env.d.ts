@@ -10,14 +10,18 @@
 type ExtensionPreferences = {
   /** Server URL - Myme server URL */
   "apiUrl": string,
-  /** API Key - Myme API key for authentication */
-  "apiKey": string
+  /** API Key - Optional dev/escape-hatch API key. Use the Sign in to Myme command for normal use. */
+  "apiKey"?: string
 }
 
 /** Preferences accessible in all the extension's commands */
 declare type Preferences = ExtensionPreferences
 
 declare namespace Preferences {
+  /** Preferences accessible in the `login` command */
+  export type Login = ExtensionPreferences & {}
+  /** Preferences accessible in the `logout` command */
+  export type Logout = ExtensionPreferences & {}
   /** Preferences accessible in the `browse` command */
   export type Browse = ExtensionPreferences & {}
   /** Preferences accessible in the `search` command */
@@ -31,6 +35,10 @@ declare namespace Preferences {
 }
 
 declare namespace Arguments {
+  /** Arguments passed to the `login` command */
+  export type Login = {}
+  /** Arguments passed to the `logout` command */
+  export type Logout = {}
   /** Arguments passed to the `browse` command */
   export type Browse = {}
   /** Arguments passed to the `search` command */

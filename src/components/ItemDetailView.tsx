@@ -83,7 +83,7 @@ interface ItemDetailViewProps {
 export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   const { data, isLoading, revalidate } = useCachedPromise(
     async (id: string) => {
-      const client = getClient();
+      const client = await getClient();
       const [item, metadata, edgesResponse] = await Promise.all([
         client.items.get(id),
         client.metadata.get(id),

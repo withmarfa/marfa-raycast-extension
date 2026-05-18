@@ -25,7 +25,7 @@ export default function ManageKeysCommand() {
     mutate,
   } = useCachedPromise(
     async () => {
-      const client = getClient();
+      const client = await getClient();
       return client.keys.list();
     },
     [],
@@ -45,7 +45,7 @@ export default function ManageKeysCommand() {
     });
     if (!confirmed) return;
     try {
-      const client = getClient();
+      const client = await getClient();
       await client.keys.revoke(key.id);
       await showToast({ style: Toast.Style.Success, title: 'Key revoked' });
       await mutate();

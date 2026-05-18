@@ -40,7 +40,7 @@ export default function BrowseCommand() {
   const { data, isLoading, revalidate, pagination } = useCachedPromise(
     (typeFilter: string, tierFilter: TierFilter) =>
       async (options: { page: number; cursor?: string }) => {
-        const client = getClient();
+        const client = await getClient();
         const response = await client.items.listWithMetadata({
           type: typeFilter || undefined,
           tier: tierFilter,

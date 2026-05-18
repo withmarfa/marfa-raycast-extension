@@ -12,6 +12,20 @@
   "license": "MIT",
   "commands": [
     {
+      "name": "login",
+      "title": "Sign in to Myme",
+      "subtitle": "Myme",
+      "description": "Sign in to your Myme instance via OAuth",
+      "mode": "no-view"
+    },
+    {
+      "name": "logout",
+      "title": "Sign out of Myme",
+      "subtitle": "Myme",
+      "description": "Clear the stored Myme session",
+      "mode": "no-view"
+    },
+    {
       "name": "browse",
       "title": "Browse",
       "subtitle": "Myme",
@@ -59,9 +73,9 @@
     {
       "name": "apiKey",
       "title": "API Key",
-      "description": "Myme API key for authentication",
+      "description": "Optional dev/escape-hatch API key. Use the Sign in to Myme command for normal use.",
       "type": "password",
-      "required": true
+      "required": false
     }
   ],
   "dependencies": {

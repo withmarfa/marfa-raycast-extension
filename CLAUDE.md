@@ -19,19 +19,28 @@ pnpm typecheck   # tsc --noEmit. Faster signal than `ray build` for type errors 
 Extension preferences (set in Raycast):
 
 - **API URL** -- Myme server URL (required; no default — Raycast prompts on first run)
-- **API Key** -- authentication key (password field)
+- **API Key** -- optional dev/escape-hatch API key. Normal use is OAuth via the **Sign in to Myme** command; this preference is left empty unless you want a static key fallback.
+
+## Auth
+
+OAuth-first via Raycast's native `OAuth.PKCEClient`. The **Sign in to Myme** command drives the PKCE auth-code flow: DCR-on-first-run (per issuer) against `/auth/oauth2/register`, browser consent at `/auth/oauth2/authorize`, code-for-tokens at `/auth/oauth2/token`. Tokens persist in Raycast's encrypted token store; the DCR `client_id` lives in `LocalStorage` keyed by issuer (re-sign-in skips DCR). Transparent refresh on access-token expiry via a `TokenProvider` shim that satisfies `MymeClient`'s OAuth contract.
+
+The static API-key preference remains as a dev / escape-hatch fallback. Precedence on every command call (`src/client.ts`): OAuth tokens if present → `apiKey` preference if set → otherwise throw `MymeAuthMissingError` so the calling command can render a "Sign in to Myme" empty state.
 
 ## Testing
 
-- Point the extension at `staging.myme.so` during development; the admin key lives in `~/.myme/admin.json` (chmod 600).
+- Point the extension at `staging.myme.so` during development. The `authtest2` admin user lives there; sign in via the **Sign in to Myme** command (browser consent against `https://staging.myme.so/auth/authorize`).
+- For static-key smoke testing the admin key lives in `~/.myme/admin.json` (chmod 600); paste into Preferences → API Key.
 
 ## Commands
 
+- **Sign in to Myme** -- no-view command. Drives the PKCE auth-code flow via `OAuth.PKCEClient`; tokens persist in Raycast's encrypted store
+- **Sign out of Myme** -- no-view command. Clears the stored session (DCR `client_id` retained so re-sign-in skips registration)
 - **Browse** -- list items with date grouping, type icons, metadata. Paginated with auto-loading. Native Raycast filtering within loaded items. Type filter dropdown
 - **Search** -- full-text search with debounced input. Shows snippets and metadata
 - **Quick Capture** -- create notes, bookmarks, tasks, or events with type-specific fields and validation
 - **Clipboard Capture** -- no-view command. Reads clipboard, detects URL vs text, creates a bookmark or note instantly
-- **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Member keys see an "admin credentials required" empty state instead
+- **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Non-admin principals see an "admin credentials required" empty state instead
 
 ## Action panel
 

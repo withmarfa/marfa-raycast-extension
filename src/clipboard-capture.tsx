@@ -19,7 +19,7 @@ export default async function ClipboardCaptureCommand() {
   }
 
   const content = text.trim();
-  const client = getClient();
+  const client = await getClient();
 
   try {
     if (isUrl(content)) {

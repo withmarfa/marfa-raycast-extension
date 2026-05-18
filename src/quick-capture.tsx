@@ -67,7 +67,7 @@ export default function QuickCaptureCommand() {
       : undefined;
 
     try {
-      const client = getClient();
+      const client = await getClient();
       await client.items.create({ type, properties, tags, tier: 'library' });
       await showHUD('Item captured');
       pop();

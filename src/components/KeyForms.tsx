@@ -126,7 +126,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
     if (invalid) return;
 
     try {
-      const client = getClient();
+      const client = await getClient();
       const created = await client.keys.create({
         label: values.label.trim(),
         source: values.source.trim(),
@@ -265,7 +265,7 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
     };
 
     try {
-      const client = getClient();
+      const client = await getClient();
       await client.keys.update(apiKey.id, input);
       await showToast({ style: Toast.Style.Success, title: 'Key updated' });
       onSaved();

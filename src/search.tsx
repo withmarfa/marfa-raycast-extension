@@ -15,7 +15,7 @@ export default function SearchCommand() {
   const { data, isLoading, revalidate } = useCachedPromise(
     async (q: string, typeFilter: string, tierFilter: TierFilter) => {
       if (!q.trim()) return [];
-      const client = getClient();
+      const client = await getClient();
       return client.search(q, {
         type: typeFilter || undefined,
         tier: tierFilter,
