@@ -9,7 +9,10 @@ pnpm install
 pnpm dev         # development mode in Raycast
 pnpm build       # production build
 pnpm lint        # lint with Raycast rules (ESLint 9 flat config)
+pnpm typecheck   # tsc --noEmit. Faster signal than `ray build` for type errors during dev work
 ```
+
+*`pnpm-workspace.yaml` exists solely to satisfy pnpm 11's `allowBuilds` approval gate for `esbuild`'s postinstall — required because `ray build` invokes `pnpm install` internally and the gate would otherwise fail. Not a real workspace; this repo is single-package.*
 
 ## Configuration
 
@@ -28,7 +31,7 @@ Extension preferences (set in Raycast):
 - **Search** -- full-text search with debounced input. Shows snippets and metadata
 - **Quick Capture** -- create notes, bookmarks, tasks, or events with type-specific fields and validation
 - **Clipboard Capture** -- no-view command. Reads clipboard, detects URL vs text, creates a bookmark or note instantly
-- **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default origin, default tier, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Member keys see an "admin credentials required" empty state instead
+- **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Member keys see an "admin credentials required" empty state instead
 
 ## Action panel
 

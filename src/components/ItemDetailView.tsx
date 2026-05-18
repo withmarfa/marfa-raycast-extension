@@ -205,7 +205,6 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
           )}
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label title="Source" text={item.source} />
-          <Detail.Metadata.Label title="Origin" text={item.origin} />
           <Detail.Metadata.TagList title="Tier">
             <Detail.Metadata.TagList.Item
               text={item.tier === 'library' ? 'Library' : item.tier === 'feed' ? 'Feed' : '—'}
