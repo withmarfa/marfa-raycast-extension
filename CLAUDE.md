@@ -20,8 +20,7 @@ Extension preferences (set in Raycast):
 
 ## Testing
 
-- Point the extension at a non-production V0 server during development; never write test data to a production instance.
-- The staging URL and admin key live in your local `.env` for the conformance suite — re-use them rather than hardcoding here.
+- Point the extension at `staging.myme.so` during development; the admin key lives in `~/.myme/admin.json` (chmod 600).
 
 ## Commands
 
