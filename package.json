@@ -12,20 +12,6 @@
   "license": "MIT",
   "commands": [
     {
-      "name": "login",
-      "title": "Sign in to Myme",
-      "subtitle": "Myme",
-      "description": "Sign in to your Myme instance via OAuth",
-      "mode": "no-view"
-    },
-    {
-      "name": "logout",
-      "title": "Sign out of Myme",
-      "subtitle": "Myme",
-      "description": "Clear the stored Myme session",
-      "mode": "no-view"
-    },
-    {
       "name": "browse",
       "title": "Browse",
       "subtitle": "Myme",
@@ -51,14 +37,16 @@
       "title": "Clipboard Capture",
       "subtitle": "Myme",
       "description": "Capture clipboard content — bookmark, image, file, or note — instantly",
-      "mode": "no-view"
+      "mode": "no-view",
+      "disabledByDefault": true
     },
     {
       "name": "clipboard-capture-edit",
       "title": "Clipboard Capture (Edit)",
       "subtitle": "Myme",
       "description": "Capture clipboard content with a form to shape type and properties before submitting",
-      "mode": "view"
+      "mode": "view",
+      "disabledByDefault": true
     },
     {
       "name": "manage-keys",
@@ -96,9 +84,43 @@
     {
       "name": "apiKey",
       "title": "API Key",
-      "description": "Optional dev/escape-hatch API key. Use the Sign in to Myme command for normal use.",
+      "description": "Optional dev/escape-hatch API key. Normal use signs in via OAuth on first command run.",
       "type": "password",
       "required": false
+    },
+    {
+      "name": "defaultTier",
+      "title": "Default tier",
+      "description": "Tier stamped on captured items by default",
+      "type": "dropdown",
+      "default": "library",
+      "required": false,
+      "data": [
+        { "title": "Library", "value": "library" },
+        { "title": "Feed", "value": "feed" }
+      ]
+    },
+    {
+      "name": "defaultCaptureType",
+      "title": "Default capture type",
+      "description": "Preselected type in Quick Capture and Clipboard Capture (Edit). File-shaped types still win when a file is on the clipboard.",
+      "type": "dropdown",
+      "default": "core.note",
+      "required": false,
+      "data": [
+        { "title": "Note", "value": "core.note" },
+        { "title": "Bookmark", "value": "core.bookmark" },
+        { "title": "Task", "value": "core.task" },
+        { "title": "Event", "value": "core.event" }
+      ]
+    },
+    {
+      "name": "defaultTags",
+      "title": "Default tags",
+      "description": "Comma-separated tags applied to every capture (e.g. raycast, mobile)",
+      "type": "textfield",
+      "required": false,
+      "placeholder": "tag1, tag2"
     }
   ],
   "dependencies": {

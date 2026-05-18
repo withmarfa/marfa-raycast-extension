@@ -16,36 +16,38 @@ pnpm typecheck   # tsc --noEmit. Faster signal than `ray build` for type errors 
 
 ## Configuration
 
-Extension preferences (set in Raycast):
+Extension preferences (set in Raycast → Extensions → Myme):
 
-- **API URL** -- Myme server URL (required; no default — Raycast prompts on first run)
-- **API Key** -- optional dev/escape-hatch API key. Normal use is OAuth via the **Sign in to Myme** command; this preference is left empty unless you want a static key fallback.
+- **Server URL** -- Myme server URL (required; no default — Raycast prompts on first run)
+- **API Key** -- optional dev/escape-hatch static key. Normal use is OAuth, triggered automatically on first command run. Leave empty unless you want a static-key fallback.
+- **Default tier** -- `library` (default) or `feed`. Stamped on every captured item.
+- **Default capture type** -- `core.note` (default) / `core.bookmark` / `core.task` / `core.event`. Preselected in Quick Capture and Clipboard Capture (Edit). File-shaped types still win when a file is on the clipboard.
+- **Default tags** -- comma-separated tags merged into every capture (e.g. `raycast, mobile`).
 
 ## Auth
 
-OAuth-first via Raycast's native `OAuth.PKCEClient`. The **Sign in to Myme** command drives the PKCE auth-code flow: DCR-on-first-run (per issuer) against `/auth/oauth2/register`, browser consent at `/auth/oauth2/authorize`, code-for-tokens at `/auth/oauth2/token`. Tokens persist in Raycast's encrypted token store; the DCR `client_id` lives in `LocalStorage` keyed by issuer (re-sign-in skips DCR). Transparent refresh on access-token expiry via a `TokenProvider` shim that satisfies `MymeClient`'s OAuth contract.
+Implicit OAuth on first use, following the canonical Raycast pattern. Every command's default export is wrapped with `withAccessToken({ authorize, client: pkceClient })` from `@raycast/utils`. The HOC runs `authorize()` before the wrapped function/component executes; the first invocation against a new server triggers DCR (`POST /auth/oauth2/register`, persists `client_id` in `LocalStorage` keyed by issuer) and PKCE consent (browser open via Raycast's overlay → `/auth/oauth2/authorize` → token exchange at `/auth/oauth2/token`). Subsequent invocations refresh silently when the access token is expired. **There is no visible Sign In or Sign Out command** — sign-out is the Raycast-built-in **Logout** option that auto-surfaces in extension settings once tokens are stored.
 
-The static API-key preference remains as a dev / escape-hatch fallback. Precedence on every command call (`src/client.ts`): OAuth tokens if present → `apiKey` preference if set → otherwise throw `MymeAuthMissingError` so the calling command can render a "Sign in to Myme" empty state.
+`src/client.ts` builds the `MymeClient` from the global access token (resolved by the HOC) via a tiny `tokenProvider`. The static-key preference, when set, takes precedence over OAuth — useful for dev / smoke testing.
 
 ## Testing
 
-- Point the extension at `staging.myme.so` during development. The `authtest2` admin user lives there; sign in via the **Sign in to Myme** command (browser consent against `https://staging.myme.so/auth/authorize`).
+- Point the extension at `staging.myme.so` during development. The `authtest2` admin user lives there.
+- First run of any command triggers OAuth consent against staging — Better Auth sign-in, then approve.
 - For static-key smoke testing the admin key lives in `~/.myme/admin.json` (chmod 600); paste into Preferences → API Key.
 
 ## Commands
 
-- **Sign in to Myme** -- no-view command. Drives the PKCE auth-code flow via `OAuth.PKCEClient`; tokens persist in Raycast's encrypted store
-- **Sign out of Myme** -- no-view command. Clears the stored session (DCR `client_id` retained so re-sign-in skips registration)
 - **Browse** -- list items with date grouping, type icons, metadata. Paginated with auto-loading. Native Raycast filtering within loaded items. Type filter dropdown
 - **Search** -- full-text search with debounced input. Shows snippets and metadata
-- **Quick Capture** -- create notes, bookmarks, tasks, or events with type-specific fields and validation
-- **Clipboard Capture** -- no-view command. Reads clipboard, routes by content: URL → bookmark; image file → `core.file.image`; other file → `core.file`; HTML-rich text → note (with `html` preserved); plain text → note. Uploads blobs to `client.blobs.upload` for the file paths
-- **Clipboard Capture (Edit)** -- view command. Pre-fills a form from the clipboard, lets the user adjust type / fields before submitting. Type picker includes file-shaped types (greyed when no file is on the clipboard)
+- **Quick Capture** -- create notes, bookmarks, tasks, or events with type-specific fields and validation; honours capture preference defaults
 - **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Non-admin principals see an "admin credentials required" empty state instead
 
-### Platform controls (off by default — enable in Raycast Preferences → Extensions → Myme)
+### Disabled by default (enable in Raycast Preferences → Extensions → Myme)
 
-- **Server Info** -- read-only view of the connected instance, auth mode, and signed-in identity. Sign Out action surfaces here too
+- **Clipboard Capture** -- no-view command. Reads clipboard, routes by content: URL → bookmark; image file → `core.file.image`; other file → `core.file`; HTML-rich text → note (with `html` preserved); plain text → note. Uploads blobs via `client.blobs.upload`. **Disabled by default while the redo bakes** — flip on once verified
+- **Clipboard Capture (Edit)** -- view command. Pre-fills a form from the clipboard, lets the user adjust type / fields before submitting. Type picker includes file-shaped types
+- **Server Info** -- read-only view of the connected instance, auth mode, and signed-in identity
 - **Type Registry** -- read-only list of every type registered on the instance (core / custom / system). Detail per type shows the full schema JSON
 
 ## Action panel
@@ -59,8 +61,8 @@ Trashed items: Restore action
 ## Dependencies
 
 - **@raycast/api** -- Raycast platform SDK. Carries every Raycast primitive (`List`, `Form`, `Detail`, `Action`, `OAuth.PKCEClient`, `LocalStorage`, `Clipboard`, etc.). `package.json` is the source of truth for the version floor.
+- **@raycast/utils** -- `withAccessToken`, `getAccessToken`, `useCachedPromise`, `showFailureToast`, `getFavicon`. The OAuth HOC is what makes implicit-auth-on-first-use work.
 - **@mymehq/sdk** -- TypeScript HTTP client (from npm). `package.json` is the source of truth for the version floor.
-- **@raycast/utils** -- useCachedPromise, showFailureToast, getFavicon
 
 ## Server contract notes
 
@@ -84,7 +86,7 @@ Standard Raycast extension idiom — the extension lives in your Raycast app, no
 
 1. **First time after cloning:** `pnpm install && pnpm dev` in this repo. Wait for the "Built extension" message — that means Raycast has registered it.
 2. Hit `Ctrl+C` to stop dev mode.
-3. The extension stays installed and usable in Raycast forever. Search for any of its commands (Browse, Search, Quick Capture, Clipboard Capture, Manage Keys) from the Raycast root. No terminal needed; no plist; no auto-start.
+3. The extension stays installed and usable in Raycast forever. Search for any of its commands (Browse, Search, Quick Capture, Manage Keys) from the Raycast root. The clipboard / server-info / type-registry commands ship `disabledByDefault` — enable them in Raycast Preferences → Extensions → Myme when you want them.
 
 What you lose by stopping dev: hot reload (file edits don't propagate) and console-log streaming. What you keep: the extension itself — fully functional.
 

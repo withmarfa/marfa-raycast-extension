@@ -9,16 +9,16 @@ import {
   showToast,
   Toast,
 } from '@raycast/api';
-import { showFailureToast, useCachedPromise } from '@raycast/utils';
+import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
 import type { ApiKey } from '@mymehq/sdk';
 import { ForbiddenError } from '@mymehq/sdk';
-import { getClient, MymeAuthMissingError } from './client';
+import { authorize, pkceClient } from './auth/myme-oauth';
+import { getClient } from './client';
 import { formatRelativeTime } from './helpers';
 import { CreateKeyForm, EditKeyForm } from './components/KeyForms';
 import { KeyDetailView } from './components/KeyDetailView';
-import { SignInRequiredEmptyView } from './components/SignInRequiredView';
 
-export default function ManageKeysCommand() {
+function ManageKeysCommand() {
   const {
     data: keys,
     isLoading,
@@ -26,14 +26,13 @@ export default function ManageKeysCommand() {
     mutate,
   } = useCachedPromise(
     async () => {
-      const client = await getClient();
+      const client = getClient();
       return client.keys.list();
     },
     [],
     {
       onError: async (e) => {
         if (e instanceof ForbiddenError) return;
-        if (e instanceof MymeAuthMissingError) return;
         await showFailureToast(e, { title: 'Failed to load keys' });
       },
     },
@@ -47,7 +46,7 @@ export default function ManageKeysCommand() {
     });
     if (!confirmed) return;
     try {
-      const client = await getClient();
+      const client = getClient();
       await client.keys.revoke(key.id);
       await showToast({ style: Toast.Style.Success, title: 'Key revoked' });
       await mutate();
@@ -58,14 +57,6 @@ export default function ManageKeysCommand() {
         await showFailureToast(err, { title: 'Failed to revoke key' });
       }
     }
-  }
-
-  if (error instanceof MymeAuthMissingError) {
-    return (
-      <List isLoading={isLoading}>
-        <SignInRequiredEmptyView />
-      </List>
-    );
   }
 
   if (error instanceof ForbiddenError) {
@@ -161,3 +152,5 @@ export default function ManageKeysCommand() {
     </List>
   );
 }
+
+export default withAccessToken({ authorize, client: pkceClient })(ManageKeysCommand);

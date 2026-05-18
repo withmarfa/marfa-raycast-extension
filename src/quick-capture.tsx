@@ -1,10 +1,24 @@
-import { Action, ActionPanel, Form, Icon, showHUD, useNavigation } from '@raycast/api';
-import { showFailureToast, useCachedPromise } from '@raycast/utils';
+import {
+  Action,
+  ActionPanel,
+  Form,
+  getPreferenceValues,
+  Icon,
+  showHUD,
+  useNavigation,
+} from '@raycast/api';
+import { showFailureToast, withAccessToken } from '@raycast/utils';
 import { useState } from 'react';
-import { getClient, MymeAuthMissingError } from './client';
+import { authorize, pkceClient } from './auth/myme-oauth';
+import { getClient } from './client';
 import { CAPTURE_TYPES } from './constants';
 import { CaptureFields } from './components/CaptureFields';
-import { SignInRequiredDetail } from './components/SignInRequiredView';
+
+interface CapturePreferences {
+  defaultTier?: 'library' | 'feed';
+  defaultCaptureType?: string;
+  defaultTags?: string;
+}
 
 interface FormValues {
   type: string;
@@ -19,36 +33,31 @@ interface FormValues {
   tags: string;
 }
 
-export default function QuickCaptureCommand() {
-  const [type, setType] = useState('core.note');
+function mergeTags(prefTags: string | undefined, formTags: string): string[] | undefined {
+  const tags: string[] = [];
+  for (const raw of [prefTags ?? '', formTags ?? '']) {
+    for (const tag of raw.split(',')) {
+      const trimmed = tag.trim();
+      if (trimmed && !tags.includes(trimmed)) tags.push(trimmed);
+    }
+  }
+  return tags.length > 0 ? tags : undefined;
+}
+
+function QuickCaptureCommand() {
+  const prefs = getPreferenceValues<CapturePreferences>();
+  const defaultType =
+    prefs.defaultCaptureType && CAPTURE_TYPES.some((t) => t.value === prefs.defaultCaptureType)
+      ? prefs.defaultCaptureType
+      : 'core.note';
+  const defaultTier = prefs.defaultTier ?? 'library';
+
+  const [type, setType] = useState(defaultType);
   const [urlError, setUrlError] = useState<string | undefined>();
   const [titleError, setTitleError] = useState<string | undefined>();
   const { pop } = useNavigation();
 
-  // Probe credentials before rendering the form — if no session, surface
-  // the Sign In screen rather than a form that 401s on submit.
-  const { error: authError, isLoading: authLoading } = useCachedPromise(
-    async () => {
-      await getClient();
-      return true;
-    },
-    [],
-    {
-      onError: async (err) => {
-        if (err instanceof MymeAuthMissingError) return;
-        await showFailureToast(err);
-      },
-    },
-  );
-  if (authError instanceof MymeAuthMissingError) {
-    return <SignInRequiredDetail />;
-  }
-  if (authLoading) {
-    return <Form isLoading actions={null} />;
-  }
-
   async function handleSubmit(values: FormValues) {
-    // Validate required fields
     if (type === 'core.bookmark' && !values.url?.trim()) {
       setUrlError('URL is required');
       return;
@@ -59,7 +68,6 @@ export default function QuickCaptureCommand() {
     }
 
     const properties: Record<string, unknown> = {};
-
     switch (type) {
       case 'core.note':
         if (values.title) properties.title = values.title;
@@ -83,16 +91,11 @@ export default function QuickCaptureCommand() {
         break;
     }
 
-    const tags = values.tags
-      ? values.tags
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean)
-      : undefined;
+    const tags = mergeTags(prefs.defaultTags, values.tags);
 
     try {
-      const client = await getClient();
-      await client.items.create({ type, properties, tags, tier: 'library' });
+      const client = getClient();
+      await client.items.create({ type, properties, tags, tier: defaultTier });
       await showHUD('Item captured');
       pop();
     } catch (error) {
@@ -129,3 +132,5 @@ export default function QuickCaptureCommand() {
     </Form>
   );
 }
+
+export default withAccessToken({ authorize, client: pkceClient })(QuickCaptureCommand);

@@ -1,13 +1,13 @@
 import { Action, ActionPanel, Color, Detail, Icon, List } from '@raycast/api';
-import { showFailureToast, useCachedPromise } from '@raycast/utils';
+import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
 import type { TypeSchema } from '@mymehq/sdk';
-import { getClient, MymeAuthMissingError } from './client';
-import { SignInRequiredEmptyView } from './components/SignInRequiredView';
+import { authorize, pkceClient } from './auth/myme-oauth';
+import { getClient } from './client';
 
 /**
  * Type Registry — read-only operator view. Lists every type registered on
  * the instance (core + custom + system). Detail per type shows the full
- * schema as JSON for inspection. Disabled by default in `package.json`.
+ * schema as JSON for inspection. Disabled by default in package.json.
  */
 
 type TypeKind = 'core' | 'custom' | 'system';
@@ -24,29 +24,20 @@ const KIND_COLOR: Record<TypeKind, Color> = {
   system: Color.SecondaryText,
 };
 
-export default function TypeRegistryCommand() {
-  const { data, isLoading, error, revalidate } = useCachedPromise(
+function TypeRegistryCommand() {
+  const { data, isLoading, revalidate } = useCachedPromise(
     async () => {
-      const client = await getClient();
+      const client = getClient();
       const types = await client.types.list();
       return types.slice().sort((a, b) => a.id.localeCompare(b.id));
     },
     [],
     {
       onError: async (err) => {
-        if (err instanceof MymeAuthMissingError) return;
         await showFailureToast(err, { title: 'Failed to load types' });
       },
     },
   );
-
-  if (error instanceof MymeAuthMissingError) {
-    return (
-      <List isLoading={isLoading}>
-        <SignInRequiredEmptyView />
-      </List>
-    );
-  }
 
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Filter types by id or label...">
@@ -119,3 +110,5 @@ function TypeDetail({ schema }: { schema: TypeSchema }) {
     />
   );
 }
+
+export default withAccessToken({ authorize, client: pkceClient })(TypeRegistryCommand);

@@ -1,12 +1,12 @@
 import { Action, ActionPanel, Icon, List } from '@raycast/api';
-import { showFailureToast, useCachedPromise } from '@raycast/utils';
+import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
 import { useState } from 'react';
 import type { Item, Metadata } from '@mymehq/sdk';
-import { getClient, MymeAuthMissingError } from './client';
+import { authorize, pkceClient } from './auth/myme-oauth';
+import { getClient } from './client';
 import { ALL_TYPES } from './constants';
 import { formatDate } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
-import { SignInRequiredEmptyView } from './components/SignInRequiredView';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 
 interface ItemWithMetadata {
@@ -34,14 +34,14 @@ function groupByDate(entries: ItemWithMetadata[]): Map<string, ItemWithMetadata[
   return groups;
 }
 
-export default function BrowseCommand() {
+function BrowseCommand() {
   const [tier, setTier] = useState<TierFilter>('all');
   const [type, setType] = useState('');
 
-  const { data, isLoading, error, revalidate, pagination } = useCachedPromise(
+  const { data, isLoading, revalidate, pagination } = useCachedPromise(
     (typeFilter: string, tierFilter: TierFilter) =>
       async (options: { page: number; cursor?: string }) => {
-        const client = await getClient();
+        const client = getClient();
         const response = await client.items.listWithMetadata({
           type: typeFilter || undefined,
           tier: tierFilter,
@@ -59,7 +59,6 @@ export default function BrowseCommand() {
     [type, tier],
     {
       onError: async (err) => {
-        if (err instanceof MymeAuthMissingError) return;
         await showFailureToast(err, { title: 'Failed to load items' });
       },
     },
@@ -94,9 +93,7 @@ export default function BrowseCommand() {
       navigationTitle={navigationTitle}
       searchBarAccessory={<TierFilterDropdown onChange={setTier} />}
     >
-      {error instanceof MymeAuthMissingError ? (
-        <SignInRequiredEmptyView />
-      ) : !isLoading && data?.length === 0 ? (
+      {!isLoading && data?.length === 0 ? (
         <List.EmptyView
           title="No items"
           description="Nothing here yet"
@@ -120,3 +117,5 @@ export default function BrowseCommand() {
     </List>
   );
 }
+
+export default withAccessToken({ authorize, client: pkceClient })(BrowseCommand);

@@ -1,8 +1,15 @@
-import { Clipboard, LaunchType, launchCommand, showHUD, showToast, Toast } from '@raycast/api';
-import { showFailureToast } from '@raycast/utils';
+/// <reference types="node" />
+import { Clipboard, getPreferenceValues, showHUD, showToast, Toast } from '@raycast/api';
+import { showFailureToast, withAccessToken } from '@raycast/utils';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
-import { getClient, MymeAuthMissingError } from './client';
+import { authorize, pkceClient } from './auth/myme-oauth';
+import { getClient } from './client';
+
+interface CapturePreferences {
+  defaultTier?: 'library' | 'feed';
+  defaultTags?: string;
+}
 
 function isUrl(text: string): boolean {
   try {
@@ -41,7 +48,30 @@ function mimeForFile(path: string): string {
   return MIME_BY_EXT[extname(path).toLowerCase()] ?? 'application/octet-stream';
 }
 
-export default async function ClipboardCaptureCommand() {
+function parseDefaultTags(raw: string | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  const tags = raw
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return tags.length > 0 ? tags : undefined;
+}
+
+/**
+ * Convert a Node Buffer to a fresh Uint8Array with no shared offset / pool
+ * underlying. Avoids the byteOffset-mismatch crash class when handing a
+ * Buffer to consumers that expect `new Uint8Array(input)` to give the full
+ * payload. `slice()` allocates a clean range.
+ */
+function bufferToUint8Array(buf: Buffer): Uint8Array {
+  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength).slice();
+}
+
+async function captureClipboard(): Promise<void> {
+  const prefs = getPreferenceValues<CapturePreferences>();
+  const tier = prefs.defaultTier ?? 'library';
+  const defaultTags = parseDefaultTags(prefs.defaultTags);
+
   let content: Clipboard.ReadContent;
   try {
     content = await Clipboard.read();
@@ -55,43 +85,27 @@ export default async function ClipboardCaptureCommand() {
   const html = content.html?.trim() ?? '';
 
   if (!text && !file) {
-    await showFailureToast('Nothing on clipboard');
+    await showToast({ style: Toast.Style.Failure, title: 'Nothing on clipboard' });
     return;
   }
 
-  // Resolve the client up front so the user gets a clear sign-in prompt
-  // before we try to upload anything.
-  let client;
-  try {
-    client = await getClient();
-  } catch (err) {
-    if (err instanceof MymeAuthMissingError) {
-      await showToast({
-        style: Toast.Style.Failure,
-        title: 'Sign in to Myme',
-        message: 'Run the Sign in to Myme command first.',
-        primaryAction: {
-          title: 'Sign In',
-          onAction: () => {
-            void launchCommand({ name: 'login', type: LaunchType.UserInitiated });
-          },
-        },
-      });
+  const client = getClient();
+
+  if (file) {
+    const path = file.startsWith('file://') ? decodeURIComponent(file.slice(7)) : file;
+    const mime = mimeForFile(path);
+    const filename = basename(path);
+
+    let bytes: Uint8Array;
+    try {
+      const buf = await readFile(path);
+      bytes = bufferToUint8Array(buf);
+    } catch (err) {
+      await showFailureToast(err, { title: 'Failed to read file' });
       return;
     }
-    await showFailureToast(err, { title: 'Failed to capture' });
-    return;
-  }
 
-  try {
-    if (file) {
-      // file paths come through as `file://...` or absolute paths depending
-      // on the source app. URL-decode where applicable.
-      const path = file.startsWith('file://') ? decodeURIComponent(file.slice(7)) : file;
-      const mime = mimeForFile(path);
-      const filename = basename(path);
-      const bytes = await readFile(path);
-
+    try {
       await showToast({ style: Toast.Style.Animated, title: 'Uploading…', message: filename });
       const { hash } = await client.blobs.upload(bytes, mime);
 
@@ -100,33 +114,59 @@ export default async function ClipboardCaptureCommand() {
       await client.items.create({
         type,
         properties: { blob_ref: hash, mime_type: mime, filename },
-        tier: 'library',
+        tags: defaultTags,
+        tier,
       });
       await showHUD(isImage ? 'Image captured' : 'File captured');
-      return;
+    } catch (err) {
+      await showFailureToast(err, { title: 'Failed to capture file' });
     }
+    return;
+  }
 
-    if (text && isUrl(text)) {
+  if (text && isUrl(text)) {
+    try {
       await client.items.create({
         type: 'core.bookmark',
         properties: { url: text, title: text },
-        tier: 'library',
+        tags: defaultTags,
+        tier,
       });
       await showHUD('Bookmark captured');
-      return;
+    } catch (err) {
+      await showFailureToast(err, { title: 'Failed to capture bookmark' });
     }
+    return;
+  }
 
-    // Plain or HTML-rich text → note. Preserve HTML on a property so the
-    // detail view can render the formatted source if it wants to.
-    const properties: Record<string, unknown> = { body: text };
-    if (html && html !== text) properties.html = html;
+  // Plain or HTML-rich text → note. Preserve HTML on a property so the
+  // detail view can render the formatted source if it wants to.
+  const properties: Record<string, unknown> = { body: text };
+  if (html && html !== text) properties.html = html;
+  try {
     await client.items.create({
       type: 'core.note',
       properties,
-      tier: 'library',
+      tags: defaultTags,
+      tier,
     });
     await showHUD('Note captured');
-  } catch (error) {
-    await showFailureToast(error, { title: 'Failed to capture' });
+  } catch (err) {
+    await showFailureToast(err, { title: 'Failed to capture note' });
   }
 }
+
+/**
+ * Outer error boundary. The HOC handles auth; this wrapper catches anything
+ * that escapes the capture flow so an unhandled async rejection can never
+ * take down the extension host.
+ */
+async function ClipboardCaptureCommand(): Promise<void> {
+  try {
+    await captureClipboard();
+  } catch (err) {
+    await showFailureToast(err, { title: 'Capture failed' });
+  }
+}
+
+export default withAccessToken({ authorize, client: pkceClient })(ClipboardCaptureCommand);

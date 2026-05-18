@@ -1,22 +1,14 @@
-import {
-  Action,
-  ActionPanel,
-  Detail,
-  getPreferenceValues,
-  Icon,
-  LaunchType,
-  launchCommand,
-} from '@raycast/api';
-import { showFailureToast, useCachedPromise } from '@raycast/utils';
-import { getClient, invalidateClientCache, MymeAuthMissingError } from './client';
-import { signOut as oauthSignOut } from './auth/myme-oauth';
-import { SignInRequiredDetail } from './components/SignInRequiredView';
+import { Action, ActionPanel, Detail, getPreferenceValues, Icon } from '@raycast/api';
+import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
+import { authorize, pkceClient } from './auth/myme-oauth';
+import { getClient } from './client';
 
 /**
  * Server Info — read-only operator view. Surfaces instance URL, auth
- * mode, signed-in identity (when OAuth), and a Sign Out action. Disabled
- * by default in `package.json` — operators flip it on in Raycast
- * Preferences → Extensions → Myme when they want it.
+ * mode, and signed-in identity. Sign-out lives in Raycast's built-in
+ * **Logout** preference (auto-surfaced once tokens are stored). Disabled
+ * by default in package.json — operators flip it on in Raycast Preferences
+ * → Extensions → Myme when they want it.
  */
 
 interface Preferences {
@@ -27,39 +19,31 @@ interface Preferences {
 interface ServerInfoData {
   authMode: 'oauth' | 'apiKey';
   identity: string;
-  detail: string | null;
 }
 
-export default function ServerInfoCommand() {
+function ServerInfoCommand() {
   const { apiUrl, apiKey } = getPreferenceValues<Preferences>();
 
-  const { data, error, isLoading, revalidate } = useCachedPromise(
+  const { data, isLoading, revalidate } = useCachedPromise(
     async (): Promise<ServerInfoData> => {
-      const client = await getClient();
-      // OAuth principals can read their own profile; API-key principals
-      // 401/404 here (no auth_user link), so fall back to the key label.
+      const client = getClient();
       try {
         const profile = await client.profile.get();
         const display = profile.username
           ? `${profile.email} (@${profile.username})`
           : profile.email;
-        return { authMode: 'oauth', identity: display, detail: null };
+        return { authMode: 'oauth', identity: display };
       } catch {
-        return { authMode: 'apiKey', identity: 'API key', detail: null };
+        return { authMode: 'apiKey', identity: 'API key' };
       }
     },
     [],
     {
       onError: async (err) => {
-        if (err instanceof MymeAuthMissingError) return;
         await showFailureToast(err, { title: 'Failed to read profile' });
       },
     },
   );
-
-  if (error instanceof MymeAuthMissingError) {
-    return <SignInRequiredDetail />;
-  }
 
   const lines: string[] = ['# Server Info', ''];
   lines.push('| Field | Value |');
@@ -74,12 +58,13 @@ export default function ServerInfoCommand() {
   if (data?.authMode === 'apiKey' && apiKey) {
     lines.push(`| **API key fingerprint** | \`${apiKey.slice(0, 8)}…${apiKey.slice(-4)}\` |`);
   }
-  const markdown = lines.join('\n');
+  lines.push('');
+  lines.push('Sign out via Raycast → Extensions → Myme → **Logout**.');
 
   return (
     <Detail
       isLoading={isLoading}
-      markdown={markdown}
+      markdown={lines.join('\n')}
       actions={
         <ActionPanel>
           {apiUrl && (
@@ -95,33 +80,10 @@ export default function ServerInfoCommand() {
             shortcut={{ modifiers: ['cmd'], key: 'r' }}
             onAction={revalidate}
           />
-          {data?.authMode === 'oauth' && (
-            <Action
-              title="Sign out"
-              icon={Icon.Logout}
-              style={Action.Style.Destructive}
-              onAction={async () => {
-                try {
-                  await oauthSignOut();
-                  invalidateClientCache();
-                  revalidate();
-                } catch (err) {
-                  await showFailureToast(err, { title: 'Sign out failed' });
-                }
-              }}
-            />
-          )}
-          {data?.authMode !== 'oauth' && (
-            <Action
-              title="Sign in to Myme"
-              icon={Icon.Key}
-              onAction={() => {
-                void launchCommand({ name: 'login', type: LaunchType.UserInitiated });
-              }}
-            />
-          )}
         </ActionPanel>
       }
     />
   );
 }
+
+export default withAccessToken({ authorize, client: pkceClient })(ServerInfoCommand);

@@ -2,28 +2,26 @@
 /**
  * OAuth (PKCE auth-code) wiring for the Myme Raycast extension.
  *
- * Uses Raycast's native `OAuth.PKCEClient` for the consent overlay UX (browser
- * open + redirect capture) and exposes a `TokenProvider` shim that satisfies
- * `MymeClient`'s OAuth contract while delegating token storage to Raycast's
- * encrypted token store.
+ * Canonical pattern (per https://developers.raycast.com/utilities/oauth.md):
+ * every command is wrapped with `withAccessToken({ authorize, client })` from
+ * `@raycast/utils`. The HOC invokes `authorize()` before the wrapped
+ * component / function runs; the function returns the current access token,
+ * minting one via PKCE consent on first use and refreshing silently
+ * otherwise. The `client` parameter (our PKCE singleton) is what tells
+ * Raycast to surface its built-in **Logout** option in extension settings.
  *
- * Server contract (Better Auth via Myme):
+ * Server contract:
  *   - DCR endpoint:           POST /auth/oauth2/register
  *   - Authorization endpoint: /auth/oauth2/authorize
  *   - Token endpoint:         POST /auth/oauth2/token
  */
-import { LocalStorage, OAuth } from '@raycast/api';
-import type { TokenProvider } from '@mymehq/sdk/auth';
+import { getPreferenceValues, LocalStorage, OAuth } from '@raycast/api';
 
 const PROVIDER_NAME = 'Myme';
 const PROVIDER_ID = 'myme';
 const PROVIDER_ICON = 'icon.png';
 
-/**
- * Broad scope grammar so one session covers everything Raycast does
- * (capture, browse, search, tag, edges, Manage Keys). Admin-only paths
- * still gate on the principal's role (server-side, projected by T-178).
- */
+/** Broad scope grammar so one session covers everything Raycast does. */
 const DEFAULT_SCOPES = [
   'openid',
   'offline_access',
@@ -37,14 +35,8 @@ const DEFAULT_SCOPES = [
   'metadata.types:read',
 ] as const;
 
-/** Thrown when no credential is available. Commands catch this and render
- *  the "Sign in to Myme" empty state. */
-export class MymeAuthMissingError extends Error {
-  readonly code = 'auth_missing';
-  constructor(message = 'Sign in to Myme to start using the extension.') {
-    super(message);
-    this.name = 'MymeAuthMissingError';
-  }
+interface Preferences {
+  apiUrl?: string;
 }
 
 function stripTrailingSlash(s: string): string {
@@ -55,19 +47,15 @@ function clientIdStorageKey(issuer: string): string {
   return `myme.client_id:${stripTrailingSlash(issuer)}`;
 }
 
-/** Singleton — PKCEClient holds Raycast-side state. */
-let cachedPkceClient: OAuth.PKCEClient | null = null;
-function getPkceClient(): OAuth.PKCEClient {
-  if (cachedPkceClient) return cachedPkceClient;
-  cachedPkceClient = new OAuth.PKCEClient({
-    redirectMethod: OAuth.RedirectMethod.Web,
-    providerName: PROVIDER_NAME,
-    providerIcon: PROVIDER_ICON,
-    providerId: PROVIDER_ID,
-    description: 'Sign in to your Myme account.',
-  });
-  return cachedPkceClient;
-}
+/** Singleton PKCEClient — module-level so token storage is consistent
+ *  across command invocations and tokens survive command boundaries. */
+export const pkceClient = new OAuth.PKCEClient({
+  redirectMethod: OAuth.RedirectMethod.Web,
+  providerName: PROVIDER_NAME,
+  providerIcon: PROVIDER_ICON,
+  providerId: PROVIDER_ID,
+  description: 'Sign in to your Myme account.',
+});
 
 interface DcrResponse {
   client_id?: string;
@@ -84,9 +72,9 @@ interface TokenResponseBody {
 
 /**
  * Dynamic-client-registration. Persists the issued `client_id` per issuer in
- * Raycast `LocalStorage` so a re-sign-in skips DCR. The `redirect_uris`
- * passed at registration time must include the exact URI Raycast uses on
- * `authorize`, otherwise the consent screen rejects with `invalid_request`.
+ * Raycast `LocalStorage` so subsequent sign-ins (or token refreshes after a
+ * Raycast restart) skip DCR. The `redirect_uris` passed at registration
+ * time must include the exact URI Raycast uses on `authorize`.
  */
 async function dcrRegister(issuer: string, redirectUri: string): Promise<string> {
   const res = await fetch(`${stripTrailingSlash(issuer)}/auth/oauth2/register`, {
@@ -117,20 +105,17 @@ async function ensureClientId(issuer: string, redirectUri: string): Promise<stri
   return id;
 }
 
-/**
- * Drive the full sign-in flow: DCR (if needed), authorization request via
- * PKCEClient (Raycast opens the browser to the consent screen and captures
- * the redirect), code-for-tokens exchange, and persistence via
- * `pkceClient.setTokens()`.
- */
-export async function signIn(issuer: string): Promise<void> {
-  const stripped = stripTrailingSlash(issuer);
-  const pkce = getPkceClient();
+/** Persist the issuer alongside tokens so refresh knows where to call. */
+const ISSUER_STORAGE_KEY = 'myme.token_issuer';
+const CLIENT_ID_STORAGE_KEY = 'myme.token_client_id';
 
-  // We need the redirectURI before DCR. PKCEClient picks a URI based on its
-  // configured `redirectMethod`; building an authorization request first
-  // surfaces it without invoking the browser.
-  const probe = await pkce.authorizationRequest({
+async function runFullAuthFlow(issuer: string): Promise<string> {
+  const stripped = stripTrailingSlash(issuer);
+
+  // Build a probe request first — PKCEClient picks the redirectURI
+  // based on its configured `redirectMethod`; we need that exact URI
+  // registered with the server before the real authorize call.
+  const probe = await pkceClient.authorizationRequest({
     endpoint: `${stripped}/auth/oauth2/authorize`,
     clientId: 'pending-dcr',
     scope: DEFAULT_SCOPES.join(' '),
@@ -139,16 +124,14 @@ export async function signIn(issuer: string): Promise<void> {
 
   const clientId = await ensureClientId(stripped, redirectUri);
 
-  // Build the real authorization request now that we have a registered client.
-  const request = await pkce.authorizationRequest({
+  const request = await pkceClient.authorizationRequest({
     endpoint: `${stripped}/auth/oauth2/authorize`,
     clientId,
     scope: DEFAULT_SCOPES.join(' '),
   });
 
-  const { authorizationCode } = await pkce.authorize(request);
+  const { authorizationCode } = await pkceClient.authorize(request);
 
-  // Exchange the code for tokens.
   const res = await fetch(`${stripped}/auth/oauth2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -167,140 +150,96 @@ export async function signIn(issuer: string): Promise<void> {
     );
   }
 
-  await pkce.setTokens({
+  await pkceClient.setTokens({
     accessToken: body.access_token,
     refreshToken: body.refresh_token,
     expiresIn: body.expires_in,
     scope: body.scope,
   });
+  await LocalStorage.setItem(ISSUER_STORAGE_KEY, stripped);
+  await LocalStorage.setItem(CLIENT_ID_STORAGE_KEY, clientId);
+
+  return body.access_token;
+}
+
+async function refreshExistingTokens(refreshToken: string): Promise<string> {
+  const [issuer, clientId] = await Promise.all([
+    LocalStorage.getItem<string>(ISSUER_STORAGE_KEY),
+    LocalStorage.getItem<string>(CLIENT_ID_STORAGE_KEY),
+  ]);
+  if (!issuer || !clientId) {
+    // Cached tokens predate the issuer/clientId persistence — fall through
+    // to a full sign-in.
+    throw new Error('refresh_state_missing');
+  }
+  const res = await fetch(`${issuer}/auth/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientId,
+    }).toString(),
+  });
+  const body = (await res.json().catch(() => ({}))) as TokenResponseBody;
+  if (!res.ok || !body.access_token) {
+    throw new Error(
+      `Token refresh failed (HTTP ${res.status}): ${body.error_description ?? body.error ?? 'unknown'}`,
+    );
+  }
+  await pkceClient.setTokens({
+    accessToken: body.access_token,
+    refreshToken: body.refresh_token ?? refreshToken,
+    expiresIn: body.expires_in,
+    scope: body.scope,
+  });
+  return body.access_token;
+}
+
+/** Resolve the configured Myme issuer from preferences. Throws a clear
+ *  error if unset — the user is prompted to set it on first run by
+ *  Raycast's required-preference UX. */
+function getIssuer(): string {
+  const { apiUrl } = getPreferenceValues<Preferences>();
+  const trimmed = apiUrl?.trim();
+  if (!trimmed) {
+    throw new Error(
+      'Server URL is not set. Open Raycast → Extensions → Myme and set the Server URL.',
+    );
+  }
+  return stripTrailingSlash(trimmed);
 }
 
 /**
- * Clear stored tokens. Keep the DCR `client_id` in LocalStorage so a
- * subsequent sign-in skips registration.
+ * Returns a valid access token, minting one on first use and refreshing
+ * silently on expiry. Shaped to satisfy `withAccessToken({ authorize })`.
+ *
+ * Sign-out is handled by Raycast's built-in Logout preference, which
+ * Raycast auto-surfaces in extension settings once `pkceClient.setTokens()`
+ * has been called.
  */
-export async function signOut(): Promise<void> {
-  const pkce = getPkceClient();
-  await pkce.removeTokens();
-}
+export async function authorize(): Promise<string> {
+  const issuer = getIssuer();
+  const existing = await pkceClient.getTokens();
 
-interface RaycastTokenProviderConfig {
-  issuer: string;
-  clientId: string;
-  pkce: OAuth.PKCEClient;
-}
-
-/**
- * `TokenProvider` against the Raycast-backed PKCEClient store.
- * - `getAccessToken()` returns the current access token, refreshing
- *   proactively if `pkceClient.getTokens().isExpired()`.
- * - `refresh()` is single-flight: concurrent callers await the same
- *   in-flight refresh promise.
- * - On `invalid_grant` / `token_reuse_detected`, tokens are cleared and
- *   `onSignOut` handlers fire.
- */
-class RaycastTokenProvider implements TokenProvider {
-  private readonly issuer: string;
-  private readonly clientId: string;
-  private readonly pkce: OAuth.PKCEClient;
-  private inflightRefresh: Promise<string> | null = null;
-  private readonly signOutHandlers = new Set<() => void>();
-
-  constructor(config: RaycastTokenProviderConfig) {
-    this.issuer = stripTrailingSlash(config.issuer);
-    this.clientId = config.clientId;
-    this.pkce = config.pkce;
+  if (existing?.accessToken && !existing.isExpired()) {
+    return existing.accessToken;
   }
 
-  async getAccessToken(): Promise<string> {
-    const tokens = await this.pkce.getTokens();
-    if (!tokens) {
-      throw new MymeAuthMissingError();
-    }
-    if (tokens.isExpired()) {
-      return this.refresh();
-    }
-    return tokens.accessToken;
-  }
-
-  async refresh(): Promise<string> {
-    if (this.inflightRefresh) return this.inflightRefresh;
-    this.inflightRefresh = this.doRefresh().finally(() => {
-      this.inflightRefresh = null;
-    });
-    return this.inflightRefresh;
-  }
-
-  private async doRefresh(): Promise<string> {
-    const tokens = await this.pkce.getTokens();
-    if (!tokens?.refreshToken) {
-      this.fireSignOut();
-      throw new MymeAuthMissingError('Refresh token missing — please sign in again.');
-    }
-    const res = await fetch(`${this.issuer}/auth/oauth2/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: tokens.refreshToken,
-        client_id: this.clientId,
-      }).toString(),
-    });
-    const body = (await res.json().catch(() => ({}))) as TokenResponseBody;
-    if (!res.ok || !body.access_token) {
-      if (body.error === 'invalid_grant' || body.error === 'token_reuse_detected') {
-        await this.pkce.removeTokens();
-        this.fireSignOut();
-      }
-      throw new Error(
-        `Token refresh failed (HTTP ${res.status}): ${body.error_description ?? body.error ?? 'unknown'}`,
-      );
-    }
-    await this.pkce.setTokens({
-      accessToken: body.access_token,
-      // Better Auth rotates refresh tokens by default — trust the server's
-      // returned refresh token; fall back to the previous one if the server
-      // chose not to rotate.
-      refreshToken: body.refresh_token ?? tokens.refreshToken,
-      expiresIn: body.expires_in,
-      scope: body.scope ?? tokens.scope,
-    });
-    return body.access_token;
-  }
-
-  onSignOut(handler: () => void): () => void {
-    this.signOutHandlers.add(handler);
-    return () => {
-      this.signOutHandlers.delete(handler);
-    };
-  }
-
-  async signOut(): Promise<void> {
-    await this.pkce.removeTokens();
-    this.fireSignOut();
-  }
-
-  private fireSignOut(): void {
-    for (const handler of this.signOutHandlers) {
-      try {
-        handler();
-      } catch {
-        // Handler errors must not break sign-out.
+  if (existing?.refreshToken) {
+    try {
+      return await refreshExistingTokens(existing.refreshToken);
+    } catch (err) {
+      // Refresh failed — drop the stale tokens and fall through to a
+      // full sign-in. The user gets one extra consent click rather than
+      // an opaque error.
+      if (err instanceof Error && err.message === 'refresh_state_missing') {
+        // No issuer/clientId persisted; fall through.
+      } else {
+        await pkceClient.removeTokens();
       }
     }
   }
-}
 
-/**
- * Build a TokenProvider from the persisted Raycast token set. Returns null
- * when no session is stored (e.g. before first sign-in or after sign-out).
- */
-export async function getTokenProvider(issuer: string): Promise<TokenProvider | null> {
-  const stripped = stripTrailingSlash(issuer);
-  const pkce = getPkceClient();
-  const tokens = await pkce.getTokens();
-  if (!tokens) return null;
-  const clientId = await LocalStorage.getItem<string>(clientIdStorageKey(stripped));
-  if (!clientId) return null;
-  return new RaycastTokenProvider({ issuer: stripped, clientId, pkce });
+  return runFullAuthFlow(issuer);
 }

@@ -1,22 +1,22 @@
 import { Action, ActionPanel, Icon, List } from '@raycast/api';
-import { showFailureToast, useCachedPromise } from '@raycast/utils';
+import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
 import { useState } from 'react';
-import { getClient, MymeAuthMissingError } from './client';
+import { authorize, pkceClient } from './auth/myme-oauth';
+import { getClient } from './client';
 import { ALL_TYPES } from './constants';
 import { stripHtmlTags } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
-import { SignInRequiredEmptyView } from './components/SignInRequiredView';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 
-export default function SearchCommand() {
+function SearchCommand() {
   const [searchText, setSearchText] = useState('');
   const [type, setType] = useState('');
   const [tier, setTier] = useState<TierFilter>('all');
 
-  const { data, isLoading, error, revalidate } = useCachedPromise(
+  const { data, isLoading, revalidate } = useCachedPromise(
     async (q: string, typeFilter: string, tierFilter: TierFilter) => {
       if (!q.trim()) return [];
-      const client = await getClient();
+      const client = getClient();
       return client.search(q, {
         type: typeFilter || undefined,
         tier: tierFilter,
@@ -27,7 +27,6 @@ export default function SearchCommand() {
     {
       keepPreviousData: true,
       onError: async (err) => {
-        if (err instanceof MymeAuthMissingError) return;
         await showFailureToast(err, { title: 'Search failed' });
       },
     },
@@ -58,9 +57,7 @@ export default function SearchCommand() {
       searchBarAccessory={<TierFilterDropdown onChange={setTier} />}
       throttle
     >
-      {error instanceof MymeAuthMissingError ? (
-        <SignInRequiredEmptyView />
-      ) : !searchText.trim() ? (
+      {!searchText.trim() ? (
         <List.EmptyView
           title="Search Myme"
           description="Type to search your items"
@@ -88,3 +85,5 @@ export default function SearchCommand() {
     </List>
   );
 }
+
+export default withAccessToken({ authorize, client: pkceClient })(SearchCommand);

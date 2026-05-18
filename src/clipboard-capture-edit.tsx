@@ -1,13 +1,22 @@
 /// <reference types="node" />
-import { Action, ActionPanel, Clipboard, Form, Icon, showHUD, useNavigation } from '@raycast/api';
-import { showFailureToast, useCachedPromise } from '@raycast/utils';
+import {
+  Action,
+  ActionPanel,
+  Clipboard,
+  Form,
+  getPreferenceValues,
+  Icon,
+  showHUD,
+  useNavigation,
+} from '@raycast/api';
+import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
 import { useState } from 'react';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
-import { getClient, MymeAuthMissingError } from './client';
+import { authorize, pkceClient } from './auth/myme-oauth';
+import { getClient } from './client';
 import { CAPTURE_TYPES } from './constants';
 import { CaptureFields } from './components/CaptureFields';
-import { SignInRequiredDetail } from './components/SignInRequiredView';
 
 /**
  * Clipboard Capture (Edit). Pre-fills a Quick-Capture-style form from
@@ -16,6 +25,12 @@ import { SignInRequiredDetail } from './components/SignInRequiredView';
  * command handles the "I trust the default" case; this command handles
  * "let me shape it before it lands".
  */
+
+interface CapturePreferences {
+  defaultTier?: 'library' | 'feed';
+  defaultCaptureType?: string;
+  defaultTags?: string;
+}
 
 const MIME_BY_EXT: Record<string, string> = {
   '.png': 'image/png',
@@ -48,6 +63,10 @@ function isUrl(text: string): boolean {
   }
 }
 
+function bufferToUint8Array(buf: Buffer): Uint8Array {
+  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength).slice();
+}
+
 interface ClipboardSnapshot {
   text: string;
   html: string;
@@ -75,11 +94,14 @@ async function readClipboardSnapshot(): Promise<ClipboardSnapshot> {
   };
 }
 
-function inferDefaultType(snapshot: ClipboardSnapshot): string {
+function inferDefaultType(snapshot: ClipboardSnapshot, prefDefault?: string): string {
+  // File on clipboard always wins — auto-detected file type beats the
+  // operator's preference for the bookmark / note / task / event family.
   if (snapshot.file) {
     return snapshot.fileMime?.startsWith('image/') ? 'core.file.image' : 'core.file';
   }
   if (snapshot.text && isUrl(snapshot.text)) return 'core.bookmark';
+  if (prefDefault && CAPTURE_TYPES.some((t) => t.value === prefDefault)) return prefDefault;
   return 'core.note';
 }
 
@@ -102,23 +124,10 @@ const EDIT_CAPTURE_TYPES = [
   { value: 'core.file', label: 'File' },
 ];
 
-export default function ClipboardCaptureEditCommand() {
+function ClipboardCaptureEditCommand() {
   const { pop } = useNavigation();
-
-  // Probe credentials before any other work.
-  const { error: authError, isLoading: authLoading } = useCachedPromise(
-    async () => {
-      await getClient();
-      return true;
-    },
-    [],
-    {
-      onError: async (err) => {
-        if (err instanceof MymeAuthMissingError) return;
-        await showFailureToast(err);
-      },
-    },
-  );
+  const prefs = getPreferenceValues<CapturePreferences>();
+  const tier = prefs.defaultTier ?? 'library';
 
   const { data: snapshot, isLoading: snapLoading } = useCachedPromise(readClipboardSnapshot, [], {
     onError: async (err) => {
@@ -130,16 +139,13 @@ export default function ClipboardCaptureEditCommand() {
   const [urlError, setUrlError] = useState<string | undefined>();
   const [titleError, setTitleError] = useState<string | undefined>();
 
-  if (authError instanceof MymeAuthMissingError) {
-    return <SignInRequiredDetail />;
-  }
-  if (authLoading || snapLoading || !snapshot) {
-    return <Form isLoading actions={null} />;
+  if (snapLoading || !snapshot) {
+    return <Form isLoading />;
   }
 
   // First-render default — once the user picks a type via the dropdown,
   // honour their choice for the rest of the session.
-  const activeType = type ?? inferDefaultType(snapshot);
+  const activeType = type ?? inferDefaultType(snapshot, prefs.defaultCaptureType);
 
   async function handleSubmit(values: FormValues) {
     if (!snapshot) return;
@@ -152,16 +158,22 @@ export default function ClipboardCaptureEditCommand() {
       return;
     }
 
-    try {
-      const client = await getClient();
+    const baseTags = parseTags(prefs.defaultTags) ?? [];
+    const formTags = parseTags(values.tags) ?? [];
+    const merged = [...baseTags];
+    for (const t of formTags) if (!merged.includes(t)) merged.push(t);
+    const tags = merged.length > 0 ? merged : undefined;
 
-      // File-shaped types upload first, then create.
+    try {
+      const client = getClient();
+
       if (activeType === 'core.file.image' || activeType === 'core.file') {
         if (!snapshot.file) {
           await showFailureToast('No file on clipboard for the selected type.');
           return;
         }
-        const bytes = await readFile(snapshot.file);
+        const buf = await readFile(snapshot.file);
+        const bytes = bufferToUint8Array(buf);
         const mime = snapshot.fileMime ?? 'application/octet-stream';
         const { hash } = await client.blobs.upload(bytes, mime);
         const properties: Record<string, unknown> = {
@@ -171,8 +183,7 @@ export default function ClipboardCaptureEditCommand() {
         };
         if (values.title?.trim()) properties.title = values.title.trim();
         if (values.description?.trim()) properties.description = values.description.trim();
-        const tags = parseTags(values.tags);
-        await client.items.create({ type: activeType, properties, tags, tier: 'library' });
+        await client.items.create({ type: activeType, properties, tags, tier });
         await showHUD(activeType === 'core.file.image' ? 'Image captured' : 'File captured');
         pop();
         return;
@@ -203,8 +214,7 @@ export default function ClipboardCaptureEditCommand() {
           break;
       }
 
-      const tags = parseTags(values.tags);
-      await client.items.create({ type: activeType, properties, tags, tier: 'library' });
+      await client.items.create({ type: activeType, properties, tags, tier });
       await showHUD('Item captured');
       pop();
     } catch (error) {
@@ -237,11 +247,9 @@ export default function ClipboardCaptureEditCommand() {
             key={t.value}
             value={t.value}
             title={
-              snapshot.file && (t.value === 'core.file.image' || t.value === 'core.file')
-                ? t.label
-                : !snapshot.file && (t.value === 'core.file.image' || t.value === 'core.file')
-                  ? `${t.label} (no file on clipboard)`
-                  : t.label
+              !snapshot.file && (t.value === 'core.file.image' || t.value === 'core.file')
+                ? `${t.label} (no file on clipboard)`
+                : t.label
             }
           />
         ))}
@@ -305,3 +313,5 @@ function inferDefaultUrl(type: string, snap: ClipboardSnapshot): string | undefi
   if (type === 'core.bookmark' && snap.text && isUrl(snap.text)) return snap.text;
   return undefined;
 }
+
+export default withAccessToken({ authorize, client: pkceClient })(ClipboardCaptureEditCommand);

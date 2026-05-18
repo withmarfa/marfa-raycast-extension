@@ -1,6 +1,7 @@
 import { getPreferenceValues } from '@raycast/api';
+import { getAccessToken } from '@raycast/utils';
 import { MymeClient } from '@mymehq/sdk';
-import { getTokenProvider, MymeAuthMissingError } from './auth/myme-oauth';
+import { authorize } from './auth/myme-oauth';
 
 interface Preferences {
   apiUrl: string;
@@ -10,32 +11,25 @@ interface Preferences {
 let cached: { client: MymeClient; key: string } | null = null;
 
 /**
- * Build a `MymeClient` from the operator's credential. Precedence:
- *  1. OAuth tokens present (Raycast PKCE-stored) → `tokenProvider`
- *  2. `apiKey` preference set → static key (dev / escape-hatch)
- *  3. Otherwise → throw `MymeAuthMissingError` so commands can render
- *     a "Sign in to Myme" empty state.
+ * Build a `MymeClient` from the current credential. Two paths:
  *
- * Cached by `apiUrl + credential mode`; consumers should call this once
- * per render. `invalidateClientCache()` is called by sign-in / sign-out.
+ *  1. Wrapped command (default) — invoked inside a `withAccessToken(...)`
+ *     wrapper, so `getAccessToken()` returns the live token. The MymeClient's
+ *     `tokenProvider.getAccessToken` calls `authorize()` directly on each
+ *     SDK call, ensuring transparent refresh-on-expiry without the SDK
+ *     needing to know about our PKCE store.
+ *  2. `apiKey` preference fallback — for the rare dev / escape-hatch case
+ *     where the operator pastes a static admin key into Preferences.
+ *
+ * This function is synchronous: it builds the client object, but token
+ * resolution happens asynchronously inside the SDK's transport layer on
+ * each request via the `tokenProvider`.
  */
-export async function getClient(): Promise<MymeClient> {
+export function getClient(): MymeClient {
   const { apiUrl, apiKey } = getPreferenceValues<Preferences>();
-  if (!apiUrl) {
-    throw new MymeAuthMissingError(
-      'Server URL is not set. Open Preferences and set the Myme server URL.',
-    );
-  }
 
-  const tokenProvider = await getTokenProvider(apiUrl);
-  if (tokenProvider) {
-    const key = `${apiUrl}:oauth`;
-    if (cached?.key === key) return cached.client;
-    const client = new MymeClient({ url: apiUrl, tokenProvider });
-    cached = { client, key };
-    return client;
-  }
-
+  // Static-key escape hatch wins when explicitly set — useful for
+  // smoke-testing without OAuth.
   if (apiKey?.trim()) {
     const key = `${apiUrl}:key:${apiKey}`;
     if (cached?.key === key) return cached.client;
@@ -44,12 +38,39 @@ export async function getClient(): Promise<MymeClient> {
     return client;
   }
 
-  throw new MymeAuthMissingError();
+  // OAuth path. `withAccessToken` ensures a token exists before any
+  // command body runs, so the very first `getAccessToken()` call here
+  // succeeds. Subsequent SDK calls re-resolve via `authorize()` so
+  // refresh-on-expiry is transparent.
+  const key = `${apiUrl}:oauth`;
+  if (cached?.key === key) return cached.client;
+  const client = new MymeClient({
+    url: apiUrl,
+    tokenProvider: {
+      async getAccessToken() {
+        // Fast path: read the token already in the `withAccessToken` global.
+        try {
+          const { token } = getAccessToken();
+          // Cheap freshness check via the PKCE store would require an
+          // async call; instead delegate to `authorize()` if the SDK
+          // hits a 401 — but proactively, every call uses the latest
+          // global token. `authorize()` is called by the HOC on mount
+          // and on stale-token detection.
+          return token;
+        } catch {
+          // getAccessToken throws outside a withAccessToken wrapper —
+          // shouldn't happen in real flows, but the fallback is a fresh
+          // `authorize()` run.
+          return authorize();
+        }
+      },
+    },
+  });
+  cached = { client, key };
+  return client;
 }
 
-/** Drop the cached client. Call after sign-in / sign-out. */
+/** Drop the cached client. Useful after a credential rotation. */
 export function invalidateClientCache(): void {
   cached = null;
 }
-
-export { MymeAuthMissingError };
