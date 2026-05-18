@@ -79,7 +79,6 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
           </Detail.Metadata.TagList>
           <Detail.Metadata.Label title="Source" text={apiKey.source} />
           <Detail.Metadata.Separator />
-          <Detail.Metadata.Label title="Default origin" text={apiKey.default_origin} />
           <Detail.Metadata.TagList title="Default tier">
             <Detail.Metadata.TagList.Item
               text={apiKey.default_tier}

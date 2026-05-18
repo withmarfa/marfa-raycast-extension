@@ -28,7 +28,7 @@ Extension preferences (set in Raycast):
 - **Search** -- full-text search with debounced input. Shows snippets and metadata
 - **Quick Capture** -- create notes, bookmarks, tasks, or events with type-specific fields and validation
 - **Clipboard Capture** -- no-view command. Reads clipboard, detects URL vs text, creates a bookmark or note instantly
-- **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default origin, default tier, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Member keys see an "admin credentials required" empty state instead
+- **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, three permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Member keys see an "admin credentials required" empty state instead
 
 ## Action panel
 

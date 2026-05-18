@@ -84,7 +84,6 @@ interface CreateValues {
   label: string;
   source: string;
   role: string;
-  default_origin: string;
   default_tier: string;
   type_permissions: string;
   extension_permissions: string;
@@ -132,7 +131,6 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         label: values.label.trim(),
         source: values.source.trim(),
         role: values.role as 'admin' | 'member',
-        default_origin: values.default_origin as 'user' | 'ai' | 'worker',
         default_tier: values.default_tier as 'library' | 'feed',
         type_permissions: ('value' in type ? type.value : {}) as Record<
           string,
@@ -184,11 +182,6 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         <Form.Dropdown.Item value="member" title="Member" />
         <Form.Dropdown.Item value="admin" title="Admin" />
       </Form.Dropdown>
-      <Form.Dropdown id="default_origin" title="Default Origin" defaultValue="user">
-        <Form.Dropdown.Item value="user" title="User" />
-        <Form.Dropdown.Item value="ai" title="AI" />
-        <Form.Dropdown.Item value="worker" title="Worker" />
-      </Form.Dropdown>
       <Form.Dropdown id="default_tier" title="Default Tier" defaultValue="library">
         <Form.Dropdown.Item value="library" title="Library" />
         <Form.Dropdown.Item value="feed" title="Feed" />
@@ -224,7 +217,6 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
 
 interface EditValues {
   label: string;
-  default_origin: string;
   default_tier: string;
   type_permissions: string;
   extension_permissions: string;
@@ -263,7 +255,6 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
 
     const input: UpdateKeyInput = {
       label: values.label.trim(),
-      default_origin: values.default_origin as 'user' | 'ai' | 'worker',
       default_tier: values.default_tier as 'library' | 'feed',
       type_permissions: ('value' in type ? type.value : {}) as Record<
         string,
@@ -308,15 +299,6 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
       />
       <Form.Description title="Source" text={`${apiKey.source} (immutable)`} />
       <Form.Description title="Role" text={`${apiKey.role} (immutable)`} />
-      <Form.Dropdown
-        id="default_origin"
-        title="Default Origin"
-        defaultValue={apiKey.default_origin}
-      >
-        <Form.Dropdown.Item value="user" title="User" />
-        <Form.Dropdown.Item value="ai" title="AI" />
-        <Form.Dropdown.Item value="worker" title="Worker" />
-      </Form.Dropdown>
       <Form.Dropdown id="default_tier" title="Default Tier" defaultValue={apiKey.default_tier}>
         <Form.Dropdown.Item value="library" title="Library" />
         <Form.Dropdown.Item value="feed" title="Feed" />
