@@ -5,14 +5,14 @@ Raycast extension for browsing, searching, and capturing Myme items.
 ## Build and run
 
 ```bash
-pnpm install
-pnpm dev         # development mode in Raycast
-pnpm build       # production build
-pnpm lint        # lint with Raycast rules (ESLint 9 flat config)
-pnpm typecheck   # tsc --noEmit. Faster signal than `ray build` for type errors during dev work
+npm install
+npm run dev         # development mode in Raycast
+npm run build       # production build
+npm run lint        # lint with Raycast rules (ESLint 9 flat config)
+npm run typecheck   # tsc --noEmit. Faster signal than `ray build` for type errors during dev work
 ```
 
-*`pnpm-workspace.yaml` exists solely to satisfy pnpm 11's `allowBuilds` approval gate for `esbuild`'s postinstall — required because `ray build` invokes `pnpm install` internally and the gate would otherwise fail. Not a real workspace; this repo is single-package.*
+This is a standard Raycast extension layout — `npm` + `package-lock.json`, no workspace files. An `.npmrc` carrying `legacy-peer-deps=true` is the documented workaround for an npm-7+ strict-peer-deps quirk in the eslint-9 toolchain that `@raycast/eslint-config@2.x` brings in; without it `npm install` errors on a transitive `knip` devDependency in `@eslint-community/eslint-utils`. Both `@types/react` and `@types/node` are pinned to the exact versions `@raycast/api` declares as peer deps — drifting to `^` ranges duplicates the React type tree under `node_modules/@raycast/api/node_modules/@types/react` and breaks `tsc --noEmit`.
 
 ## Configuration
 
