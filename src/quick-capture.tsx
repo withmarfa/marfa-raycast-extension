@@ -9,23 +9,31 @@ import {
 } from '@raycast/api';
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
+import type { CreateItemInput } from '@mymehq/sdk';
 import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
 import {
   buildCoreCaptureProperties,
+  fetchCaptureLocation,
   isCoreCaptureType,
   mergeTags,
   normalizeTypeId,
+  parseAdditionalProperties,
   parseCustomPropertiesJson,
   validateCoreCapture,
 } from './capture-utils';
-import { CaptureFields, CustomPropertiesFields } from './components/CaptureFields';
+import {
+  AdditionalPropertiesField,
+  CaptureFields,
+  CustomPropertiesFields,
+} from './components/CaptureFields';
 import { buildCaptureTypeOptions, findSchema, schemaSummary } from './type-options';
 
 interface CapturePreferences {
   defaultTier?: 'library' | 'feed';
   defaultCaptureType?: string;
   defaultTags?: string;
+  captureLocation?: boolean;
 }
 
 interface FormValues {
@@ -40,6 +48,7 @@ interface FormValues {
   place: string;
   tags: string;
   propertiesJson: string;
+  extraProperties: string;
 }
 
 function QuickCaptureCommand() {
@@ -52,6 +61,7 @@ function QuickCaptureCommand() {
   const [titleError, setTitleError] = useState<string | undefined>();
   const [bodyError, setBodyError] = useState<string | undefined>();
   const [propertiesError, setPropertiesError] = useState<string | undefined>();
+  const [extraError, setExtraError] = useState<string | undefined>();
   const { pop } = useNavigation();
 
   const { data: typeSchemas, isLoading: typesLoading } = useCachedPromise(
@@ -78,6 +88,12 @@ function QuickCaptureCommand() {
         return;
       }
       properties = buildCoreCaptureProperties(type, values);
+      const extra = parseAdditionalProperties(values.extraProperties);
+      if ('error' in extra) {
+        setExtraError(extra.error.message);
+        return;
+      }
+      Object.assign(properties, extra.properties);
     } else {
       const schema = findSchema(typeSchemas, type);
       if (typeSchemas && !schema) {
@@ -96,7 +112,15 @@ function QuickCaptureCommand() {
 
     try {
       const client = getClient();
-      await client.items.create({ type, properties, tags, tier: defaultTier });
+      const payload: CreateItemInput = { type, properties, tags, tier: defaultTier };
+      if (prefs.captureLocation) {
+        const loc = await fetchCaptureLocation();
+        if (loc) {
+          payload.capture_latitude = loc.lat;
+          payload.capture_longitude = loc.lon;
+        }
+      }
+      await client.items.create(payload);
       await showHUD('Item captured');
       pop();
     } catch (error) {
@@ -123,6 +147,7 @@ function QuickCaptureCommand() {
           setTitleError(undefined);
           setBodyError(undefined);
           setPropertiesError(undefined);
+          setExtraError(undefined);
         }}
       >
         {buildCaptureTypeOptions(typeSchemas, type).map((t) => (
@@ -133,15 +158,21 @@ function QuickCaptureCommand() {
       <Form.Separator />
 
       {isCoreCaptureType(type) ? (
-        <CaptureFields
-          type={type}
-          urlError={urlError}
-          titleError={titleError}
-          bodyError={bodyError}
-          onUrlChange={() => setUrlError(undefined)}
-          onTitleChange={() => setTitleError(undefined)}
-          onBodyChange={() => setBodyError(undefined)}
-        />
+        <>
+          <CaptureFields
+            type={type}
+            urlError={urlError}
+            titleError={titleError}
+            bodyError={bodyError}
+            onUrlChange={() => setUrlError(undefined)}
+            onTitleChange={() => setTitleError(undefined)}
+            onBodyChange={() => setBodyError(undefined)}
+          />
+          <AdditionalPropertiesField
+            error={extraError}
+            onChange={() => setExtraError(undefined)}
+          />
+        </>
       ) : (
         <CustomPropertiesFields
           schemaText={schemaSummary(findSchema(typeSchemas, type), type)}

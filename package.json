@@ -103,7 +103,7 @@
     {
       "name": "defaultCaptureType",
       "title": "Default capture type",
-      "description": "Preselected type in Quick Capture and Clipboard Capture (Edit). Can be any registered Myme type. File and URL clipboard routing still win.",
+      "description": "Preselected type in Quick Capture. Clipboard file/URL routing overrides.",
       "type": "textfield",
       "default": "core.note",
       "required": false,
@@ -112,10 +112,19 @@
     {
       "name": "defaultTags",
       "title": "Default tags",
-      "description": "Comma-separated tags applied to every capture (e.g. raycast, mobile)",
+      "description": "Comma-separated tags applied to every capture",
       "type": "textfield",
       "required": false,
       "placeholder": "tag1, tag2"
+    },
+    {
+      "name": "captureLocation",
+      "title": "Capture location",
+      "description": "Attach lat/lon via the \"Myme Capture Location\" Shortcut",
+      "type": "checkbox",
+      "label": "Run the Shortcut on every capture",
+      "default": false,
+      "required": false
     }
   ],
   "dependencies": {

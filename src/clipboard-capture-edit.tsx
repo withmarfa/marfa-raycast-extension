@@ -13,17 +13,24 @@ import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
+import type { CreateItemInput } from '@mymehq/sdk';
 import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
 import {
   buildCoreCaptureProperties,
+  fetchCaptureLocation,
   isCoreCaptureType,
   mergeTags,
   normalizeTypeId,
+  parseAdditionalProperties,
   parseCustomPropertiesJson,
   validateCoreCapture,
 } from './capture-utils';
-import { CaptureFields, CustomPropertiesFields } from './components/CaptureFields';
+import {
+  AdditionalPropertiesField,
+  CaptureFields,
+  CustomPropertiesFields,
+} from './components/CaptureFields';
 import { buildCaptureTypeOptions, findSchema, schemaSummary } from './type-options';
 
 /**
@@ -38,6 +45,7 @@ interface CapturePreferences {
   defaultTier?: 'library' | 'feed';
   defaultCaptureType?: string;
   defaultTags?: string;
+  captureLocation?: boolean;
 }
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -130,6 +138,7 @@ interface FormValues {
   place?: string;
   tags?: string;
   propertiesJson?: string;
+  extraProperties?: string;
 }
 
 const FILE_CAPTURE_TYPE = { value: 'core.file', label: 'File' };
@@ -162,6 +171,7 @@ function ClipboardCaptureEditCommand() {
   const [titleError, setTitleError] = useState<string | undefined>();
   const [bodyError, setBodyError] = useState<string | undefined>();
   const [propertiesError, setPropertiesError] = useState<string | undefined>();
+  const [extraError, setExtraError] = useState<string | undefined>();
 
   if (snapLoading || typesLoading || !snapshot) {
     return <Form isLoading />;
@@ -178,6 +188,12 @@ function ClipboardCaptureEditCommand() {
 
     try {
       const client = getClient();
+      const location: Partial<CreateItemInput> = prefs.captureLocation
+        ? await (async () => {
+            const loc = await fetchCaptureLocation();
+            return loc ? { capture_latitude: loc.lat, capture_longitude: loc.lon } : {};
+          })()
+        : {};
 
       if (activeType === 'core.file') {
         if (!snapshot.file) {
@@ -194,7 +210,13 @@ function ClipboardCaptureEditCommand() {
           title: values.title?.trim() || snapshot.filename || 'file',
         };
         if (values.description?.trim()) properties.description = values.description.trim();
-        await client.items.create({ type: activeType, properties, tags, tier });
+        const extra = parseAdditionalProperties(values.extraProperties);
+        if ('error' in extra) {
+          setExtraError(extra.error.message);
+          return;
+        }
+        Object.assign(properties, extra.properties);
+        await client.items.create({ type: activeType, properties, tags, tier, ...location });
         await showHUD('File captured');
         pop();
         return;
@@ -213,6 +235,12 @@ function ClipboardCaptureEditCommand() {
           html: snapshot.html,
           sourceText: snapshot.text,
         });
+        const extra = parseAdditionalProperties(values.extraProperties);
+        if ('error' in extra) {
+          setExtraError(extra.error.message);
+          return;
+        }
+        Object.assign(properties, extra.properties);
       } else {
         const schema = findSchema(typeSchemas, activeType);
         if (typeSchemas && !schema) {
@@ -227,7 +255,7 @@ function ClipboardCaptureEditCommand() {
         properties = parsed.properties;
       }
 
-      await client.items.create({ type: activeType, properties, tags, tier });
+      await client.items.create({ type: activeType, properties, tags, tier, ...location });
       await showHUD('Item captured');
       pop();
     } catch (error) {
@@ -289,20 +317,30 @@ function ClipboardCaptureEditCommand() {
             defaultValue={snapshot.filename ?? undefined}
           />
           <Form.TextArea id="description" title="Description" placeholder="Optional description" />
+          <AdditionalPropertiesField
+            error={extraError}
+            onChange={() => setExtraError(undefined)}
+          />
         </>
       ) : isCoreCaptureType(activeType) ? (
-        <CaptureFields
-          type={activeType}
-          defaultTitle={inferDefaultTitle(activeType, snapshot)}
-          defaultBody={inferDefaultBody(activeType, snapshot)}
-          defaultUrl={inferDefaultUrl(activeType, snapshot)}
-          urlError={urlError}
-          titleError={titleError}
-          bodyError={bodyError}
-          onUrlChange={() => setUrlError(undefined)}
-          onTitleChange={() => setTitleError(undefined)}
-          onBodyChange={() => setBodyError(undefined)}
-        />
+        <>
+          <CaptureFields
+            type={activeType}
+            defaultTitle={inferDefaultTitle(activeType, snapshot)}
+            defaultBody={inferDefaultBody(activeType, snapshot)}
+            defaultUrl={inferDefaultUrl(activeType, snapshot)}
+            urlError={urlError}
+            titleError={titleError}
+            bodyError={bodyError}
+            onUrlChange={() => setUrlError(undefined)}
+            onTitleChange={() => setTitleError(undefined)}
+            onBodyChange={() => setBodyError(undefined)}
+          />
+          <AdditionalPropertiesField
+            error={extraError}
+            onChange={() => setExtraError(undefined)}
+          />
+        </>
       ) : (
         <CustomPropertiesFields
           schemaText={schemaSummary(findSchema(typeSchemas, activeType), activeType)}

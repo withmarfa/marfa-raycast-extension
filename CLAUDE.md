@@ -23,6 +23,7 @@ Extension preferences (set in Raycast → Extensions → Myme):
 - **Default tier** -- `library` (default) or `feed`. Stamped on every captured item.
 - **Default capture type** -- any registered Myme type id, e.g. `core.note` (default) or `example.type`. Core capture types use native fields; other types use a generic properties JSON editor. Clipboard file and URL routing still win when content implies a stronger type.
 - **Default tags** -- comma-separated tags merged into every capture (e.g. `raycast, mobile`).
+- **Capture location** -- when on, every capture invokes a macOS Shortcut named `Myme Capture Location` and stamps `capture_latitude` / `capture_longitude` on the item. The Shortcut must output `lat,lon` on stdout. Best-effort: missing shortcut or denied permission falls through silently and the capture proceeds without location.
 
 ## Auth
 
@@ -38,9 +39,9 @@ Implicit OAuth on first use, following the canonical Raycast pattern. Every comm
 
 ## Commands
 
-- **Browse** -- list items with date grouping, type icons, metadata. Paginated with auto-loading. Native Raycast filtering within loaded items. Tier filter in the search accessory; type and lifecycle filters in the action panel. Custom types are discovered from the server registry where available.
-- **Search** -- full-text search with debounced input. Shows snippets and metadata. Shares tier, type, and lifecycle filtering with Browse.
-- **Quick Capture** -- create core notes, bookmarks, tasks, or events with native type-specific fields and validation. Other registered types use a generic properties JSON editor with schema context. Honours capture preference defaults.
+- **Browse** -- list items with date grouping, type icons, metadata. Paginated with auto-loading. Native Raycast filtering within loaded items. Tier filter in the search accessory; type and lifecycle filters in the action panel. Custom types are discovered from the server registry where available. `⌘D` toggles the inline detail panel (per-command, persisted via `useCachedState`).
+- **Search** -- full-text search with debounced input. Shows snippets and metadata. Shares tier, type, and lifecycle filtering with Browse. Same `⌘D` detail toggle.
+- **Quick Capture** -- create core notes, bookmarks, tasks, or events with native type-specific fields and validation. Free-form "Additional properties" field accepts `key: value` lines for ad-hoc properties (booleans/numbers coerced; shadow keys rejected). Other registered types use a generic properties JSON editor with schema context. Honours capture preference defaults.
 - **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, four permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Supports `metadata_permissions` and `workspace_admin`. Non-admin principals see an "admin credentials required" empty state instead.
 
 ### Disabled by default (enable in Raycast Preferences → Extensions → Myme)
@@ -56,7 +57,7 @@ All items: View Detail, Copy Title/ID, Add/Remove Tags, Reply (in-thread edge), 
 
 Bookmarks additionally: Open in Browser (primary action), Copy URL
 
-Trashed items: Restore action, Delete Permanently (irreversible purge)
+Trashed items: Restore action, Delete Permanently (irreversible purge). When the lifecycle filter is set to **Trash**, an **Empty Trash** action (⌘⇧⌫) is surfaced on the action panel — calls `items.bulkAction({ action: 'purge', confirm: 'PURGE', filter: { state: 'trashed' } })` with a `confirmAlert` gate.
 
 ## Dependencies
 
@@ -78,16 +79,16 @@ Trashed items: Restore action, Delete Permanently (irreversible purge)
 - ESLint 9 flat config via `@raycast/eslint-config@2.x`
 - Prettier with single quotes, 100 char width
 - Build outputs to `./dist/` (gitignored). Do not output to repo root — that path is destructive and removes `assets/` between runs.
-- Lint uses `ray lint --relaxed` — this repo is pnpm-based, and `--relaxed` skips ray's npm-specific `package-lock.json` check (plus the store-publish icon validation, which isn't relevant for private use). If this extension is ever submitted to the Raycast store, drop `--relaxed` and generate `package-lock.json` first.
+- Lint uses `ray lint --relaxed` — `--relaxed` skips ray's store-publish icon validation, which isn't relevant for private use. `package-lock.json` is committed (npm canon). If this extension is ever submitted to the Raycast store, drop `--relaxed`.
 
 ## Local install
 
 Standard Raycast extension idiom — the extension lives in your Raycast app, not in this repo, after a one-time dev-mode registration.
 
-1. **First time after cloning:** `pnpm install && pnpm dev` in this repo. Wait for the "Built extension" message — that means Raycast has registered it.
+1. **First time after cloning:** `npm install && npm run dev` in this repo. Wait for the "Built extension" message — that means Raycast has registered it.
 2. Hit `Ctrl+C` to stop dev mode.
 3. The extension stays installed and usable in Raycast forever. Search for any of its commands (Browse, Search, Quick Capture, Manage Keys) from the Raycast root. The clipboard / server-info / type-registry commands ship `disabledByDefault` — enable them in Raycast Preferences → Extensions → Myme when you want them.
 
 What you lose by stopping dev: hot reload (file edits don't propagate) and console-log streaming. What you keep: the extension itself — fully functional.
 
-**Update ritual after pulling new code** (e.g. after a PR merges to main): run `pnpm dev` briefly so Raycast picks up the fresh build, then `Ctrl+C` again.
+**Update ritual after pulling new code** (e.g. after a PR merges to main): run `npm run dev` briefly so Raycast picks up the fresh build, then `Ctrl+C` again.

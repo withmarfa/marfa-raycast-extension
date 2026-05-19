@@ -348,7 +348,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
       (values.default_tier as 'library' | 'feed')) as 'library' | 'feed';
 
     try {
-      const client = await getClient();
+      const client = getClient();
       const created = await client.keys.create({
         label: values.label.trim(),
         source: values.source.trim(),
@@ -669,7 +669,7 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
     };
 
     try {
-      const client = await getClient();
+      const client = getClient();
       await client.keys.update(apiKey.id, input);
       await showToast({ style: Toast.Style.Success, title: 'Key updated' });
       onSaved();

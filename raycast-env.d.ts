@@ -14,10 +14,12 @@ type ExtensionPreferences = {
   "apiKey"?: string,
   /** Default tier - Tier stamped on captured items by default */
   "defaultTier": "library" | "feed",
-  /** Default capture type - Preselected type in Quick Capture and Clipboard Capture (Edit). Can be any registered Myme type. File and URL clipboard routing still win. */
+  /** Default capture type - Preselected type in Quick Capture. Clipboard file/URL routing overrides. */
   "defaultCaptureType": string,
-  /** Default tags - Comma-separated tags applied to every capture (e.g. raycast, mobile) */
-  "defaultTags"?: string
+  /** Default tags - Comma-separated tags applied to every capture */
+  "defaultTags"?: string,
+  /** Capture location - Attach lat/lon via the "Myme Capture Location" Shortcut */
+  "captureLocation": boolean
 }
 
 /** Preferences accessible in all the extension's commands */

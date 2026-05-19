@@ -3,13 +3,22 @@ import { Clipboard, getPreferenceValues, showHUD, showToast, Toast } from '@rayc
 import { showFailureToast } from '@raycast/utils';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
+import type { CreateItemInput } from '@mymehq/sdk';
 import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
-import { parseTags } from './capture-utils';
+import { fetchCaptureLocation, parseTags } from './capture-utils';
 
 interface CapturePreferences {
   defaultTier?: 'library' | 'feed';
   defaultTags?: string;
+  captureLocation?: boolean;
+}
+
+async function locationFor(prefs: CapturePreferences): Promise<Partial<CreateItemInput>> {
+  if (!prefs.captureLocation) return {};
+  const loc = await fetchCaptureLocation();
+  if (!loc) return {};
+  return { capture_latitude: loc.lat, capture_longitude: loc.lon };
 }
 
 function isUrl(text: string): boolean {
@@ -100,12 +109,13 @@ async function captureClipboard(): Promise<void> {
     try {
       await showToast({ style: Toast.Style.Animated, title: 'Uploading…', message: filename });
       const { hash } = await client.blobs.upload(bytes, mime);
-
+      const location = await locationFor(prefs);
       await client.items.create({
         type: 'core.file',
         properties: { blob_ref: hash, mime_type: mime, title: filename },
         tags: defaultTags,
         tier,
+        ...location,
       });
       await showHUD('File captured');
     } catch (err) {
@@ -116,11 +126,13 @@ async function captureClipboard(): Promise<void> {
 
   if (text && isUrl(text)) {
     try {
+      const location = await locationFor(prefs);
       await client.items.create({
         type: 'core.bookmark',
         properties: { url: text, title: text },
         tags: defaultTags,
         tier,
+        ...location,
       });
       await showHUD('Bookmark captured');
     } catch (err) {
@@ -134,11 +146,13 @@ async function captureClipboard(): Promise<void> {
   const properties: Record<string, unknown> = { body: text };
   if (html && html !== text) properties.html = html;
   try {
+    const location = await locationFor(prefs);
     await client.items.create({
       type: 'core.note',
       properties,
       tags: defaultTags,
       tier,
+      ...location,
     });
     await showHUD('Note captured');
   } catch (err) {

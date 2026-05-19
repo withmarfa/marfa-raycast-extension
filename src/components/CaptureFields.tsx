@@ -151,3 +151,27 @@ export function CustomPropertiesFields(props: CustomPropertiesFieldOptions): Rea
     </>
   );
 }
+
+export interface AdditionalPropertiesFieldOptions {
+  error?: string;
+  onChange?: () => void;
+}
+
+/**
+ * Free-form `key: value` block appended to every core-type capture. One
+ * property per line, `#` comments allowed. Parser lives in
+ * `capture-utils.parseAdditionalProperties` — coerces booleans / numbers
+ * and rejects shadow keys.
+ */
+export function AdditionalPropertiesField(props: AdditionalPropertiesFieldOptions): ReactNode {
+  return (
+    <Form.TextArea
+      id="extraProperties"
+      title="Additional properties"
+      placeholder={'mood: tired\nproject: myme\n# one per line, key: value'}
+      info="One per line, key: value. Skips lines starting with # and rejects collisions with first-class fields."
+      error={props.error}
+      onChange={props.onChange}
+    />
+  );
+}

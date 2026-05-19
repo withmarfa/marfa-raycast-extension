@@ -47,7 +47,7 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
     });
     if (!confirmed) return;
     try {
-      const client = await getClient();
+      const client = getClient();
       await client.keys.revoke(apiKey.id);
       await showToast({ style: Toast.Style.Success, title: 'Key revoked' });
       onRefresh();

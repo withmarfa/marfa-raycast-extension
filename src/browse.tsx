@@ -1,5 +1,5 @@
 import { Action, ActionPanel, Icon, List } from '@raycast/api';
-import { showFailureToast, useCachedPromise } from '@raycast/utils';
+import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
 import { useState } from 'react';
 import type { Item, ItemState, Metadata } from '@mymehq/sdk';
 import { withMymeAccessToken } from './auth/with-myme-access-token';
@@ -8,6 +8,7 @@ import { formatDate } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 import { buildTypeFilterOptions } from './type-options';
+import { EmptyTrashAction } from './components/EmptyTrashAction';
 
 interface ItemWithMetadata {
   item: Item;
@@ -47,6 +48,9 @@ function BrowseCommand() {
   const [tier, setTier] = useState<TierFilter>('all');
   const [state, setState] = useState<StateFilter>('active');
   const [type, setType] = useState('');
+  // Persist the inline-detail preference per command (Raycast caches by key
+  // across launches). Default off — accessory view is denser at-a-glance.
+  const [isShowingDetail, setIsShowingDetail] = useCachedState('browse-show-detail', false);
 
   const { data: typeSchemas } = useCachedPromise(
     async () => {
@@ -94,6 +98,8 @@ function BrowseCommand() {
   const stateLabel = STATE_FILTERS.find((filter) => filter.value === state)?.label ?? state;
   const navigationTitle = [TIER_LABEL[tier], stateLabel, typeLabel].filter(Boolean).join(' · ');
 
+  const toggleDetail = () => setIsShowingDetail((v) => !v);
+
   const typeSubmenu = (
     <ActionPanel.Submenu
       title="Filter by Type"
@@ -133,11 +139,17 @@ function BrowseCommand() {
     </>
   );
 
+  const emptyTrashAction =
+    state === 'trashed' && (data?.length ?? 0) > 0 ? (
+      <EmptyTrashAction count={data?.length ?? 0} onComplete={revalidate} />
+    ) : null;
+
   return (
     <List
       isLoading={isLoading}
       filtering
       pagination={pagination}
+      isShowingDetail={isShowingDetail}
       navigationTitle={navigationTitle}
       searchBarAccessory={<TierFilterDropdown onChange={setTier} />}
     >
@@ -145,7 +157,17 @@ function BrowseCommand() {
         <List.EmptyView
           title="No items"
           description="Nothing here yet"
-          actions={<ActionPanel>{filterActions}</ActionPanel>}
+          actions={
+            <ActionPanel>
+              {filterActions}
+              <Action
+                title={isShowingDetail ? 'Hide Details' : 'Show Details'}
+                icon={Icon.Sidebar}
+                shortcut={{ modifiers: ['cmd'], key: 'd' }}
+                onAction={toggleDetail}
+              />
+            </ActionPanel>
+          }
         />
       ) : (
         Array.from(groups.entries()).map(([date, entries]) => (
@@ -156,7 +178,15 @@ function BrowseCommand() {
                 item={item}
                 metadata={metadata}
                 onRefresh={revalidate}
-                topActions={filterActions}
+                topActions={
+                  <>
+                    {filterActions}
+                    {emptyTrashAction}
+                  </>
+                }
+                showInlineDetail={isShowingDetail}
+                onToggleDetail={toggleDetail}
+                isShowingDetail={isShowingDetail}
               />
             ))}
           </List.Section>

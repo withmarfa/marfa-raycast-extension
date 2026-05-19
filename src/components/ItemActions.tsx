@@ -25,7 +25,7 @@ function AddTagForm({ itemId, onComplete }: { itemId: string; onComplete: () => 
       .filter(Boolean);
     if (tags.length === 0) return;
     try {
-      const client = await getClient();
+      const client = getClient();
       await client.metadata.addTags(itemId, tags);
       await showToast({ style: Toast.Style.Success, title: 'Tags added' });
       onComplete();
@@ -60,7 +60,7 @@ function ReplyForm({ targetItemId, onComplete }: { targetItemId: string; onCompl
     const properties: Record<string, unknown> = { body: values.body };
     if (values.title?.trim()) properties.title = values.title;
     try {
-      const client = await getClient();
+      const client = getClient();
       await client.items.create({
         type: 'core.note',
         properties,
@@ -113,7 +113,7 @@ function AnnotateForm({
     const properties: Record<string, unknown> = { text: values.text };
     if (values.note?.trim()) properties.note = values.note;
     try {
-      const client = await getClient();
+      const client = getClient();
       await client.items.create({
         type: 'core.highlight',
         properties,
@@ -160,7 +160,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
 
   async function handleTransition(state: ItemState) {
     try {
-      const client = await getClient();
+      const client = getClient();
       await client.items.transition(item.id, state);
       await showToast({ style: Toast.Style.Success, title: `Moved to ${state}` });
       onRefresh();
@@ -171,7 +171,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
 
   async function handleRestore() {
     try {
-      const client = await getClient();
+      const client = getClient();
       await client.items.restore(item.id);
       await showToast({ style: Toast.Style.Success, title: 'Item restored' });
       onRefresh();
@@ -182,7 +182,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
 
   async function handleRemoveTag(tag: string) {
     try {
-      const client = await getClient();
+      const client = getClient();
       await client.metadata.removeTag(item.id, tag);
       await showToast({ style: Toast.Style.Success, title: `Removed tag: ${tag}` });
       onRefresh();
@@ -199,7 +199,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
     });
     if (!confirmed) return;
     try {
-      const client = await getClient();
+      const client = getClient();
       await client.items.purge(item.id);
       await showToast({ style: Toast.Style.Success, title: 'Item deleted permanently' });
       onRefresh();
