@@ -1,10 +1,11 @@
 /// <reference types="node" />
 import { Clipboard, getPreferenceValues, showHUD, showToast, Toast } from '@raycast/api';
-import { showFailureToast, withAccessToken } from '@raycast/utils';
+import { showFailureToast } from '@raycast/utils';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
-import { authorize, pkceClient } from './auth/myme-oauth';
+import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
+import { parseTags } from './capture-utils';
 
 interface CapturePreferences {
   defaultTier?: 'library' | 'feed';
@@ -48,15 +49,6 @@ function mimeForFile(path: string): string {
   return MIME_BY_EXT[extname(path).toLowerCase()] ?? 'application/octet-stream';
 }
 
-function parseDefaultTags(raw: string | undefined): string[] | undefined {
-  if (!raw) return undefined;
-  const tags = raw
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
-  return tags.length > 0 ? tags : undefined;
-}
-
 /**
  * Convert a Node Buffer to a fresh Uint8Array with no shared offset / pool
  * underlying. Avoids the byteOffset-mismatch crash class when handing a
@@ -70,7 +62,7 @@ function bufferToUint8Array(buf: Buffer): Uint8Array {
 async function captureClipboard(): Promise<void> {
   const prefs = getPreferenceValues<CapturePreferences>();
   const tier = prefs.defaultTier ?? 'library';
-  const defaultTags = parseDefaultTags(prefs.defaultTags);
+  const defaultTags = parseTags(prefs.defaultTags);
 
   let content: Clipboard.ReadContent;
   try {
@@ -109,15 +101,13 @@ async function captureClipboard(): Promise<void> {
       await showToast({ style: Toast.Style.Animated, title: 'Uploading…', message: filename });
       const { hash } = await client.blobs.upload(bytes, mime);
 
-      const isImage = mime.startsWith('image/');
-      const type = isImage ? 'core.file.image' : 'core.file';
       await client.items.create({
-        type,
-        properties: { blob_ref: hash, mime_type: mime, filename },
+        type: 'core.file',
+        properties: { blob_ref: hash, mime_type: mime, title: filename },
         tags: defaultTags,
         tier,
       });
-      await showHUD(isImage ? 'Image captured' : 'File captured');
+      await showHUD('File captured');
     } catch (err) {
       await showFailureToast(err, { title: 'Failed to capture file' });
     }
@@ -169,4 +159,4 @@ async function ClipboardCaptureCommand(): Promise<void> {
   }
 }
 
-export default withAccessToken({ authorize, client: pkceClient })(ClipboardCaptureCommand);
+export default withMymeAccessToken(ClipboardCaptureCommand);

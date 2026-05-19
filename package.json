@@ -103,16 +103,11 @@
     {
       "name": "defaultCaptureType",
       "title": "Default capture type",
-      "description": "Preselected type in Quick Capture and Clipboard Capture (Edit). File-shaped types still win when a file is on the clipboard.",
-      "type": "dropdown",
+      "description": "Preselected type in Quick Capture and Clipboard Capture (Edit). Can be any registered Myme type. File and URL clipboard routing still win.",
+      "type": "textfield",
       "default": "core.note",
       "required": false,
-      "data": [
-        { "title": "Note", "value": "core.note" },
-        { "title": "Bookmark", "value": "core.bookmark" },
-        { "title": "Task", "value": "core.task" },
-        { "title": "Event", "value": "core.event" }
-      ]
+      "placeholder": "core.note"
     },
     {
       "name": "defaultTags",

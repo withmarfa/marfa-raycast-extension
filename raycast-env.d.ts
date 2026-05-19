@@ -14,8 +14,8 @@ type ExtensionPreferences = {
   "apiKey"?: string,
   /** Default tier - Tier stamped on captured items by default */
   "defaultTier": "library" | "feed",
-  /** Default capture type - Preselected type in Quick Capture and Clipboard Capture (Edit). File-shaped types still win when a file is on the clipboard. */
-  "defaultCaptureType": "core.note" | "core.bookmark" | "core.task" | "core.event",
+  /** Default capture type - Preselected type in Quick Capture and Clipboard Capture (Edit). Can be any registered Myme type. File and URL clipboard routing still win. */
+  "defaultCaptureType": string,
   /** Default tags - Comma-separated tags applied to every capture (e.g. raycast, mobile) */
   "defaultTags"?: string
 }

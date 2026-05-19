@@ -1,13 +1,13 @@
 import { Action, ActionPanel, Icon, List } from '@raycast/api';
-import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
+import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
-import type { Item, Metadata } from '@mymehq/sdk';
-import { authorize, pkceClient } from './auth/myme-oauth';
+import type { Item, ItemState, Metadata } from '@mymehq/sdk';
+import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
-import { ALL_TYPES } from './constants';
 import { formatDate } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
+import { buildTypeFilterOptions } from './type-options';
 
 interface ItemWithMetadata {
   item: Item;
@@ -19,6 +19,15 @@ const TIER_LABEL: Record<TierFilter, string> = {
   library: 'Library only',
   feed: 'Feed only',
 };
+
+type StateFilter = ItemState | 'all';
+
+const STATE_FILTERS: Array<{ value: StateFilter; label: string }> = [
+  { value: 'active', label: 'Active' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'trashed', label: 'Trash' },
+  { value: 'all', label: 'All States' },
+];
 
 function groupByDate(entries: ItemWithMetadata[]): Map<string, ItemWithMetadata[]> {
   const groups = new Map<string, ItemWithMetadata[]>();
@@ -36,14 +45,29 @@ function groupByDate(entries: ItemWithMetadata[]): Map<string, ItemWithMetadata[
 
 function BrowseCommand() {
   const [tier, setTier] = useState<TierFilter>('all');
+  const [state, setState] = useState<StateFilter>('active');
   const [type, setType] = useState('');
 
+  const { data: typeSchemas } = useCachedPromise(
+    async () => {
+      const client = getClient();
+      return client.types.list();
+    },
+    [],
+    {
+      onError: async (err) => {
+        await showFailureToast(err, { title: 'Failed to load type filters' });
+      },
+    },
+  );
+
   const { data, isLoading, revalidate, pagination } = useCachedPromise(
-    (typeFilter: string, tierFilter: TierFilter) =>
+    (typeFilter: string, tierFilter: TierFilter, stateFilter: StateFilter) =>
       async (options: { page: number; cursor?: string }) => {
         const client = getClient();
         const response = await client.items.listWithMetadata({
           type: typeFilter || undefined,
+          state: stateFilter === 'all' ? undefined : stateFilter,
           tier: tierFilter,
           sort: 'timestamp',
           direction: 'desc',
@@ -56,7 +80,7 @@ function BrowseCommand() {
           cursor: response.cursor,
         };
       },
-    [type, tier],
+    [type, tier, state],
     {
       onError: async (err) => {
         await showFailureToast(err, { title: 'Failed to load items' });
@@ -65,8 +89,10 @@ function BrowseCommand() {
   );
 
   const groups = groupByDate(data ?? []);
-  const typeLabel = type ? (ALL_TYPES.find((t) => t.value === type)?.label ?? null) : null;
-  const navigationTitle = typeLabel ? `${TIER_LABEL[tier]} · ${typeLabel}` : TIER_LABEL[tier];
+  const typeOptions = buildTypeFilterOptions(typeSchemas);
+  const typeLabel = type ? (typeOptions.find((t) => t.value === type)?.label ?? null) : null;
+  const stateLabel = STATE_FILTERS.find((filter) => filter.value === state)?.label ?? state;
+  const navigationTitle = [TIER_LABEL[tier], stateLabel, typeLabel].filter(Boolean).join(' · ');
 
   const typeSubmenu = (
     <ActionPanel.Submenu
@@ -74,7 +100,7 @@ function BrowseCommand() {
       icon={Icon.Filter}
       shortcut={{ modifiers: ['cmd'], key: 't' }}
     >
-      {ALL_TYPES.map((t) => (
+      {typeOptions.map((t) => (
         <Action
           key={t.value || 'all'}
           title={t.label}
@@ -83,6 +109,28 @@ function BrowseCommand() {
         />
       ))}
     </ActionPanel.Submenu>
+  );
+  const stateSubmenu = (
+    <ActionPanel.Submenu
+      title="Filter by State"
+      icon={Icon.Filter}
+      shortcut={{ modifiers: ['cmd', 'shift'], key: 's' }}
+    >
+      {STATE_FILTERS.map((filter) => (
+        <Action
+          key={filter.value}
+          title={filter.label}
+          icon={filter.value === state ? Icon.Checkmark : undefined}
+          onAction={() => setState(filter.value)}
+        />
+      ))}
+    </ActionPanel.Submenu>
+  );
+  const filterActions = (
+    <>
+      {typeSubmenu}
+      {stateSubmenu}
+    </>
   );
 
   return (
@@ -97,7 +145,7 @@ function BrowseCommand() {
         <List.EmptyView
           title="No items"
           description="Nothing here yet"
-          actions={<ActionPanel>{typeSubmenu}</ActionPanel>}
+          actions={<ActionPanel>{filterActions}</ActionPanel>}
         />
       ) : (
         Array.from(groups.entries()).map(([date, entries]) => (
@@ -108,7 +156,7 @@ function BrowseCommand() {
                 item={item}
                 metadata={metadata}
                 onRefresh={revalidate}
-                topActions={typeSubmenu}
+                topActions={filterActions}
               />
             ))}
           </List.Section>
@@ -118,4 +166,4 @@ function BrowseCommand() {
   );
 }
 
-export default withAccessToken({ authorize, client: pkceClient })(BrowseCommand);
+export default withMymeAccessToken(BrowseCommand);

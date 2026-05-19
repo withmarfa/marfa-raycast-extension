@@ -13,13 +13,14 @@ let cached: { client: MymeClient; key: string } | null = null;
 /**
  * Build a `MymeClient` from the current credential. Two paths:
  *
- *  1. Wrapped command (default) — invoked inside a `withAccessToken(...)`
- *     wrapper, so `getAccessToken()` returns the live token. The MymeClient's
+ *  1. Wrapped command (default) — invoked inside `withMymeAccessToken(...)`,
+ *     so `getAccessToken()` returns the live token. The MymeClient's
  *     `tokenProvider.getAccessToken` calls `authorize()` directly on each
  *     SDK call, ensuring transparent refresh-on-expiry without the SDK
  *     needing to know about our PKCE store.
- *  2. `apiKey` preference fallback — for the rare dev / escape-hatch case
- *     where the operator pastes a static admin key into Preferences.
+ *  2. `apiKey` preference fallback — for dev / self-hosting cases where the
+ *     operator pastes a static key into Preferences. The wrapper passes this
+ *     through Raycast's personal-access-token path so OAuth is not forced.
  *
  * This function is synchronous: it builds the client object, but token
  * resolution happens asynchronously inside the SDK's transport layer on

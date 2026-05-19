@@ -1,7 +1,7 @@
 import { Action, ActionPanel, Color, Detail, Icon, List } from '@raycast/api';
-import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
+import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import type { TypeSchema } from '@mymehq/sdk';
-import { authorize, pkceClient } from './auth/myme-oauth';
+import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
 
 /**
@@ -111,4 +111,4 @@ function TypeDetail({ schema }: { schema: TypeSchema }) {
   );
 }
 
-export default withAccessToken({ authorize, client: pkceClient })(TypeRegistryCommand);
+export default withMymeAccessToken(TypeRegistryCommand);

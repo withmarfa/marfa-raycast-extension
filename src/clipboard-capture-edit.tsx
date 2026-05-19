@@ -9,14 +9,22 @@ import {
   showHUD,
   useNavigation,
 } from '@raycast/api';
-import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
+import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
-import { authorize, pkceClient } from './auth/myme-oauth';
+import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
-import { CAPTURE_TYPES } from './constants';
-import { CaptureFields } from './components/CaptureFields';
+import {
+  buildCoreCaptureProperties,
+  isCoreCaptureType,
+  mergeTags,
+  normalizeTypeId,
+  parseCustomPropertiesJson,
+  validateCoreCapture,
+} from './capture-utils';
+import { CaptureFields, CustomPropertiesFields } from './components/CaptureFields';
+import { buildCaptureTypeOptions, findSchema, schemaSummary } from './type-options';
 
 /**
  * Clipboard Capture (Edit). Pre-fills a Quick-Capture-style form from
@@ -43,11 +51,17 @@ const MIME_BY_EXT: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.tiff': 'image/tiff',
   '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.json': 'application/json',
+  '.csv': 'text/csv',
+  '.html': 'text/html',
   '.mp3': 'audio/mpeg',
   '.wav': 'audio/wav',
   '.m4a': 'audio/mp4',
   '.mp4': 'video/mp4',
   '.mov': 'video/quicktime',
+  '.zip': 'application/zip',
 };
 
 function mimeForFile(path: string): string {
@@ -98,11 +112,10 @@ function inferDefaultType(snapshot: ClipboardSnapshot, prefDefault?: string): st
   // File on clipboard always wins — auto-detected file type beats the
   // operator's preference for the bookmark / note / task / event family.
   if (snapshot.file) {
-    return snapshot.fileMime?.startsWith('image/') ? 'core.file.image' : 'core.file';
+    return 'core.file';
   }
   if (snapshot.text && isUrl(snapshot.text)) return 'core.bookmark';
-  if (prefDefault && CAPTURE_TYPES.some((t) => t.value === prefDefault)) return prefDefault;
-  return 'core.note';
+  return normalizeTypeId(prefDefault);
 }
 
 interface FormValues {
@@ -116,13 +129,10 @@ interface FormValues {
   priority?: string;
   place?: string;
   tags?: string;
+  propertiesJson?: string;
 }
 
-const EDIT_CAPTURE_TYPES = [
-  ...CAPTURE_TYPES,
-  { value: 'core.file.image', label: 'Image (from file)' },
-  { value: 'core.file', label: 'File' },
-];
+const FILE_CAPTURE_TYPE = { value: 'core.file', label: 'File' };
 
 function ClipboardCaptureEditCommand() {
   const { pop } = useNavigation();
@@ -134,12 +144,26 @@ function ClipboardCaptureEditCommand() {
       await showFailureToast(err, { title: 'Failed to read clipboard' });
     },
   });
+  const { data: typeSchemas, isLoading: typesLoading } = useCachedPromise(
+    async () => {
+      const client = getClient();
+      return client.types.list();
+    },
+    [],
+    {
+      onError: async (err) => {
+        await showFailureToast(err, { title: 'Failed to load types' });
+      },
+    },
+  );
 
   const [type, setType] = useState<string | null>(null);
   const [urlError, setUrlError] = useState<string | undefined>();
   const [titleError, setTitleError] = useState<string | undefined>();
+  const [bodyError, setBodyError] = useState<string | undefined>();
+  const [propertiesError, setPropertiesError] = useState<string | undefined>();
 
-  if (snapLoading || !snapshot) {
+  if (snapLoading || typesLoading || !snapshot) {
     return <Form isLoading />;
   }
 
@@ -149,25 +173,13 @@ function ClipboardCaptureEditCommand() {
 
   async function handleSubmit(values: FormValues) {
     if (!snapshot) return;
-    if (activeType === 'core.bookmark' && !values.url?.trim()) {
-      setUrlError('URL is required');
-      return;
-    }
-    if (activeType === 'core.task' && !values.title?.trim()) {
-      setTitleError('Title is required');
-      return;
-    }
 
-    const baseTags = parseTags(prefs.defaultTags) ?? [];
-    const formTags = parseTags(values.tags) ?? [];
-    const merged = [...baseTags];
-    for (const t of formTags) if (!merged.includes(t)) merged.push(t);
-    const tags = merged.length > 0 ? merged : undefined;
+    const tags = mergeTags(prefs.defaultTags, values.tags);
 
     try {
       const client = getClient();
 
-      if (activeType === 'core.file.image' || activeType === 'core.file') {
+      if (activeType === 'core.file') {
         if (!snapshot.file) {
           await showFailureToast('No file on clipboard for the selected type.');
           return;
@@ -179,39 +191,40 @@ function ClipboardCaptureEditCommand() {
         const properties: Record<string, unknown> = {
           blob_ref: hash,
           mime_type: mime,
-          filename: snapshot.filename ?? 'file',
+          title: values.title?.trim() || snapshot.filename || 'file',
         };
-        if (values.title?.trim()) properties.title = values.title.trim();
         if (values.description?.trim()) properties.description = values.description.trim();
         await client.items.create({ type: activeType, properties, tags, tier });
-        await showHUD(activeType === 'core.file.image' ? 'Image captured' : 'File captured');
+        await showHUD('File captured');
         pop();
         return;
       }
 
-      const properties: Record<string, unknown> = {};
-      switch (activeType) {
-        case 'core.note':
-          if (values.title?.trim()) properties.title = values.title.trim();
-          if (values.body?.trim()) properties.body = values.body.trim();
-          if (snapshot.html && snapshot.html !== snapshot.text) properties.html = snapshot.html;
-          break;
-        case 'core.bookmark':
-          if (values.url?.trim()) properties.url = values.url.trim();
-          if (values.title?.trim()) properties.title = values.title.trim();
-          if (values.description?.trim()) properties.description = values.description.trim();
-          break;
-        case 'core.task':
-          if (values.title?.trim()) properties.title = values.title.trim();
-          if (values.description?.trim()) properties.description = values.description.trim();
-          if (values.due_at) properties.due_at = values.due_at.toISOString();
-          if (values.priority) properties.priority = values.priority;
-          break;
-        case 'core.event':
-          if (values.title?.trim()) properties.title = values.title.trim();
-          if (values.starts_at) properties.starts_at = values.starts_at.toISOString();
-          if (values.place) properties.place = values.place;
-          break;
+      let properties: Record<string, unknown>;
+      if (isCoreCaptureType(activeType)) {
+        const validation = validateCoreCapture(activeType, values);
+        if (validation) {
+          if (validation.field === 'url') setUrlError(validation.message);
+          if (validation.field === 'title') setTitleError(validation.message);
+          if (validation.field === 'body') setBodyError(validation.message);
+          return;
+        }
+        properties = buildCoreCaptureProperties(activeType, values, {
+          html: snapshot.html,
+          sourceText: snapshot.text,
+        });
+      } else {
+        const schema = findSchema(typeSchemas, activeType);
+        if (typeSchemas && !schema) {
+          setPropertiesError(`Type ${activeType} is not registered on this server`);
+          return;
+        }
+        const parsed = parseCustomPropertiesJson(values.propertiesJson, schema);
+        if ('error' in parsed) {
+          setPropertiesError(parsed.error.message);
+          return;
+        }
+        properties = parsed.properties;
       }
 
       await client.items.create({ type: activeType, properties, tags, tier });
@@ -222,7 +235,11 @@ function ClipboardCaptureEditCommand() {
     }
   }
 
-  const isFileType = activeType === 'core.file.image' || activeType === 'core.file';
+  const isFileType = activeType === 'core.file';
+  const typeOptions = buildCaptureTypeOptions(typeSchemas, activeType);
+  if (!typeOptions.some((option) => option.value === FILE_CAPTURE_TYPE.value)) {
+    typeOptions.push(FILE_CAPTURE_TYPE);
+  }
 
   return (
     <Form
@@ -240,14 +257,16 @@ function ClipboardCaptureEditCommand() {
           setType(v);
           setUrlError(undefined);
           setTitleError(undefined);
+          setBodyError(undefined);
+          setPropertiesError(undefined);
         }}
       >
-        {EDIT_CAPTURE_TYPES.map((t) => (
+        {typeOptions.map((t) => (
           <Form.Dropdown.Item
             key={t.value}
             value={t.value}
             title={
-              !snapshot.file && (t.value === 'core.file.image' || t.value === 'core.file')
+              !snapshot.file && t.value === 'core.file'
                 ? `${t.label} (no file on clipboard)`
                 : t.label
             }
@@ -271,7 +290,7 @@ function ClipboardCaptureEditCommand() {
           />
           <Form.TextArea id="description" title="Description" placeholder="Optional description" />
         </>
-      ) : (
+      ) : isCoreCaptureType(activeType) ? (
         <CaptureFields
           type={activeType}
           defaultTitle={inferDefaultTitle(activeType, snapshot)}
@@ -279,8 +298,17 @@ function ClipboardCaptureEditCommand() {
           defaultUrl={inferDefaultUrl(activeType, snapshot)}
           urlError={urlError}
           titleError={titleError}
+          bodyError={bodyError}
           onUrlChange={() => setUrlError(undefined)}
           onTitleChange={() => setTitleError(undefined)}
+          onBodyChange={() => setBodyError(undefined)}
+        />
+      ) : (
+        <CustomPropertiesFields
+          schemaText={schemaSummary(findSchema(typeSchemas, activeType), activeType)}
+          propertiesError={propertiesError}
+          defaultPropertiesJson={defaultCustomPropertiesJson(snapshot)}
+          onPropertiesChange={() => setPropertiesError(undefined)}
         />
       )}
 
@@ -290,13 +318,17 @@ function ClipboardCaptureEditCommand() {
   );
 }
 
-function parseTags(value: string | undefined): string[] | undefined {
-  if (!value) return undefined;
-  const tags = value
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
-  return tags.length > 0 ? tags : undefined;
+function defaultCustomPropertiesJson(snapshot: ClipboardSnapshot): string {
+  if (!snapshot.text || isUrl(snapshot.text)) return '{}';
+  try {
+    const parsed = JSON.parse(snapshot.text);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return JSON.stringify(parsed, null, 2);
+    }
+  } catch {
+    // Plain clipboard text should not make the custom JSON field invalid by default.
+  }
+  return '{}';
 }
 
 function inferDefaultTitle(type: string, snap: ClipboardSnapshot): string | undefined {
@@ -314,4 +346,4 @@ function inferDefaultUrl(type: string, snap: ClipboardSnapshot): string | undefi
   return undefined;
 }
 
-export default withAccessToken({ authorize, client: pkceClient })(ClipboardCaptureEditCommand);
+export default withMymeAccessToken(ClipboardCaptureEditCommand);

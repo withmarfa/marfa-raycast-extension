@@ -117,7 +117,7 @@ function AnnotateForm({
       await client.items.create({
         type: 'core.highlight',
         properties,
-        edges: { annotates: [targetItemId] },
+        edges: { references: [targetItemId] },
         tier: 'library',
       });
       await showToast({ style: Toast.Style.Success, title: 'Highlight saved' });
@@ -191,21 +191,21 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
     }
   }
 
-  async function handleDelete() {
+  async function handlePurge() {
     const confirmed = await confirmAlert({
-      title: 'Delete Item',
-      message: `Are you sure you want to delete "${getItemTitle(item)}"?`,
-      primaryAction: { title: 'Delete', style: Alert.ActionStyle.Destructive },
+      title: 'Delete Permanently',
+      message: `Permanently delete "${getItemTitle(item)}"? This cannot be undone.`,
+      primaryAction: { title: 'Delete Permanently', style: Alert.ActionStyle.Destructive },
     });
     if (!confirmed) return;
     try {
       const client = await getClient();
-      await client.items.delete(item.id);
-      await showToast({ style: Toast.Style.Success, title: 'Item deleted' });
+      await client.items.purge(item.id);
+      await showToast({ style: Toast.Style.Success, title: 'Item deleted permanently' });
       onRefresh();
       pop();
     } catch (error) {
-      await showFailureToast(error, { title: 'Failed to delete' });
+      await showFailureToast(error, { title: 'Failed to delete permanently' });
     }
   }
 
@@ -293,15 +293,17 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
         ))}
       </ActionPanel.Section>
 
-      <ActionPanel.Section title="Danger">
-        <Action
-          title="Delete Permanently"
-          icon={Icon.Trash}
-          style={Action.Style.Destructive}
-          onAction={handleDelete}
-          shortcut={{ modifiers: ['ctrl'], key: 'x' }}
-        />
-      </ActionPanel.Section>
+      {item.state === 'trashed' && (
+        <ActionPanel.Section title="Danger">
+          <Action
+            title="Delete Permanently"
+            icon={Icon.Trash}
+            style={Action.Style.Destructive}
+            onAction={handlePurge}
+            shortcut={{ modifiers: ['ctrl'], key: 'x' }}
+          />
+        </ActionPanel.Section>
+      )}
     </>
   );
 }

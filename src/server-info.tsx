@@ -1,6 +1,6 @@
 import { Action, ActionPanel, Detail, getPreferenceValues, Icon } from '@raycast/api';
-import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
-import { authorize, pkceClient } from './auth/myme-oauth';
+import { showFailureToast, useCachedPromise } from '@raycast/utils';
+import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
 
 /**
@@ -26,6 +26,9 @@ function ServerInfoCommand() {
 
   const { data, isLoading, revalidate } = useCachedPromise(
     async (): Promise<ServerInfoData> => {
+      if (apiKey?.trim()) {
+        return { authMode: 'apiKey', identity: 'API key' };
+      }
       const client = getClient();
       try {
         const profile = await client.profile.get();
@@ -86,4 +89,4 @@ function ServerInfoCommand() {
   );
 }
 
-export default withAccessToken({ authorize, client: pkceClient })(ServerInfoCommand);
+export default withMymeAccessToken(ServerInfoCommand);

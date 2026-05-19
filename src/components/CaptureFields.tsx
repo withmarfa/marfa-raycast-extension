@@ -21,6 +21,13 @@ export interface CaptureFieldOptions {
   onBodyChange?: () => void;
 }
 
+export interface CustomPropertiesFieldOptions {
+  schemaText: string;
+  propertiesError?: string;
+  defaultPropertiesJson?: string;
+  onPropertiesChange?: () => void;
+}
+
 export function CaptureFields(props: CaptureFieldOptions): ReactNode {
   const {
     type,
@@ -117,6 +124,7 @@ export function CaptureFields(props: CaptureFieldOptions): ReactNode {
             title="Title"
             placeholder="Event title"
             defaultValue={defaultTitle}
+            error={titleError}
             onChange={onTitleChange}
           />
           <Form.DatePicker id="starts_at" title="Starts At" />
@@ -126,4 +134,20 @@ export function CaptureFields(props: CaptureFieldOptions): ReactNode {
     default:
       return null;
   }
+}
+
+export function CustomPropertiesFields(props: CustomPropertiesFieldOptions): ReactNode {
+  return (
+    <>
+      <Form.Description title="Schema" text={props.schemaText} />
+      <Form.TextArea
+        id="propertiesJson"
+        title="Properties"
+        placeholder='{"title":"Example"}'
+        defaultValue={props.defaultPropertiesJson ?? '{}'}
+        error={props.propertiesError}
+        onChange={props.onPropertiesChange}
+      />
+    </>
+  );
 }

@@ -9,10 +9,10 @@ import {
   showToast,
   Toast,
 } from '@raycast/api';
-import { showFailureToast, useCachedPromise, withAccessToken } from '@raycast/utils';
+import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import type { ApiKey } from '@mymehq/sdk';
 import { ForbiddenError } from '@mymehq/sdk';
-import { authorize, pkceClient } from './auth/myme-oauth';
+import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
 import { formatRelativeTime } from './helpers';
 import { CreateKeyForm, EditKeyForm } from './components/KeyForms';
@@ -153,4 +153,4 @@ function ManageKeysCommand() {
   );
 }
 
-export default withAccessToken({ authorize, client: pkceClient })(ManageKeysCommand);
+export default withMymeAccessToken(ManageKeysCommand);

@@ -19,21 +19,24 @@ import { getClient } from '../client';
  *   type_permissions      → Record<pattern, 'read' | 'write' | 'none'>
  *   extension_permissions → Record<namespace, 'read' | 'write'>
  *   edge_permissions      → Record<edge_type, 'read' | 'write'>
+ *   metadata_permissions  → Record<sub_resource, 'read' | 'write'>
  */
 
 type TypeMap = Record<string, 'read' | 'write' | 'none'>;
 type RwMap = Record<string, 'read' | 'write'>;
+type KeyRole = 'admin' | 'workspace_admin' | 'member';
 
 interface PermissionBundle {
   type_permissions: TypeMap;
   extension_permissions: RwMap;
   edge_permissions: RwMap;
+  metadata_permissions: RwMap;
 }
 
 interface CreatePreset {
   id: string;
   label: string;
-  role: 'admin' | 'member';
+  role: KeyRole;
   default_tier: 'library' | 'feed';
   permissions: PermissionBundle;
 }
@@ -48,28 +51,63 @@ const CREATE_PRESETS: CreatePreset[] = [
       type_permissions: { '*': 'write' },
       extension_permissions: { '*': 'write' },
       edge_permissions: { '*': 'write' },
+      metadata_permissions: { types: 'write' },
     },
   },
   {
-    id: 'read-everything',
-    label: 'Read everything (member)',
+    id: 'workspace-admin',
+    label: 'Workspace admin',
+    role: 'workspace_admin',
+    default_tier: 'library',
+    permissions: {
+      type_permissions: { '*': 'write' },
+      extension_permissions: { '*': 'write' },
+      edge_permissions: { '*': 'write' },
+      metadata_permissions: { types: 'write' },
+    },
+  },
+  {
+    id: 'read-only-browser',
+    label: 'Read-only browser',
     role: 'member',
     default_tier: 'library',
     permissions: {
       type_permissions: { '*': 'read' },
       extension_permissions: { '*': 'read' },
       edge_permissions: { '*': 'read' },
+      metadata_permissions: { types: 'read' },
     },
   },
   {
     id: 'capture',
-    label: 'Capture notes & bookmarks',
+    label: 'Capture client',
     role: 'member',
     default_tier: 'library',
     permissions: {
-      type_permissions: { 'core.note': 'write', 'core.bookmark': 'write', '*': 'read' },
+      type_permissions: {
+        'core.note': 'write',
+        'core.bookmark': 'write',
+        'core.task': 'write',
+        'core.event': 'write',
+        'core.file': 'write',
+        'core.highlight': 'write',
+        '*': 'read',
+      },
+      extension_permissions: {},
+      edge_permissions: { 'in-thread': 'write', references: 'write', '*': 'read' },
+      metadata_permissions: {},
+    },
+  },
+  {
+    id: 'custom-type-author',
+    label: 'Custom type author',
+    role: 'member',
+    default_tier: 'library',
+    permissions: {
+      type_permissions: { '*': 'read' },
       extension_permissions: {},
       edge_permissions: { '*': 'read' },
+      metadata_permissions: { types: 'write' },
     },
   },
 ];
@@ -97,6 +135,13 @@ const TYPE_QUICKSETS: QuickSetOption<'read' | 'write' | 'none'>[] = [
 const RW_QUICKSETS: QuickSetOption<'read' | 'write'>[] = [
   { id: 'all-write', label: 'Full access (write everything)', value: { '*': 'write' } },
   { id: 'all-read', label: 'Read everything', value: { '*': 'read' } },
+  { id: 'none', label: 'No access', value: {} },
+  { id: 'custom', label: 'Custom (edit JSON)', value: null },
+];
+
+const METADATA_QUICKSETS: QuickSetOption<'read' | 'write'>[] = [
+  { id: 'types-write', label: 'Type registry author', value: { types: 'write' } },
+  { id: 'types-read', label: 'Read type registry', value: { types: 'read' } },
   { id: 'none', label: 'No access', value: {} },
   { id: 'custom', label: 'Custom (edit JSON)', value: null },
 ];
@@ -196,6 +241,8 @@ interface CreateValues {
   ext_custom_json: string;
   edge_quickset: string;
   edge_custom_json: string;
+  metadata_quickset: string;
+  metadata_custom_json: string;
 }
 
 export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
@@ -204,12 +251,14 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
   const [typeQuickset, setTypeQuickset] = useState(TYPE_QUICKSETS[0].id);
   const [extQuickset, setExtQuickset] = useState(RW_QUICKSETS[0].id);
   const [edgeQuickset, setEdgeQuickset] = useState(RW_QUICKSETS[0].id);
+  const [metadataQuickset, setMetadataQuickset] = useState(METADATA_QUICKSETS[0].id);
 
   const [labelError, setLabelError] = useState<string | undefined>();
   const [sourceError, setSourceError] = useState<string | undefined>();
   const [typeError, setTypeError] = useState<string | undefined>();
   const [extError, setExtError] = useState<string | undefined>();
   const [edgeError, setEdgeError] = useState<string | undefined>();
+  const [metadataError, setMetadataError] = useState<string | undefined>();
 
   const usingPreset = presetId !== CUSTOM_PRESET_ID;
   const activePreset = CREATE_PRESETS.find((p) => p.id === presetId);
@@ -233,6 +282,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
       const typeOpt = TYPE_QUICKSETS.find((q) => q.id === values.type_quickset);
       const extOpt = RW_QUICKSETS.find((q) => q.id === values.ext_quickset);
       const edgeOpt = RW_QUICKSETS.find((q) => q.id === values.edge_quickset);
+      const metadataOpt = METADATA_QUICKSETS.find((q) => q.id === values.metadata_quickset);
 
       let typeMap: TypeMap = {};
       if (typeOpt?.value) {
@@ -272,15 +322,28 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
           edgeMap = parsed.value;
         }
       }
+      let metadataMap: RwMap = {};
+      if (metadataOpt?.value) {
+        metadataMap = metadataOpt.value;
+      } else {
+        const parsed = parseRwMap(values.metadata_custom_json);
+        if ('error' in parsed) {
+          setMetadataError(parsed.error);
+          invalid = true;
+        } else {
+          metadataMap = parsed.value;
+        }
+      }
       permissions = {
         type_permissions: typeMap,
         extension_permissions: extMap,
         edge_permissions: edgeMap,
+        metadata_permissions: metadataMap,
       };
     }
     if (invalid) return;
 
-    const role = (activePreset?.role ?? (values.role as 'admin' | 'member')) as 'admin' | 'member';
+    const role = (activePreset?.role ?? (values.role as KeyRole)) as KeyRole;
     const defaultTier = (activePreset?.default_tier ??
       (values.default_tier as 'library' | 'feed')) as 'library' | 'feed';
 
@@ -294,6 +357,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         type_permissions: permissions.type_permissions,
         extension_permissions: permissions.extension_permissions,
         edge_permissions: permissions.edge_permissions,
+        metadata_permissions: permissions.metadata_permissions,
       });
       onCreated();
       push(<PlaintextKeyView apiKey={created} />);
@@ -351,6 +415,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         <>
           <Form.Dropdown id="role" title="Role" defaultValue="member">
             <Form.Dropdown.Item value="member" title="Member" />
+            <Form.Dropdown.Item value="workspace_admin" title="Workspace Admin" />
             <Form.Dropdown.Item value="admin" title="Admin" />
           </Form.Dropdown>
           <Form.Dropdown id="default_tier" title="Default Tier" defaultValue="library">
@@ -434,13 +499,39 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
               onChange={() => setEdgeError(undefined)}
             />
           )}
+
+          <Form.Separator />
+          <Form.Description text="Metadata permissions" />
+          <Form.Dropdown
+            id="metadata_quickset"
+            title="Quick set"
+            value={metadataQuickset}
+            onChange={(v) => {
+              setMetadataQuickset(v);
+              setMetadataError(undefined);
+            }}
+          >
+            {METADATA_QUICKSETS.map((q) => (
+              <Form.Dropdown.Item key={q.id} value={q.id} title={q.label} />
+            ))}
+          </Form.Dropdown>
+          {metadataQuickset === 'custom' && (
+            <Form.TextArea
+              id="metadata_custom_json"
+              title="JSON"
+              placeholder='{"types":"write"}'
+              info='JSON object mapping metadata sub-resource to "read" | "write". Today "types" controls custom type registration.'
+              error={metadataError}
+              onChange={() => setMetadataError(undefined)}
+            />
+          )}
         </>
       )}
 
       {usingPreset && activePreset && (
         <Form.Description
           title="Permissions"
-          text={`Role: ${activePreset.role} · Default tier: ${activePreset.default_tier} · Types: ${stringifyMap(activePreset.permissions.type_permissions)} · Extensions: ${stringifyMap(activePreset.permissions.extension_permissions)} · Edges: ${stringifyMap(activePreset.permissions.edge_permissions)}`}
+          text={`Role: ${activePreset.role} · Default tier: ${activePreset.default_tier} · Types: ${stringifyMap(activePreset.permissions.type_permissions)} · Extensions: ${stringifyMap(activePreset.permissions.extension_permissions)} · Edges: ${stringifyMap(activePreset.permissions.edge_permissions)} · Metadata: ${stringifyMap(activePreset.permissions.metadata_permissions)}`}
         />
       )}
     </Form>
@@ -479,6 +570,8 @@ interface EditValues {
   ext_custom_json: string;
   edge_quickset: string;
   edge_custom_json: string;
+  metadata_quickset: string;
+  metadata_custom_json: string;
 }
 
 export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () => void }) {
@@ -486,15 +579,20 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
   const currentType = (apiKey.type_permissions ?? {}) as TypeMap;
   const currentExt = (apiKey.extension_permissions ?? {}) as RwMap;
   const currentEdge = (apiKey.edge_permissions ?? {}) as RwMap;
+  const currentMetadata = (apiKey.metadata_permissions ?? {}) as RwMap;
 
   const [typeQuickset, setTypeQuickset] = useState(matchQuickset(currentType, TYPE_QUICKSETS));
   const [extQuickset, setExtQuickset] = useState(matchQuickset(currentExt, RW_QUICKSETS));
   const [edgeQuickset, setEdgeQuickset] = useState(matchQuickset(currentEdge, RW_QUICKSETS));
+  const [metadataQuickset, setMetadataQuickset] = useState(
+    matchQuickset(currentMetadata, METADATA_QUICKSETS),
+  );
 
   const [labelError, setLabelError] = useState<string | undefined>();
   const [typeError, setTypeError] = useState<string | undefined>();
   const [extError, setExtError] = useState<string | undefined>();
   const [edgeError, setEdgeError] = useState<string | undefined>();
+  const [metadataError, setMetadataError] = useState<string | undefined>();
 
   async function handleSubmit(values: EditValues) {
     let invalid = false;
@@ -545,6 +643,20 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
       }
     }
 
+    const metadataOpt = METADATA_QUICKSETS.find((q) => q.id === values.metadata_quickset);
+    let metadataMap: RwMap = {};
+    if (metadataOpt?.value) {
+      metadataMap = metadataOpt.value;
+    } else {
+      const parsed = parseRwMap(values.metadata_custom_json);
+      if ('error' in parsed) {
+        setMetadataError(parsed.error);
+        invalid = true;
+      } else {
+        metadataMap = parsed.value;
+      }
+    }
+
     if (invalid) return;
 
     const input: UpdateKeyInput = {
@@ -553,6 +665,7 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
       type_permissions: typeMap,
       extension_permissions: extMap,
       edge_permissions: edgeMap,
+      metadata_permissions: metadataMap,
     };
 
     try {
@@ -670,6 +783,32 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
           info='JSON object mapping edge type to "read" | "write".'
           error={edgeError}
           onChange={() => setEdgeError(undefined)}
+        />
+      )}
+
+      <Form.Separator />
+      <Form.Description text="Metadata permissions" />
+      <Form.Dropdown
+        id="metadata_quickset"
+        title="Quick set"
+        value={metadataQuickset}
+        onChange={(v) => {
+          setMetadataQuickset(v);
+          setMetadataError(undefined);
+        }}
+      >
+        {METADATA_QUICKSETS.map((q) => (
+          <Form.Dropdown.Item key={q.id} value={q.id} title={q.label} />
+        ))}
+      </Form.Dropdown>
+      {metadataQuickset === 'custom' && (
+        <Form.TextArea
+          id="metadata_custom_json"
+          title="JSON"
+          defaultValue={stringifyMap(currentMetadata)}
+          info='JSON object mapping metadata sub-resource to "read" | "write".'
+          error={metadataError}
+          onChange={() => setMetadataError(undefined)}
         />
       )}
     </Form>

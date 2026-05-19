@@ -36,6 +36,7 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
     permissionMapBlock('Type permissions', apiKey.type_permissions),
     permissionMapBlock('Extension permissions', apiKey.extension_permissions),
     permissionMapBlock('Edge permissions', apiKey.edge_permissions),
+    permissionMapBlock('Metadata permissions', apiKey.metadata_permissions),
   ].join('\n');
 
   async function handleRevoke() {
@@ -63,6 +64,7 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
   const typeTags = permissionMapTags(apiKey.type_permissions);
   const extTags = permissionMapTags(apiKey.extension_permissions);
   const edgeTags = permissionMapTags(apiKey.edge_permissions);
+  const metadataTags = permissionMapTags(apiKey.metadata_permissions);
 
   return (
     <Detail
@@ -109,6 +111,13 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
             <Detail.Metadata.TagList title="Edge permissions">
               {edgeTags.map(([edge, level]) => (
                 <Detail.Metadata.TagList.Item key={edge} text={`${edge}: ${level}`} />
+              ))}
+            </Detail.Metadata.TagList>
+          )}
+          {metadataTags.length > 0 && (
+            <Detail.Metadata.TagList title="Metadata permissions">
+              {metadataTags.map(([resource, level]) => (
+                <Detail.Metadata.TagList.Item key={resource} text={`${resource}: ${level}`} />
               ))}
             </Detail.Metadata.TagList>
           )}

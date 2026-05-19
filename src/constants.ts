@@ -54,6 +54,7 @@ export const ALL_TYPES = [
   { value: 'core.media.podcast', label: 'Podcast' },
   { value: 'core.media.series', label: 'Series' },
   { value: 'core.media.tv_episode', label: 'TV Episode' },
+  { value: 'core.file', label: 'File' },
   { value: 'core.file.image', label: 'Image' },
   { value: 'core.file.audio', label: 'Audio' },
   { value: 'core.file.video', label: 'Video' },
