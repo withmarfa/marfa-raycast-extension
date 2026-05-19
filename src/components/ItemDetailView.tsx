@@ -13,57 +13,7 @@ import {
   arrayBufferToBase64,
 } from '../helpers';
 import { ItemActionSections } from './ItemActions';
-
-const BODY_PROPERTY_KEYS = new Set([
-  'title',
-  'name',
-  'body',
-  'description',
-  'url',
-  'text',
-  'notes',
-]);
-
-const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T/;
-
-type ScalarSidebarEntry =
-  | { kind: 'datetime'; key: string; value: string }
-  | { kind: 'url'; key: string; value: string }
-  | { kind: 'boolean'; key: string; value: boolean }
-  | { kind: 'number'; key: string; value: number }
-  | { kind: 'string'; key: string; value: string }
-  | { kind: 'array'; key: string; value: string };
-
-function isPrimitive(v: unknown): v is string | number | boolean {
-  return typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
-}
-
-function classifyProperty(
-  key: string,
-  value: unknown,
-): ScalarSidebarEntry | { kind: 'complex'; key: string; value: unknown } | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'string') {
-    if (value === '') return null;
-    if (ISO_DATETIME_RE.test(value)) return { kind: 'datetime', key, value };
-    if (value.startsWith('http://') || value.startsWith('https://'))
-      return { kind: 'url', key, value };
-    return { kind: 'string', key, value };
-  }
-  if (typeof value === 'boolean') return { kind: 'boolean', key, value };
-  if (typeof value === 'number') return { kind: 'number', key, value };
-  if (Array.isArray(value)) {
-    if (value.length === 0) return null;
-    if (value.every(isPrimitive)) {
-      return { kind: 'array', key, value: value.map((v) => String(v)).join(', ') };
-    }
-    return { kind: 'complex', key, value };
-  }
-  if (typeof value === 'object') {
-    return { kind: 'complex', key, value };
-  }
-  return null;
-}
+import { splitItemProperties, type ScalarSidebarEntry } from '../item-metadata';
 
 interface Edge {
   id: string;
@@ -135,18 +85,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   if (typeof p.notes === 'string' && p.notes) lines.push(p.notes, '');
   if (typeof p.url === 'string' && p.url) lines.push(`[${p.url}](${p.url})`, '');
 
-  const sidebarEntries: ScalarSidebarEntry[] = [];
-  const complexEntries: Array<{ key: string; value: unknown }> = [];
-  for (const [key, value] of Object.entries(p)) {
-    if (BODY_PROPERTY_KEYS.has(key)) continue;
-    const classified = classifyProperty(key, value);
-    if (!classified) continue;
-    if (classified.kind === 'complex') {
-      complexEntries.push({ key: classified.key, value: classified.value });
-    } else {
-      sidebarEntries.push(classified);
-    }
-  }
+  const { scalar: sidebarEntries, complex: complexEntries } = splitItemProperties(item);
 
   if (complexEntries.length > 0) {
     lines.push('## Extended properties', '', '```json');
@@ -188,6 +127,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
       navigationTitle={getItemTitle(item)}
       metadata={
         <Detail.Metadata>
+          {/* What — type, state, tier, tags */}
           <Detail.Metadata.TagList title="Type">
             <Detail.Metadata.TagList.Item text={typeConfig.label} color={typeConfig.color} />
           </Detail.Metadata.TagList>
@@ -197,14 +137,6 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
               color={stateConfig?.color ?? Color.PrimaryText}
             />
           </Detail.Metadata.TagList>
-          {sidebarEntries.length > 0 && (
-            <>
-              <Detail.Metadata.Separator />
-              {sidebarEntries.map((entry) => renderSidebarEntry(entry))}
-            </>
-          )}
-          <Detail.Metadata.Separator />
-          <Detail.Metadata.Label title="Source" text={item.source} />
           <Detail.Metadata.TagList title="Tier">
             <Detail.Metadata.TagList.Item
               text={item.tier === 'library' ? 'Library' : item.tier === 'feed' ? 'Feed' : '—'}
@@ -217,58 +149,78 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
               }
             />
           </Detail.Metadata.TagList>
+          {metadata.tags.length > 0 && (
+            <Detail.Metadata.TagList title="Tags">
+              {metadata.tags.map((tag) => (
+                <Detail.Metadata.TagList.Item key={tag} text={tag} />
+              ))}
+            </Detail.Metadata.TagList>
+          )}
+
+          {/* When — timestamp, updated, created */}
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label
             title="Timestamp"
             text={`${formatDate(item.timestamp)} ${formatTime(item.timestamp)}`}
           />
           <Detail.Metadata.Label
+            title="Updated"
+            text={`${formatRelativeTime(item.updated_at)} · ${formatDate(item.updated_at)} ${formatTime(item.updated_at)}`}
+          />
+          <Detail.Metadata.Label
             title="Created"
             text={`${formatDate(item.created_at)} ${formatTime(item.created_at)}`}
           />
-          <Detail.Metadata.Label
-            title="Updated"
-            text={`${formatDate(item.updated_at)} ${formatTime(item.updated_at)} (${formatRelativeTime(item.updated_at)})`}
-          />
+
+          {/* Custom — property sidebar entries from the typed schema */}
+          {sidebarEntries.length > 0 && (
+            <>
+              <Detail.Metadata.Separator />
+              {sidebarEntries.map((entry) => renderSidebarEntry(entry))}
+            </>
+          )}
+
+          {/* Provenance — source, device, source_id */}
+          <Detail.Metadata.Separator />
+          <Detail.Metadata.Label title="Source" text={item.source} />
+          {item.device && <Detail.Metadata.Label title="Device" text={item.device} />}
+          {item.source_id && <Detail.Metadata.Label title="Source ID" text={item.source_id} />}
+          {(item.capture_latitude !== undefined || item.capture_longitude !== undefined) && (
+            <Detail.Metadata.Label
+              title="Location"
+              text={
+                item.capture_latitude !== undefined && item.capture_longitude !== undefined
+                  ? `${item.capture_latitude.toFixed(4)}, ${item.capture_longitude.toFixed(4)}`
+                  : '—'
+              }
+            />
+          )}
+
+          {/* Identity — id, revision, schema version */}
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label title="ID" text={item.id} />
-          <Detail.Metadata.Label title="Version" text={`v${item.version}`} />
-          <Detail.Metadata.Label title="Schema version" text={`v${item.schema_version}`} />
-          {item.source_id && <Detail.Metadata.Label title="Source ID" text={item.source_id} />}
-          {item.device && <Detail.Metadata.Label title="Device" text={item.device} />}
-          {metadata.tags.length > 0 && (
-            <>
-              <Detail.Metadata.Separator />
-              <Detail.Metadata.TagList title="Tags">
-                {metadata.tags.map((tag) => (
-                  <Detail.Metadata.TagList.Item key={tag} text={tag} />
-                ))}
-              </Detail.Metadata.TagList>
-            </>
-          )}
+          <Detail.Metadata.Label title="Revision" text={String(item.version)} />
+          <Detail.Metadata.Label title="Schema version" text={String(item.schema_version)} />
+
+          {/* Relationships — edges, extensions */}
+          {(edgeCounts.size > 0 || extensionNamespaces.length > 0) && <Detail.Metadata.Separator />}
           {edgeCounts.size > 0 && (
-            <>
-              <Detail.Metadata.Separator />
-              <Detail.Metadata.TagList title="Edges">
-                {Array.from(edgeCounts.entries()).map(([edgeType, count]) => (
-                  <Detail.Metadata.TagList.Item
-                    key={edgeType}
-                    text={`${edgeType} (${count})`}
-                    color={Color.SecondaryText}
-                  />
-                ))}
-              </Detail.Metadata.TagList>
-            </>
+            <Detail.Metadata.TagList title="Edges">
+              {Array.from(edgeCounts.entries()).map(([edgeType, count]) => (
+                <Detail.Metadata.TagList.Item
+                  key={edgeType}
+                  text={`${edgeType} (${count})`}
+                  color={Color.SecondaryText}
+                />
+              ))}
+            </Detail.Metadata.TagList>
           )}
           {extensionNamespaces.length > 0 && (
-            <>
-              <Detail.Metadata.Separator />
-              <Detail.Metadata.TagList title="Extensions">
-                {extensionNamespaces.map((ns) => (
-                  <Detail.Metadata.TagList.Item key={ns} text={ns} color={Color.SecondaryText} />
-                ))}
-              </Detail.Metadata.TagList>
-            </>
+            <Detail.Metadata.TagList title="Extensions">
+              {extensionNamespaces.map((ns) => (
+                <Detail.Metadata.TagList.Item key={ns} text={ns} color={Color.SecondaryText} />
+              ))}
+            </Detail.Metadata.TagList>
           )}
         </Detail.Metadata>
       }

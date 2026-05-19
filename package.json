@@ -36,8 +36,17 @@
       "name": "clipboard-capture",
       "title": "Clipboard Capture",
       "subtitle": "Myme",
-      "description": "Capture clipboard content as a bookmark or note",
-      "mode": "no-view"
+      "description": "Capture clipboard content — bookmark, image, file, or note — instantly",
+      "mode": "no-view",
+      "disabledByDefault": true
+    },
+    {
+      "name": "clipboard-capture-edit",
+      "title": "Clipboard Capture (Edit)",
+      "subtitle": "Myme",
+      "description": "Capture clipboard content with a form to shape type and properties before submitting",
+      "mode": "view",
+      "disabledByDefault": true
     },
     {
       "name": "manage-keys",
@@ -45,6 +54,22 @@
       "subtitle": "Myme",
       "description": "Admin: list, create, edit, and revoke API keys",
       "mode": "view"
+    },
+    {
+      "name": "server-info",
+      "title": "Server Info",
+      "subtitle": "Myme",
+      "description": "Read-only view of the connected instance, auth mode, and signed-in identity",
+      "mode": "view",
+      "disabledByDefault": true
+    },
+    {
+      "name": "type-registry",
+      "title": "Type Registry",
+      "subtitle": "Myme",
+      "description": "Browse every type registered on the instance (core, custom, system)",
+      "mode": "view",
+      "disabledByDefault": true
     }
   ],
   "preferences": [
@@ -59,9 +84,47 @@
     {
       "name": "apiKey",
       "title": "API Key",
-      "description": "Myme API key for authentication",
+      "description": "Optional dev/escape-hatch API key. Normal use signs in via OAuth on first command run.",
       "type": "password",
-      "required": true
+      "required": false
+    },
+    {
+      "name": "defaultTier",
+      "title": "Default tier",
+      "description": "Tier stamped on captured items by default",
+      "type": "dropdown",
+      "default": "library",
+      "required": false,
+      "data": [
+        { "title": "Library", "value": "library" },
+        { "title": "Feed", "value": "feed" }
+      ]
+    },
+    {
+      "name": "defaultCaptureType",
+      "title": "Default capture type",
+      "description": "Preselected type in Quick Capture. Clipboard file/URL routing overrides.",
+      "type": "textfield",
+      "default": "core.note",
+      "required": false,
+      "placeholder": "core.note"
+    },
+    {
+      "name": "defaultTags",
+      "title": "Default tags",
+      "description": "Comma-separated tags applied to every capture",
+      "type": "textfield",
+      "required": false,
+      "placeholder": "tag1, tag2"
+    },
+    {
+      "name": "captureLocation",
+      "title": "Capture location",
+      "description": "Attach lat/lon via the \"Myme Capture Location\" Shortcut",
+      "type": "checkbox",
+      "label": "Run the Shortcut on every capture",
+      "default": false,
+      "required": false
     }
   ],
   "dependencies": {
@@ -71,8 +134,8 @@
   },
   "devDependencies": {
     "@raycast/eslint-config": "^2.1.1",
-    "@types/node": "^22.13.10",
-    "@types/react": "^19.0.10",
+    "@types/node": "22.19.17",
+    "@types/react": "19.0.10",
     "eslint": "^9.0.0",
     "prettier": "^3.5.3",
     "typescript": "^5.8.2"

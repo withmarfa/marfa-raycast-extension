@@ -1,8 +1,40 @@
-import { Action, ActionPanel, Form, Icon, showHUD, useNavigation } from '@raycast/api';
-import { showFailureToast } from '@raycast/utils';
+import {
+  Action,
+  ActionPanel,
+  Form,
+  getPreferenceValues,
+  Icon,
+  showHUD,
+  useNavigation,
+} from '@raycast/api';
+import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
+import type { CreateItemInput } from '@mymehq/sdk';
+import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
-import { CAPTURE_TYPES } from './constants';
+import {
+  buildCoreCaptureProperties,
+  fetchCaptureLocation,
+  isCoreCaptureType,
+  mergeTags,
+  normalizeTypeId,
+  parseAdditionalProperties,
+  parseCustomPropertiesJson,
+  validateCoreCapture,
+} from './capture-utils';
+import {
+  AdditionalPropertiesField,
+  CaptureFields,
+  CustomPropertiesFields,
+} from './components/CaptureFields';
+import { buildCaptureTypeOptions, findSchema, schemaSummary } from './type-options';
+
+interface CapturePreferences {
+  defaultTier?: 'library' | 'feed';
+  defaultCaptureType?: string;
+  defaultTags?: string;
+  captureLocation?: boolean;
+}
 
 interface FormValues {
   type: string;
@@ -15,60 +47,80 @@ interface FormValues {
   priority: string;
   place: string;
   tags: string;
+  propertiesJson: string;
+  extraProperties: string;
 }
 
-export default function QuickCaptureCommand() {
-  const [type, setType] = useState('core.note');
+function QuickCaptureCommand() {
+  const prefs = getPreferenceValues<CapturePreferences>();
+  const defaultType = normalizeTypeId(prefs.defaultCaptureType);
+  const defaultTier = prefs.defaultTier ?? 'library';
+
+  const [type, setType] = useState(defaultType);
   const [urlError, setUrlError] = useState<string | undefined>();
   const [titleError, setTitleError] = useState<string | undefined>();
+  const [bodyError, setBodyError] = useState<string | undefined>();
+  const [propertiesError, setPropertiesError] = useState<string | undefined>();
+  const [extraError, setExtraError] = useState<string | undefined>();
   const { pop } = useNavigation();
 
+  const { data: typeSchemas, isLoading: typesLoading } = useCachedPromise(
+    async () => {
+      const client = getClient();
+      return client.types.list();
+    },
+    [],
+    {
+      onError: async (err) => {
+        await showFailureToast(err, { title: 'Failed to load types' });
+      },
+    },
+  );
+
   async function handleSubmit(values: FormValues) {
-    // Validate required fields
-    if (type === 'core.bookmark' && !values.url?.trim()) {
-      setUrlError('URL is required');
-      return;
-    }
-    if (type === 'core.task' && !values.title?.trim()) {
-      setTitleError('Title is required');
-      return;
-    }
-
-    const properties: Record<string, unknown> = {};
-
-    switch (type) {
-      case 'core.note':
-        if (values.title) properties.title = values.title;
-        if (values.body) properties.body = values.body;
-        break;
-      case 'core.bookmark':
-        if (values.url) properties.url = values.url;
-        if (values.title) properties.title = values.title;
-        if (values.description) properties.description = values.description;
-        break;
-      case 'core.task':
-        if (values.title) properties.title = values.title;
-        if (values.description) properties.description = values.description;
-        if (values.due_at) properties.due_at = values.due_at.toISOString();
-        if (values.priority) properties.priority = values.priority;
-        break;
-      case 'core.event':
-        if (values.title) properties.title = values.title;
-        if (values.starts_at) properties.starts_at = values.starts_at.toISOString();
-        if (values.place) properties.place = values.place;
-        break;
+    let properties: Record<string, unknown>;
+    if (isCoreCaptureType(type)) {
+      const validation = validateCoreCapture(type, values);
+      if (validation) {
+        if (validation.field === 'url') setUrlError(validation.message);
+        if (validation.field === 'title') setTitleError(validation.message);
+        if (validation.field === 'body') setBodyError(validation.message);
+        return;
+      }
+      properties = buildCoreCaptureProperties(type, values);
+      const extra = parseAdditionalProperties(values.extraProperties);
+      if ('error' in extra) {
+        setExtraError(extra.error.message);
+        return;
+      }
+      Object.assign(properties, extra.properties);
+    } else {
+      const schema = findSchema(typeSchemas, type);
+      if (typeSchemas && !schema) {
+        setPropertiesError(`Type ${type} is not registered on this server`);
+        return;
+      }
+      const parsed = parseCustomPropertiesJson(values.propertiesJson, schema);
+      if ('error' in parsed) {
+        setPropertiesError(parsed.error.message);
+        return;
+      }
+      properties = parsed.properties;
     }
 
-    const tags = values.tags
-      ? values.tags
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean)
-      : undefined;
+    const tags = mergeTags(prefs.defaultTags, values.tags);
 
     try {
       const client = getClient();
-      await client.items.create({ type, properties, tags, tier: 'library' });
+      const payload: CreateItemInput = { type, properties, tags, tier: defaultTier };
+      if (prefs.captureLocation) {
+        const loc = await fetchCaptureLocation();
+        if (loc) {
+          payload.capture_latitude = loc.lat;
+          payload.capture_longitude = loc.lon;
+        }
+      }
+      await client.items.create(payload);
       await showHUD('Item captured');
       pop();
     } catch (error) {
@@ -78,67 +130,52 @@ export default function QuickCaptureCommand() {
 
   return (
     <Form
+      isLoading={typesLoading}
       actions={
         <ActionPanel>
           <Action.SubmitForm title="Capture" icon={Icon.Plus} onSubmit={handleSubmit} />
         </ActionPanel>
       }
     >
-      <Form.Dropdown id="type" title="Type" value={type} onChange={setType}>
-        {CAPTURE_TYPES.map((t) => (
+      <Form.Dropdown
+        id="type"
+        title="Type"
+        value={type}
+        onChange={(value) => {
+          setType(value);
+          setUrlError(undefined);
+          setTitleError(undefined);
+          setBodyError(undefined);
+          setPropertiesError(undefined);
+          setExtraError(undefined);
+        }}
+      >
+        {buildCaptureTypeOptions(typeSchemas, type).map((t) => (
           <Form.Dropdown.Item key={t.value} value={t.value} title={t.label} />
         ))}
       </Form.Dropdown>
 
       <Form.Separator />
 
-      {type === 'core.note' && (
+      {isCoreCaptureType(type) ? (
         <>
-          <Form.TextField id="title" title="Title" placeholder="Note title" />
-          <Form.TextArea id="body" title="Body" placeholder="Write your note..." />
-        </>
-      )}
-
-      {type === 'core.bookmark' && (
-        <>
-          <Form.TextField
-            id="url"
-            title="URL"
-            placeholder="https://..."
-            error={urlError}
-            onChange={() => setUrlError(undefined)}
+          <CaptureFields
+            type={type}
+            urlError={urlError}
+            titleError={titleError}
+            bodyError={bodyError}
+            onUrlChange={() => setUrlError(undefined)}
+            onTitleChange={() => setTitleError(undefined)}
+            onBodyChange={() => setBodyError(undefined)}
           />
-          <Form.TextField id="title" title="Title" placeholder="Bookmark title" />
-          <Form.TextArea id="description" title="Description" placeholder="Optional description" />
+          <AdditionalPropertiesField error={extraError} onChange={() => setExtraError(undefined)} />
         </>
-      )}
-
-      {type === 'core.task' && (
-        <>
-          <Form.TextField
-            id="title"
-            title="Title"
-            placeholder="Task title"
-            error={titleError}
-            onChange={() => setTitleError(undefined)}
-          />
-          <Form.TextArea id="description" title="Description" placeholder="Optional description" />
-          <Form.DatePicker id="due_at" title="Due Date" />
-          <Form.Dropdown id="priority" title="Priority" defaultValue="medium">
-            <Form.Dropdown.Item title="Low" value="low" />
-            <Form.Dropdown.Item title="Medium" value="medium" />
-            <Form.Dropdown.Item title="High" value="high" />
-            <Form.Dropdown.Item title="Urgent" value="urgent" />
-          </Form.Dropdown>
-        </>
-      )}
-
-      {type === 'core.event' && (
-        <>
-          <Form.TextField id="title" title="Title" placeholder="Event title" />
-          <Form.DatePicker id="starts_at" title="Starts At" />
-          <Form.TextField id="place" title="Place" placeholder="Location" />
-        </>
+      ) : (
+        <CustomPropertiesFields
+          schemaText={schemaSummary(findSchema(typeSchemas, type), type)}
+          propertiesError={propertiesError}
+          onPropertiesChange={() => setPropertiesError(undefined)}
+        />
       )}
 
       <Form.Separator />
@@ -146,3 +183,5 @@ export default function QuickCaptureCommand() {
     </Form>
   );
 }
+
+export default withMymeAccessToken(QuickCaptureCommand);

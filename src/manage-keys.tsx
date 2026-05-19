@@ -12,12 +12,13 @@ import {
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import type { ApiKey } from '@mymehq/sdk';
 import { ForbiddenError } from '@mymehq/sdk';
+import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
 import { formatRelativeTime } from './helpers';
 import { CreateKeyForm, EditKeyForm } from './components/KeyForms';
 import { KeyDetailView } from './components/KeyDetailView';
 
-export default function ManageKeysCommand() {
+function ManageKeysCommand() {
   const {
     data: keys,
     isLoading,
@@ -64,7 +65,7 @@ export default function ManageKeysCommand() {
         <List.EmptyView
           icon={{ source: Icon.Lock, tintColor: Color.Yellow }}
           title="Admin credentials required"
-          description="The API key in extension preferences cannot list keys. Replace it with an admin key in Raycast preferences."
+          description="This account doesn't have admin role. Sign in with an admin account, or paste an admin API key in Preferences."
         />
       </List>
     );
@@ -151,3 +152,5 @@ export default function ManageKeysCommand() {
     </List>
   );
 }
+
+export default withMymeAccessToken(ManageKeysCommand);

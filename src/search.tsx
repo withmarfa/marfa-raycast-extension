@@ -1,38 +1,74 @@
 import { Action, ActionPanel, Icon, List } from '@raycast/api';
-import { useCachedPromise } from '@raycast/utils';
+import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
 import { useState } from 'react';
+import type { ItemState } from '@mymehq/sdk';
+import { withMymeAccessToken } from './auth/with-myme-access-token';
 import { getClient } from './client';
-import { ALL_TYPES } from './constants';
 import { stripHtmlTags } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
+import { buildTypeFilterOptions } from './type-options';
+import { EmptyTrashAction } from './components/EmptyTrashAction';
 
-export default function SearchCommand() {
+type StateFilter = ItemState | 'all';
+
+const STATE_FILTERS: Array<{ value: StateFilter; label: string }> = [
+  { value: 'active', label: 'Active' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'trashed', label: 'Trash' },
+  { value: 'all', label: 'All States' },
+];
+
+function SearchCommand() {
   const [searchText, setSearchText] = useState('');
   const [type, setType] = useState('');
   const [tier, setTier] = useState<TierFilter>('all');
+  const [state, setState] = useState<StateFilter>('active');
+  const [isShowingDetail, setIsShowingDetail] = useCachedState('search-show-detail', false);
+
+  const { data: typeSchemas } = useCachedPromise(
+    async () => {
+      const client = getClient();
+      return client.types.list();
+    },
+    [],
+    {
+      onError: async (err) => {
+        await showFailureToast(err, { title: 'Failed to load type filters' });
+      },
+    },
+  );
 
   const { data, isLoading, revalidate } = useCachedPromise(
-    async (q: string, typeFilter: string, tierFilter: TierFilter) => {
+    async (q: string, typeFilter: string, tierFilter: TierFilter, stateFilter: StateFilter) => {
       if (!q.trim()) return [];
       const client = getClient();
       return client.search(q, {
         type: typeFilter || undefined,
+        state: stateFilter === 'all' ? undefined : stateFilter,
         tier: tierFilter,
         limit: 20,
       });
     },
-    [searchText, type, tier],
-    { keepPreviousData: true },
+    [searchText, type, tier, state],
+    {
+      keepPreviousData: true,
+      onError: async (err) => {
+        await showFailureToast(err, { title: 'Search failed' });
+      },
+    },
   );
 
+  const toggleDetail = () => setIsShowingDetail((v) => !v);
+
+  const typeOptions = buildTypeFilterOptions(typeSchemas);
   const typeSubmenu = (
     <ActionPanel.Submenu
       title="Filter by Type"
       icon={Icon.Filter}
       shortcut={{ modifiers: ['cmd'], key: 't' }}
     >
-      {ALL_TYPES.map((t) => (
+      {typeOptions.map((t) => (
         <Action
           key={t.value || 'all'}
           title={t.label}
@@ -42,6 +78,33 @@ export default function SearchCommand() {
       ))}
     </ActionPanel.Submenu>
   );
+  const stateSubmenu = (
+    <ActionPanel.Submenu
+      title="Filter by State"
+      icon={Icon.Filter}
+      shortcut={{ modifiers: ['cmd', 'shift'], key: 's' }}
+    >
+      {STATE_FILTERS.map((filter) => (
+        <Action
+          key={filter.value}
+          title={filter.label}
+          icon={filter.value === state ? Icon.Checkmark : undefined}
+          onAction={() => setState(filter.value)}
+        />
+      ))}
+    </ActionPanel.Submenu>
+  );
+  const filterActions = (
+    <>
+      {typeSubmenu}
+      {stateSubmenu}
+    </>
+  );
+
+  const emptyTrashAction =
+    state === 'trashed' && (data?.length ?? 0) > 0 ? (
+      <EmptyTrashAction count={data?.length ?? 0} onComplete={revalidate} />
+    ) : null;
 
   return (
     <List
@@ -49,6 +112,7 @@ export default function SearchCommand() {
       onSearchTextChange={setSearchText}
       searchBarPlaceholder="Search items..."
       searchBarAccessory={<TierFilterDropdown onChange={setTier} />}
+      isShowingDetail={isShowingDetail}
       throttle
     >
       {!searchText.trim() ? (
@@ -56,13 +120,33 @@ export default function SearchCommand() {
           title="Search Myme"
           description="Type to search your items"
           icon="icon.png"
-          actions={<ActionPanel>{typeSubmenu}</ActionPanel>}
+          actions={
+            <ActionPanel>
+              {filterActions}
+              <Action
+                title={isShowingDetail ? 'Hide Details' : 'Show Details'}
+                icon={Icon.Sidebar}
+                shortcut={{ modifiers: ['cmd'], key: 'd' }}
+                onAction={toggleDetail}
+              />
+            </ActionPanel>
+          }
         />
       ) : data?.length === 0 ? (
         <List.EmptyView
           title="No results"
           description={`No items matching "${searchText}"`}
-          actions={<ActionPanel>{typeSubmenu}</ActionPanel>}
+          actions={
+            <ActionPanel>
+              {filterActions}
+              <Action
+                title={isShowingDetail ? 'Hide Details' : 'Show Details'}
+                icon={Icon.Sidebar}
+                shortcut={{ modifiers: ['cmd'], key: 'd' }}
+                onAction={toggleDetail}
+              />
+            </ActionPanel>
+          }
         />
       ) : (
         data?.map((result) => (
@@ -72,10 +156,20 @@ export default function SearchCommand() {
             metadata={result.metadata}
             snippet={result.snippet_html ? stripHtmlTags(result.snippet_html) : undefined}
             onRefresh={revalidate}
-            topActions={typeSubmenu}
+            topActions={
+              <>
+                {filterActions}
+                {emptyTrashAction}
+              </>
+            }
+            showInlineDetail={isShowingDetail}
+            onToggleDetail={toggleDetail}
+            isShowingDetail={isShowingDetail}
           />
         ))
       )}
     </List>
   );
 }
+
+export default withMymeAccessToken(SearchCommand);
