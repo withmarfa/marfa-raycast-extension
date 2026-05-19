@@ -168,10 +168,7 @@ function QuickCaptureCommand() {
             onTitleChange={() => setTitleError(undefined)}
             onBodyChange={() => setBodyError(undefined)}
           />
-          <AdditionalPropertiesField
-            error={extraError}
-            onChange={() => setExtraError(undefined)}
-          />
+          <AdditionalPropertiesField error={extraError} onChange={() => setExtraError(undefined)} />
         </>
       ) : (
         <CustomPropertiesFields

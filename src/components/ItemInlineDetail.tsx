@@ -1,13 +1,7 @@
 import { Color, List } from '@raycast/api';
 import type { Item, Metadata } from '@mymehq/sdk';
 import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
-import {
-  getItemTitle,
-  formatDate,
-  formatTime,
-  formatRelativeTime,
-  toTitleCase,
-} from '../helpers';
+import { getItemTitle, formatDate, formatTime, formatRelativeTime, toTitleCase } from '../helpers';
 import { splitItemProperties, type ScalarSidebarEntry } from '../item-metadata';
 
 /**
@@ -112,9 +106,7 @@ export function ItemInlineDetail({ item, metadata, snippet }: ItemInlineDetailPr
           {/* Provenance */}
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label title="Source" text={item.source} />
-          {item.device && (
-            <List.Item.Detail.Metadata.Label title="Device" text={item.device} />
-          )}
+          {item.device && <List.Item.Detail.Metadata.Label title="Device" text={item.device} />}
           {item.source_id && (
             <List.Item.Detail.Metadata.Label title="Source ID" text={item.source_id} />
           )}
@@ -182,16 +174,10 @@ function renderSidebarEntry(entry: ScalarSidebarEntry) {
       );
     case 'number':
       return (
-        <List.Item.Detail.Metadata.Label
-          key={entry.key}
-          title={title}
-          text={String(entry.value)}
-        />
+        <List.Item.Detail.Metadata.Label key={entry.key} title={title} text={String(entry.value)} />
       );
     case 'string':
     case 'array':
-      return (
-        <List.Item.Detail.Metadata.Label key={entry.key} title={title} text={entry.value} />
-      );
+      return <List.Item.Detail.Metadata.Label key={entry.key} title={title} text={entry.value} />;
   }
 }

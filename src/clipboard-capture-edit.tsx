@@ -317,10 +317,7 @@ function ClipboardCaptureEditCommand() {
             defaultValue={snapshot.filename ?? undefined}
           />
           <Form.TextArea id="description" title="Description" placeholder="Optional description" />
-          <AdditionalPropertiesField
-            error={extraError}
-            onChange={() => setExtraError(undefined)}
-          />
+          <AdditionalPropertiesField error={extraError} onChange={() => setExtraError(undefined)} />
         </>
       ) : isCoreCaptureType(activeType) ? (
         <>
@@ -336,10 +333,7 @@ function ClipboardCaptureEditCommand() {
             onTitleChange={() => setTitleError(undefined)}
             onBodyChange={() => setBodyError(undefined)}
           />
-          <AdditionalPropertiesField
-            error={extraError}
-            onChange={() => setExtraError(undefined)}
-          />
+          <AdditionalPropertiesField error={extraError} onChange={() => setExtraError(undefined)} />
         </>
       ) : (
         <CustomPropertiesFields

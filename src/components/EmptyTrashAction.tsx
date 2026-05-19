@@ -1,11 +1,4 @@
-import {
-  Action,
-  Alert,
-  confirmAlert,
-  Icon,
-  showToast,
-  Toast,
-} from '@raycast/api';
+import { Action, Alert, confirmAlert, Icon, showToast, Toast } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
 import { getClient } from '../client';
 

@@ -203,9 +203,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
           <Detail.Metadata.Label title="Schema version" text={String(item.schema_version)} />
 
           {/* Relationships — edges, extensions */}
-          {(edgeCounts.size > 0 || extensionNamespaces.length > 0) && (
-            <Detail.Metadata.Separator />
-          )}
+          {(edgeCounts.size > 0 || extensionNamespaces.length > 0) && <Detail.Metadata.Separator />}
           {edgeCounts.size > 0 && (
             <Detail.Metadata.TagList title="Edges">
               {Array.from(edgeCounts.entries()).map(([edgeType, count]) => (
