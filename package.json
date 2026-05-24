@@ -36,7 +36,7 @@
       "name": "clipboard-capture",
       "title": "Clipboard Capture",
       "subtitle": "Myme",
-      "description": "Capture clipboard content — bookmark, image, file, or note — instantly",
+      "description": "Capture clipboard content \u2014 bookmark, image, file, or note \u2014 instantly",
       "mode": "no-view",
       "disabledByDefault": true
     },
@@ -96,8 +96,14 @@
       "default": "library",
       "required": false,
       "data": [
-        { "title": "Library", "value": "library" },
-        { "title": "Feed", "value": "feed" }
+        {
+          "title": "Library",
+          "value": "library"
+        },
+        {
+          "title": "Feed",
+          "value": "feed"
+        }
       ]
     },
     {
@@ -128,9 +134,10 @@
     }
   ],
   "dependencies": {
-    "@mymehq/sdk": "^5.7.1",
+    "@mymehq/sdk": "^6.0.0 || ^7.0.0",
     "@raycast/api": "^1.104.0",
-    "@raycast/utils": "^2.2.0"
+    "@raycast/utils": "^2.2.0",
+    "@mymehq/shared": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^2.1.1",
