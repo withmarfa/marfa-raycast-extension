@@ -10,9 +10,9 @@ import {
   Toast,
 } from '@raycast/api';
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
-import type { ApiKey } from '@mymehq/sdk';
-import { ForbiddenError } from '@mymehq/sdk';
-import { withMymeAccessToken } from './auth/with-myme-access-token';
+import type { ApiKey } from '@withmarfa/sdk';
+import { ForbiddenError } from '@withmarfa/sdk';
+import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 import { formatRelativeTime } from './helpers';
 import { CreateKeyForm, EditKeyForm } from './components/KeyForms';
@@ -153,4 +153,4 @@ function ManageKeysCommand() {
   );
 }
 
-export default withMymeAccessToken(ManageKeysCommand);
+export default withMarfaAccessToken(ManageKeysCommand);

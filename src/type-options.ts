@@ -1,4 +1,4 @@
-import type { TypeSchema } from '@mymehq/sdk';
+import type { TypeSchema } from '@withmarfa/sdk';
 import { ALL_TYPES, CAPTURE_TYPES } from './constants';
 import type { TypeSchemaWithRequired } from './capture-utils';
 
@@ -58,7 +58,7 @@ export function findSchema(
 
 export function schemaSummary(schema: TypeSchemaWithRequired | undefined, type: string): string {
   if (!schema) {
-    return `No schema was available for ${type}. Submit a JSON object and Myme will validate it.`;
+    return `No schema was available for ${type}. Submit a JSON object and Marfa will validate it.`;
   }
 
   const fields = Object.entries(schema.fields ?? {});

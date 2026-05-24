@@ -1,9 +1,9 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
-  "name": "myme",
+  "name": "marfa",
   "version": "0.1.0",
-  "title": "Myme",
-  "description": "Browse, search, and capture items in your Myme data layer",
+  "title": "Marfa",
+  "description": "Browse, search, and capture items in your Marfa data layer",
   "icon": "icon.png",
   "author": "aic",
   "categories": [
@@ -15,28 +15,28 @@
     {
       "name": "browse",
       "title": "Browse",
-      "subtitle": "Myme",
-      "description": "Browse your Myme items in reverse chronological order",
+      "subtitle": "Marfa",
+      "description": "Browse your Marfa items in reverse chronological order",
       "mode": "view"
     },
     {
       "name": "search",
       "title": "Search",
-      "subtitle": "Myme",
-      "description": "Search across your Myme items",
+      "subtitle": "Marfa",
+      "description": "Search across your Marfa items",
       "mode": "view"
     },
     {
       "name": "quick-capture",
       "title": "Quick Capture",
-      "subtitle": "Myme",
+      "subtitle": "Marfa",
       "description": "Capture a note, bookmark, task, or event",
       "mode": "view"
     },
     {
       "name": "clipboard-capture",
       "title": "Clipboard Capture",
-      "subtitle": "Myme",
+      "subtitle": "Marfa",
       "description": "Capture clipboard content — bookmark, image, file, or note — instantly",
       "mode": "no-view",
       "disabledByDefault": true
@@ -44,7 +44,7 @@
     {
       "name": "clipboard-capture-edit",
       "title": "Clipboard Capture (Edit)",
-      "subtitle": "Myme",
+      "subtitle": "Marfa",
       "description": "Capture clipboard content with a form to shape type and properties before submitting",
       "mode": "view",
       "disabledByDefault": true
@@ -52,14 +52,14 @@
     {
       "name": "manage-keys",
       "title": "Manage Keys",
-      "subtitle": "Myme",
+      "subtitle": "Marfa",
       "description": "Admin: list, create, edit, and revoke API keys",
       "mode": "view"
     },
     {
       "name": "server-info",
       "title": "Server Info",
-      "subtitle": "Myme",
+      "subtitle": "Marfa",
       "description": "Read-only view of the connected instance, auth mode, and signed-in identity",
       "mode": "view",
       "disabledByDefault": true
@@ -67,7 +67,7 @@
     {
       "name": "type-registry",
       "title": "Type Registry",
-      "subtitle": "Myme",
+      "subtitle": "Marfa",
       "description": "Browse every type registered on the instance (core, custom, system)",
       "mode": "view",
       "disabledByDefault": true
@@ -77,7 +77,7 @@
     {
       "name": "apiUrl",
       "title": "Server URL",
-      "description": "Myme server URL",
+      "description": "Marfa server URL",
       "type": "textfield",
       "required": true,
       "placeholder": "http://localhost:8602"
@@ -127,7 +127,7 @@
     {
       "name": "captureLocation",
       "title": "Capture location",
-      "description": "Attach lat/lon via the \"Myme Capture Location\" Shortcut",
+      "description": "Attach lat/lon via the \"Marfa Capture Location\" Shortcut",
       "type": "checkbox",
       "label": "Run the Shortcut on every capture",
       "default": false,
@@ -135,10 +135,10 @@
     }
   ],
   "dependencies": {
-    "@mymehq/sdk": "^6.0.0 || ^7.0.0",
+    "@withmarfa/sdk": "^6.0.0 || ^7.0.0",
     "@raycast/api": "^1.104.0",
     "@raycast/utils": "^2.2.0",
-    "@mymehq/shared": "^6.0.0 || ^7.0.0"
+    "@withmarfa/shared": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^2.1.1",

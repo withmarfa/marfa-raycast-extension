@@ -13,8 +13,8 @@ import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
-import type { CreateItemInput } from '@mymehq/sdk';
-import { withMymeAccessToken } from './auth/with-myme-access-token';
+import type { CreateItemInput } from '@withmarfa/sdk';
+import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 import {
   buildCoreCaptureProperties,
@@ -378,4 +378,4 @@ function inferDefaultUrl(type: string, snap: ClipboardSnapshot): string | undefi
   return undefined;
 }
 
-export default withMymeAccessToken(ClipboardCaptureEditCommand);
+export default withMarfaAccessToken(ClipboardCaptureEditCommand);

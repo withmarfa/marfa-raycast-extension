@@ -1,6 +1,6 @@
 /// <reference types="node" />
 /**
- * OAuth (PKCE auth-code) wiring for the Myme Raycast extension.
+ * OAuth (PKCE auth-code) wiring for the Marfa Raycast extension.
  *
  * Canonical pattern (per https://developers.raycast.com/utilities/oauth.md):
  * every command is wrapped with `withAccessToken({ authorize, client })` from
@@ -17,8 +17,8 @@
  */
 import { getPreferenceValues, LocalStorage, OAuth } from '@raycast/api';
 
-const PROVIDER_NAME = 'Myme';
-const PROVIDER_ID = 'myme';
+const PROVIDER_NAME = 'Marfa';
+const PROVIDER_ID = 'marfa';
 const PROVIDER_ICON = 'icon.png';
 
 /** Broad scope grammar so one session covers everything Raycast does. */
@@ -44,7 +44,7 @@ function stripTrailingSlash(s: string): string {
 }
 
 function clientIdStorageKey(issuer: string): string {
-  return `myme.client_id:${stripTrailingSlash(issuer)}`;
+  return `marfa.client_id:${stripTrailingSlash(issuer)}`;
 }
 
 /** Singleton PKCEClient — module-level so token storage is consistent
@@ -54,7 +54,7 @@ export const pkceClient = new OAuth.PKCEClient({
   providerName: PROVIDER_NAME,
   providerIcon: PROVIDER_ICON,
   providerId: PROVIDER_ID,
-  description: 'Sign in to your Myme account.',
+  description: 'Sign in to your Marfa account.',
 });
 
 interface DcrResponse {
@@ -81,7 +81,7 @@ async function dcrRegister(issuer: string, redirectUri: string): Promise<string>
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_name: 'Myme for Raycast',
+      client_name: 'Marfa for Raycast',
       redirect_uris: [redirectUri],
       grant_types: ['authorization_code', 'refresh_token'],
       token_endpoint_auth_method: 'none',
@@ -106,8 +106,8 @@ async function ensureClientId(issuer: string, redirectUri: string): Promise<stri
 }
 
 /** Persist the issuer alongside tokens so refresh knows where to call. */
-const ISSUER_STORAGE_KEY = 'myme.token_issuer';
-const CLIENT_ID_STORAGE_KEY = 'myme.token_client_id';
+const ISSUER_STORAGE_KEY = 'marfa.token_issuer';
+const CLIENT_ID_STORAGE_KEY = 'marfa.token_client_id';
 
 async function runFullAuthFlow(issuer: string): Promise<string> {
   const stripped = stripTrailingSlash(issuer);
@@ -196,7 +196,7 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
   return body.access_token;
 }
 
-/** Resolve the configured Myme issuer from preferences. Throws a clear
+/** Resolve the configured Marfa issuer from preferences. Throws a clear
  *  error if unset — the user is prompted to set it on first run by
  *  Raycast's required-preference UX. */
 function getIssuer(): string {
@@ -204,7 +204,7 @@ function getIssuer(): string {
   const trimmed = apiUrl?.trim();
   if (!trimmed) {
     throw new Error(
-      'Server URL is not set. Open Raycast → Extensions → Myme and set the Server URL.',
+      'Server URL is not set. Open Raycast → Extensions → Marfa and set the Server URL.',
     );
   }
   return stripTrailingSlash(trimmed);

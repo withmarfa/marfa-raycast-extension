@@ -1,4 +1,4 @@
-import type { Item } from '@mymehq/sdk';
+import type { Item } from '@withmarfa/sdk';
 
 /**
  * Property classification + shared metadata layout primitives. Two surfaces

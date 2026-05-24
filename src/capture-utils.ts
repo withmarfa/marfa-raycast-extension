@@ -1,4 +1,4 @@
-import type { TypeSchema } from '@mymehq/sdk';
+import type { TypeSchema } from '@withmarfa/sdk';
 import { runAppleScript } from '@raycast/utils';
 import { CAPTURE_TYPES } from './constants';
 import { FIRST_CLASS_SHADOW_KEYS } from './item-metadata';
@@ -196,7 +196,7 @@ function coerceValue(raw: string): unknown {
 
 /**
  * Fetch the current device location by invoking a user-installed macOS
- * Shortcut named "Myme Capture Location" (or the override). The Shortcut is
+ * Shortcut named "Marfa Capture Location" (or the override). The Shortcut is
  * expected to output `lat,lon` on stdout. Returns `null` on any failure —
  * missing shortcut, denied permission, malformed output — so capture flows
  * can proceed without location rather than blocking.
@@ -206,7 +206,7 @@ function coerceValue(raw: string): unknown {
  * sees a permission prompt of its own.
  */
 export async function fetchCaptureLocation(
-  shortcutName = 'Myme Capture Location',
+  shortcutName = 'Marfa Capture Location',
 ): Promise<{ lat: number; lon: number } | null> {
   try {
     const escaped = shortcutName.replace(/"/g, '\\"');

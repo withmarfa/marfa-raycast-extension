@@ -9,8 +9,8 @@ import {
 } from '@raycast/api';
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
-import type { CreateItemInput } from '@mymehq/sdk';
-import { withMymeAccessToken } from './auth/with-myme-access-token';
+import type { CreateItemInput } from '@withmarfa/sdk';
+import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 import {
   buildCoreCaptureProperties,
@@ -184,4 +184,4 @@ function QuickCaptureCommand() {
   );
 }
 
-export default withMymeAccessToken(QuickCaptureCommand);
+export default withMarfaAccessToken(QuickCaptureCommand);

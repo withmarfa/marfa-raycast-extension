@@ -3,8 +3,8 @@ import { Clipboard, getPreferenceValues, showHUD, showToast, Toast } from '@rayc
 import { showFailureToast } from '@raycast/utils';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
-import type { CreateItemInput } from '@mymehq/sdk';
-import { withMymeAccessToken } from './auth/with-myme-access-token';
+import type { CreateItemInput } from '@withmarfa/sdk';
+import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 import { fetchCaptureLocation, parseTags } from './capture-utils';
 
@@ -173,4 +173,4 @@ async function ClipboardCaptureCommand(): Promise<void> {
   }
 }
 
-export default withMymeAccessToken(ClipboardCaptureCommand);
+export default withMarfaAccessToken(ClipboardCaptureCommand);
