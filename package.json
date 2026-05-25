@@ -1,6 +1,7 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "myme",
+  "version": "0.1.0",
   "title": "Myme",
   "description": "Browse, search, and capture items in your Myme data layer",
   "icon": "icon.png",
@@ -36,7 +37,7 @@
       "name": "clipboard-capture",
       "title": "Clipboard Capture",
       "subtitle": "Myme",
-      "description": "Capture clipboard content \u2014 bookmark, image, file, or note \u2014 instantly",
+      "description": "Capture clipboard content — bookmark, image, file, or note — instantly",
       "mode": "no-view",
       "disabledByDefault": true
     },
