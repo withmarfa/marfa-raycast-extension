@@ -1,6 +1,6 @@
 import { Action, ActionPanel, Detail, getPreferenceValues, Icon } from '@raycast/api';
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
-import { withMymeAccessToken } from './auth/with-myme-access-token';
+import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 
 /**
@@ -8,7 +8,7 @@ import { getClient } from './client';
  * mode, and signed-in identity. Sign-out lives in Raycast's built-in
  * **Logout** preference (auto-surfaced once tokens are stored). Disabled
  * by default in package.json — operators flip it on in Raycast Preferences
- * → Extensions → Myme when they want it.
+ * → Extensions → Marfa when they want it.
  */
 
 interface Preferences {
@@ -62,7 +62,7 @@ function ServerInfoCommand() {
     lines.push(`| **API key fingerprint** | \`${apiKey.slice(0, 8)}…${apiKey.slice(-4)}\` |`);
   }
   lines.push('');
-  lines.push('Sign out via Raycast → Extensions → Myme → **Logout**.');
+  lines.push('Sign out via Raycast → Extensions → Marfa → **Logout**.');
 
   return (
     <Detail
@@ -89,4 +89,4 @@ function ServerInfoCommand() {
   );
 }
 
-export default withMymeAccessToken(ServerInfoCommand);
+export default withMarfaAccessToken(ServerInfoCommand);

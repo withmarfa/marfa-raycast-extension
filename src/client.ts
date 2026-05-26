@@ -1,20 +1,20 @@
 import { getPreferenceValues } from '@raycast/api';
 import { getAccessToken } from '@raycast/utils';
-import { MymeClient } from '@mymehq/sdk';
-import { authorize } from './auth/myme-oauth';
+import { MarfaClient } from '@withmarfa/sdk';
+import { authorize } from './auth/marfa-oauth';
 
 interface Preferences {
   apiUrl: string;
   apiKey?: string;
 }
 
-let cached: { client: MymeClient; key: string } | null = null;
+let cached: { client: MarfaClient; key: string } | null = null;
 
 /**
- * Build a `MymeClient` from the current credential. Two paths:
+ * Build a `MarfaClient` from the current credential. Two paths:
  *
- *  1. Wrapped command (default) — invoked inside `withMymeAccessToken(...)`,
- *     so `getAccessToken()` returns the live token. The MymeClient's
+ *  1. Wrapped command (default) — invoked inside `withMarfaAccessToken(...)`,
+ *     so `getAccessToken()` returns the live token. The MarfaClient's
  *     `tokenProvider.getAccessToken` calls `authorize()` directly on each
  *     SDK call, ensuring transparent refresh-on-expiry without the SDK
  *     needing to know about our PKCE store.
@@ -26,7 +26,7 @@ let cached: { client: MymeClient; key: string } | null = null;
  * resolution happens asynchronously inside the SDK's transport layer on
  * each request via the `tokenProvider`.
  */
-export function getClient(): MymeClient {
+export function getClient(): MarfaClient {
   const { apiUrl, apiKey } = getPreferenceValues<Preferences>();
 
   // Static-key escape hatch wins when explicitly set — useful for
@@ -34,7 +34,7 @@ export function getClient(): MymeClient {
   if (apiKey?.trim()) {
     const key = `${apiUrl}:key:${apiKey}`;
     if (cached?.key === key) return cached.client;
-    const client = new MymeClient({ url: apiUrl, apiKey });
+    const client = new MarfaClient({ url: apiUrl, apiKey });
     cached = { client, key };
     return client;
   }
@@ -45,7 +45,7 @@ export function getClient(): MymeClient {
   // refresh-on-expiry is transparent.
   const key = `${apiUrl}:oauth`;
   if (cached?.key === key) return cached.client;
-  const client = new MymeClient({
+  const client = new MarfaClient({
     url: apiUrl,
     tokenProvider: {
       async getAccessToken() {

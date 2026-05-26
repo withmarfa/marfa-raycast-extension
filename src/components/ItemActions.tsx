@@ -11,7 +11,7 @@ import {
 } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
 import { useState } from 'react';
-import type { Item, Metadata, ItemState } from '@mymehq/sdk';
+import type { Item, Metadata, ItemState } from '@withmarfa/sdk';
 import { getClient } from '../client';
 import { getItemTitle, getItemUrl } from '../helpers';
 

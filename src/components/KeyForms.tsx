@@ -10,8 +10,8 @@ import {
 } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
 import { useState } from 'react';
-import type { ApiKey, UpdateKeyInput } from '@mymehq/sdk';
-import { ForbiddenError, MymeError } from '@mymehq/sdk';
+import type { ApiKey, UpdateKeyInput } from '@withmarfa/sdk';
+import { ForbiddenError, MarfaError } from '@withmarfa/sdk';
 import { getClient } from '../client';
 
 /**
@@ -362,7 +362,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
       onCreated();
       push(<PlaintextKeyView apiKey={created} />);
     } catch (error) {
-      if (error instanceof MymeError && error.status === 409) {
+      if (error instanceof MarfaError && error.status === 409) {
         setSourceError(error.message);
       } else if (error instanceof ForbiddenError) {
         await showFailureToast(error, { title: 'Admin credentials required' });
@@ -467,7 +467,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
             <Form.TextArea
               id="ext_custom_json"
               title="JSON"
-              placeholder='{"raycast.myme":"write"}'
+              placeholder='{"raycast.marfa":"write"}'
               info='JSON object mapping extension namespace to "read" | "write".'
               error={extError}
               onChange={() => setExtError(undefined)}
@@ -675,7 +675,11 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
       onSaved();
       pop();
     } catch (error) {
-      if (error instanceof MymeError && error.status === 400 && error.code === 'validation_error') {
+      if (
+        error instanceof MarfaError &&
+        error.status === 400 &&
+        error.code === 'validation_error'
+      ) {
         await showFailureToast(error, { title: error.message });
       } else if (error instanceof ForbiddenError) {
         await showFailureToast(error, { title: 'Admin credentials required' });

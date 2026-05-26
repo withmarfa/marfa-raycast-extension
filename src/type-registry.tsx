@@ -1,7 +1,7 @@
 import { Action, ActionPanel, Color, Detail, Icon, List } from '@raycast/api';
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
-import type { TypeSchema } from '@mymehq/sdk';
-import { withMymeAccessToken } from './auth/with-myme-access-token';
+import type { TypeSchema } from '@withmarfa/sdk';
+import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 
 /**
@@ -111,4 +111,4 @@ function TypeDetail({ schema }: { schema: TypeSchema }) {
   );
 }
 
-export default withMymeAccessToken(TypeRegistryCommand);
+export default withMarfaAccessToken(TypeRegistryCommand);

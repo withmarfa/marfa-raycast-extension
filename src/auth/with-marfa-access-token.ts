@@ -1,7 +1,7 @@
 import { getPreferenceValues } from '@raycast/api';
 import { withAccessToken } from '@raycast/utils';
 import type { ComponentType } from 'react';
-import { authorize, pkceClient } from './myme-oauth';
+import { authorize, pkceClient } from './marfa-oauth';
 
 interface Preferences {
   apiKey?: string;
@@ -13,9 +13,9 @@ function getPersonalAccessToken(): string | undefined {
   return trimmed || undefined;
 }
 
-export function withMymeAccessToken<T extends (...args: never[]) => unknown>(command: T): T;
-export function withMymeAccessToken<T extends ComponentType<unknown>>(command: T): T;
-export function withMymeAccessToken(command: unknown): unknown {
+export function withMarfaAccessToken<T extends (...args: never[]) => unknown>(command: T): T;
+export function withMarfaAccessToken<T extends ComponentType<unknown>>(command: T): T;
+export function withMarfaAccessToken(command: unknown): unknown {
   return withAccessToken({
     authorize,
     client: pkceClient,

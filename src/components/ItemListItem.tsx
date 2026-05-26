@@ -1,7 +1,7 @@
 import { ActionPanel, Action, Icon, List, Color } from '@raycast/api';
 import { getFavicon } from '@raycast/utils';
 import type { ReactNode } from 'react';
-import type { Item, Metadata } from '@mymehq/sdk';
+import type { Item, Metadata } from '@withmarfa/sdk';
 import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
 import { getItemTitle, getItemUrl, formatTime, formatDate, formatRelativeTime } from '../helpers';
 import { ItemDetailView } from './ItemDetailView';

@@ -1,6 +1,6 @@
-# Myme Raycast Extension
+# Marfa Raycast Extension
 
-Raycast extension for browsing, searching, and capturing Myme items.
+Raycast extension for browsing, searching, and capturing Marfa items.
 
 ## Build and run
 
@@ -16,26 +16,26 @@ This is a standard Raycast extension layout — `npm` + `package-lock.json`, no 
 
 ## Configuration
 
-Extension preferences (set in Raycast → Extensions → Myme):
+Extension preferences (set in Raycast → Extensions → Marfa):
 
-- **Server URL** -- Myme server URL (required; no default — Raycast prompts on first run)
+- **Server URL** -- Marfa server URL (required; no default — Raycast prompts on first run)
 - **API Key** -- optional dev/escape-hatch static key. Normal use is OAuth, triggered automatically on first command run. Leave empty unless you want a static-key fallback.
 - **Default tier** -- `library` (default) or `feed`. Stamped on every captured item.
-- **Default capture type** -- any registered Myme type id, e.g. `core.note` (default) or `example.type`. Core capture types use native fields; other types use a generic properties JSON editor. Clipboard file and URL routing still win when content implies a stronger type.
+- **Default capture type** -- any registered Marfa type id, e.g. `core.note` (default) or `example.type`. Core capture types use native fields; other types use a generic properties JSON editor. Clipboard file and URL routing still win when content implies a stronger type.
 - **Default tags** -- comma-separated tags merged into every capture (e.g. `raycast, mobile`).
-- **Capture location** -- when on, every capture invokes a macOS Shortcut named `Myme Capture Location` and stamps `capture_latitude` / `capture_longitude` on the item. The Shortcut must output `lat,lon` on stdout. Best-effort: missing shortcut or denied permission falls through silently and the capture proceeds without location.
+- **Capture location** -- when on, every capture invokes a macOS Shortcut named `Marfa Capture Location` and stamps `capture_latitude` / `capture_longitude` on the item. The Shortcut must output `lat,lon` on stdout. Best-effort: missing shortcut or denied permission falls through silently and the capture proceeds without location.
 
 ## Auth
 
-Implicit OAuth on first use, following the canonical Raycast pattern. Every command's default export is wrapped with `withMymeAccessToken(...)`, a tiny local wrapper over `withAccessToken({ authorize, client: pkceClient, personalAccessToken })` from `@raycast/utils`. When the API Key preference is empty, the first invocation against a new server triggers DCR (`POST /auth/oauth2/register`, persists `client_id` in `LocalStorage` keyed by issuer) and PKCE consent (browser open via Raycast's overlay → `/auth/oauth2/authorize` → token exchange at `/auth/oauth2/token`). Subsequent invocations refresh silently when the access token is expired. **There is no visible Sign In or Sign Out command** — sign-out is the Raycast-built-in **Logout** option that auto-surfaces in extension settings once tokens are stored.
+Implicit OAuth on first use, following the canonical Raycast pattern. Every command's default export is wrapped with `withMarfaAccessToken(...)`, a tiny local wrapper over `withAccessToken({ authorize, client: pkceClient, personalAccessToken })` from `@raycast/utils`. When the API Key preference is empty, the first invocation against a new server triggers DCR (`POST /auth/oauth2/register`, persists `client_id` in `LocalStorage` keyed by issuer) and PKCE consent (browser open via Raycast's overlay → `/auth/oauth2/authorize` → token exchange at `/auth/oauth2/token`). Subsequent invocations refresh silently when the access token is expired. **There is no visible Sign In or Sign Out command** — sign-out is the Raycast-built-in **Logout** option that auto-surfaces in extension settings once tokens are stored.
 
-`src/client.ts` builds the `MymeClient` from the static API key when one is set, otherwise from the global OAuth access token resolved by the HOC via a tiny `tokenProvider`. Static-key mode uses Raycast's `personalAccessToken` path so commands do not force OAuth before the SDK can use the key.
+`src/client.ts` builds the `MarfaClient` from the static API key when one is set, otherwise from the global OAuth access token resolved by the HOC via a tiny `tokenProvider`. Static-key mode uses Raycast's `personalAccessToken` path so commands do not force OAuth before the SDK can use the key.
 
 ## Testing
 
-- Point the extension at `staging.myme.so` during development. The `authtest2` admin user lives there.
+- Point the extension at `staging.marfa.so` during development. The `authtest2` admin user lives there.
 - First run of any command triggers OAuth consent against staging — Better Auth sign-in, then approve.
-- For static-key smoke testing the admin key lives in `~/.myme/admin.json` (chmod 600); paste into Preferences → API Key.
+- For static-key smoke testing the admin key lives in `~/.marfa/admin.json` (chmod 600); paste into Preferences → API Key.
 
 ## Commands
 
@@ -44,7 +44,7 @@ Implicit OAuth on first use, following the canonical Raycast pattern. Every comm
 - **Quick Capture** -- create core notes, bookmarks, tasks, or events with native type-specific fields and validation. Free-form "Additional properties" field accepts `key: value` lines for ad-hoc properties (booleans/numbers coerced; shadow keys rejected). Other registered types use a generic properties JSON editor with schema context. Honours capture preference defaults.
 - **Manage Keys** -- admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, four permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Supports `metadata_permissions` and `workspace_admin`. Non-admin principals see an "admin credentials required" empty state instead.
 
-### Disabled by default (enable in Raycast Preferences → Extensions → Myme)
+### Disabled by default (enable in Raycast Preferences → Extensions → Marfa)
 
 - **Clipboard Capture** -- no-view command. Reads clipboard, routes by content: URL → bookmark; file → `core.file`; HTML-rich text → note (with `html` preserved); plain text → note. Uploads blobs via `client.blobs.upload`. **Disabled by default while the redo bakes** — flip on once verified
 - **Clipboard Capture (Edit)** -- view command. Pre-fills a form from the clipboard, lets the user adjust type / fields before submitting. File clipboard content routes to `core.file`; non-file content can use the configured default type, including custom types.
@@ -63,7 +63,7 @@ Trashed items: Restore action, Delete Permanently (irreversible purge). When the
 
 - **@raycast/api** -- Raycast platform SDK. Carries every Raycast primitive (`List`, `Form`, `Detail`, `Action`, `OAuth.PKCEClient`, `LocalStorage`, `Clipboard`, etc.). `package.json` is the source of truth for the version floor.
 - **@raycast/utils** -- `withAccessToken`, `getAccessToken`, `useCachedPromise`, `showFailureToast`, `getFavicon`. The OAuth HOC is what makes implicit-auth-on-first-use work.
-- **@mymehq/sdk** -- TypeScript HTTP client (from npm). `package.json` is the source of truth for the version floor.
+- **@withmarfa/sdk** -- TypeScript HTTP client (from npm). `package.json` is the source of truth for the version floor.
 
 ## Server contract notes
 
@@ -87,7 +87,7 @@ Standard Raycast extension idiom — the extension lives in your Raycast app, no
 
 1. **First time after cloning:** `npm install && npm run dev` in this repo. Wait for the "Built extension" message — that means Raycast has registered it.
 2. Hit `Ctrl+C` to stop dev mode.
-3. The extension stays installed and usable in Raycast forever. Search for any of its commands (Browse, Search, Quick Capture, Manage Keys) from the Raycast root. The clipboard / server-info / type-registry commands ship `disabledByDefault` — enable them in Raycast Preferences → Extensions → Myme when you want them.
+3. The extension stays installed and usable in Raycast forever. Search for any of its commands (Browse, Search, Quick Capture, Manage Keys) from the Raycast root. The clipboard / server-info / type-registry commands ship `disabledByDefault` — enable them in Raycast Preferences → Extensions → Marfa when you want them.
 
 What you lose by stopping dev: hot reload (file edits don't propagate) and console-log streaming. What you keep: the extension itself — fully functional.
 

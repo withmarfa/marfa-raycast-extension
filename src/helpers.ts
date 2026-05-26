@@ -1,4 +1,4 @@
-import type { Item } from '@mymehq/sdk';
+import type { Item } from '@withmarfa/sdk';
 import { TYPE_CONFIG } from './constants';
 
 export function getItemTitle(item: Item): string {

@@ -1,8 +1,8 @@
 import { Action, ActionPanel, Icon, List } from '@raycast/api';
 import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
 import { useState } from 'react';
-import type { Item, ItemState, Metadata } from '@mymehq/sdk';
-import { withMymeAccessToken } from './auth/with-myme-access-token';
+import type { Item, ItemState, Metadata } from '@withmarfa/sdk';
+import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 import { formatDate } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
@@ -196,4 +196,4 @@ function BrowseCommand() {
   );
 }
 
-export default withMymeAccessToken(BrowseCommand);
+export default withMarfaAccessToken(BrowseCommand);

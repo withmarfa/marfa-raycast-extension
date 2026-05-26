@@ -1,8 +1,8 @@
 import { Action, ActionPanel, Icon, List } from '@raycast/api';
 import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
 import { useState } from 'react';
-import type { ItemState } from '@mymehq/sdk';
-import { withMymeAccessToken } from './auth/with-myme-access-token';
+import type { ItemState } from '@withmarfa/sdk';
+import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 import { stripHtmlTags } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
@@ -117,7 +117,7 @@ function SearchCommand() {
     >
       {!searchText.trim() ? (
         <List.EmptyView
-          title="Search Myme"
+          title="Search Marfa"
           description="Type to search your items"
           icon="icon.png"
           actions={
@@ -172,4 +172,4 @@ function SearchCommand() {
   );
 }
 
-export default withMymeAccessToken(SearchCommand);
+export default withMarfaAccessToken(SearchCommand);

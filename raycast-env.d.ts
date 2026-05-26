@@ -8,7 +8,7 @@
 /* eslint-disable @typescript-eslint/ban-types */
 
 type ExtensionPreferences = {
-  /** Server URL - Myme server URL */
+  /** Server URL - Marfa server URL */
   "apiUrl": string,
   /** API Key - Optional dev/escape-hatch API key. Normal use signs in via OAuth on first command run. */
   "apiKey"?: string,
@@ -18,7 +18,7 @@ type ExtensionPreferences = {
   "defaultCaptureType": string,
   /** Default tags - Comma-separated tags applied to every capture */
   "defaultTags"?: string,
-  /** Capture location - Attach lat/lon via the "Myme Capture Location" Shortcut */
+  /** Capture location - Attach lat/lon via the "Marfa Capture Location" Shortcut */
   "captureLocation": boolean
 }
 

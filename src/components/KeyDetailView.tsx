@@ -11,8 +11,8 @@ import {
   useNavigation,
 } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
-import type { ApiKey } from '@mymehq/sdk';
-import { ForbiddenError } from '@mymehq/sdk';
+import type { ApiKey } from '@withmarfa/sdk';
+import { ForbiddenError } from '@withmarfa/sdk';
 import { getClient } from '../client';
 import { formatRelativeTime } from '../helpers';
 import { EditKeyForm } from './KeyForms';

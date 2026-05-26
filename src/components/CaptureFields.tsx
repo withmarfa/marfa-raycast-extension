@@ -168,7 +168,7 @@ export function AdditionalPropertiesField(props: AdditionalPropertiesFieldOption
     <Form.TextArea
       id="extraProperties"
       title="Additional properties"
-      placeholder={'mood: tired\nproject: myme\n# one per line, key: value'}
+      placeholder={'mood: tired\nproject: marfa\n# one per line, key: value'}
       info="One per line, key: value. Skips lines starting with # and rejects collisions with first-class fields."
       error={props.error}
       onChange={props.onChange}
