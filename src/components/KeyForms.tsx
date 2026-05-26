@@ -675,7 +675,11 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
       onSaved();
       pop();
     } catch (error) {
-      if (error instanceof MarfaError && error.status === 400 && error.code === 'validation_error') {
+      if (
+        error instanceof MarfaError &&
+        error.status === 400 &&
+        error.code === 'validation_error'
+      ) {
         await showFailureToast(error, { title: error.message });
       } else if (error instanceof ForbiddenError) {
         await showFailureToast(error, { title: 'Admin credentials required' });
