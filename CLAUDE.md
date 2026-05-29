@@ -33,9 +33,9 @@ Implicit OAuth on first use, following the canonical Raycast pattern. Every comm
 
 ## Testing
 
-- Point the extension at `staging.marfa.so` during development. The `authtest2` admin user lives there.
-- First run of any command triggers OAuth consent against staging — Better Auth sign-in, then approve.
-- For static-key smoke testing the admin key lives in `~/.marfa/admin.json` (chmod 600); paste into Preferences → API Key.
+- Point the extension at a staging Marfa server during development.
+- First run of any command triggers OAuth consent — Better Auth sign-in, then approve.
+- For static-key smoke testing, paste an admin key into Preferences → API Key.
 
 ## Commands
 
@@ -92,3 +92,9 @@ Standard Raycast extension idiom — the extension lives in your Raycast app, no
 What you lose by stopping dev: hot reload (file edits don't propagate) and console-log streaming. What you keep: the extension itself — fully functional.
 
 **Update ritual after pulling new code** (e.g. after a PR merges to main): run `npm run dev` briefly so Raycast picks up the fresh build, then `Ctrl+C` again.
+
+## Adjacent context
+
+Vault Surface: [[Marfa Raycast]] in `~/aic-vault/Projects/marfa-TCC02/Surfaces/Marfa Raycast.md` — principle + intent.
+
+Docs MCP convention: query the docs MCP for concept-level questions about Marfa types, edges, runtime substrates — don't re-derive from source. Lit up in Phase 5 of the docs source wave.
