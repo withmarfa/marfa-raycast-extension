@@ -97,4 +97,4 @@ What you lose by stopping dev: hot reload (file edits don't propagate) and conso
 
 Vault Surface: [[Marfa Raycast]] in `~/aic-vault/Projects/marfa-TCC02/Surfaces/Marfa Raycast.md` — principle + intent.
 
-Docs MCP convention: query the docs MCP for concept-level questions about Marfa types, edges, runtime substrates — don't re-derive from source. Lit up in Phase 5 of the docs source wave.
+Docs MCP convention: when working on documented surfaces (types, edges, runtime substrates, connections, auth flows), query the docs MCP at `https://docs.marfa.so/mcp` (or use `marfa docs search "<query>"` from CLI) before re-deriving from source. After changing a public surface, update the relevant docs page in the same PR.
