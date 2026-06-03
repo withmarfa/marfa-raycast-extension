@@ -68,8 +68,8 @@ Trashed items: Restore action, Delete Permanently (irreversible purge). When the
 ## Server contract notes
 
 - **Lifecycle:** `active | archived | trashed | revoked`. core/custom items use the active/archived/trashed graph; system.* items use active/revoked. The extension only operates on user-facing items, so it surfaces the three-state subset.
-- **Tier:** items carry `tier: 'library' | 'feed'` (renamed from the old boolean `library`). Quick Capture, Clipboard Capture, Reply, and Annotate stamp `tier: 'library'` to mirror the user-captured intent. Browse and Search pass an explicit `tier` filter (`library` | `feed` | `all`). `system.*` items have no tier — the detail view renders `—` if it ever encounters one.
-- **Typed edges:** the Item shape no longer carries `parent_id`, `thread_id`, or `metadata.about`. Relationships are first-class typed edges. Reply creates an `in-thread` edge; Annotate creates a `references` edge. Atomic edge writes go through the `edges` field on `client.items.create`.
+- **Tier:** items carry `tier: 'library' | 'feed'`. Quick Capture, Clipboard Capture, Reply, and Annotate stamp `tier: 'library'` to mirror the user-captured intent. Browse and Search pass an explicit `tier` filter (`library` | `feed` | `all`). `system.*` items have no tier — the detail view renders `—` if it ever encounters one.
+- **Typed edges:** the Item shape carries no `parent_id`, `thread_id`, or `metadata.about` — relationships are first-class typed edges. Reply creates an `in-thread` edge; Annotate creates a `references` edge. Atomic edge writes go through the `edges` field on `client.items.create`.
 - **Source is server-stamped** from the credential — never set by the client.
 
 ## Conventions
