@@ -135,7 +135,7 @@
     }
   ],
   "dependencies": {
-    "@withmarfa/sdk": "^1.3.0",
+    "@withmarfa/sdk": "^1.4.0",
     "@raycast/api": "^1.104.0",
     "@raycast/utils": "^2.2.0",
     "@withmarfa/shared": "^1.0.0"
