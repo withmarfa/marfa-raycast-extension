@@ -53,7 +53,6 @@ export function ItemInlineDetail({ item, metadata, snippet }: ItemInlineDetailPr
       markdown={lines.join('\n')}
       metadata={
         <List.Item.Detail.Metadata>
-          {/* What */}
           <List.Item.Detail.Metadata.TagList title="Type">
             <List.Item.Detail.Metadata.TagList.Item
               text={typeConfig.label}
@@ -80,7 +79,6 @@ export function ItemInlineDetail({ item, metadata, snippet }: ItemInlineDetailPr
             </List.Item.Detail.Metadata.TagList>
           )}
 
-          {/* When */}
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label
             title="Timestamp"
@@ -95,7 +93,6 @@ export function ItemInlineDetail({ item, metadata, snippet }: ItemInlineDetailPr
             text={`${formatDate(item.created_at)} ${formatTime(item.created_at)}`}
           />
 
-          {/* Custom */}
           {sidebarEntries.length > 0 && (
             <>
               <List.Item.Detail.Metadata.Separator />
@@ -103,7 +100,6 @@ export function ItemInlineDetail({ item, metadata, snippet }: ItemInlineDetailPr
             </>
           )}
 
-          {/* Provenance */}
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label title="Source" text={item.source} />
           {item.device && <List.Item.Detail.Metadata.Label title="Device" text={item.device} />}
@@ -117,12 +113,10 @@ export function ItemInlineDetail({ item, metadata, snippet }: ItemInlineDetailPr
             />
           )}
 
-          {/* Identity */}
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label title="ID" text={item.id} />
           <List.Item.Detail.Metadata.Label title="Revision" text={String(item.version)} />
 
-          {/* Relationships */}
           {extensionNamespaces.length > 0 && (
             <>
               <List.Item.Detail.Metadata.Separator />

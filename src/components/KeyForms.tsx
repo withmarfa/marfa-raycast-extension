@@ -146,7 +146,6 @@ const METADATA_QUICKSETS: QuickSetOption<'read' | 'write'>[] = [
   { id: 'custom', label: 'Custom (edit JSON)', value: null },
 ];
 
-/** Pretty-print a permission map for the raw editor. */
 function stringifyMap(map: Record<string, string>): string {
   return JSON.stringify(map, null, 2);
 }
@@ -538,8 +537,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-/** Match a stored permission map against the available quicksets. Returns
- *  the matching quickset id, or `'custom'` if no preset matches. */
+/** Returns the matching quickset id, or `'custom'` if none matches. */
 function matchQuickset<T extends string>(
   map: Record<string, T>,
   quicksets: QuickSetOption<T>[],

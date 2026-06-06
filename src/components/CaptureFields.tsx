@@ -2,10 +2,8 @@ import { Form } from '@raycast/api';
 import type { ReactNode } from 'react';
 
 /**
- * Shared type-specific form fields used by Quick Capture and Clipboard
- * Capture (Edit). Each branch returns the field set Raycast Form needs for
- * the chosen item type. Field IDs match the `FormValues` shape consumed by
- * the host form's submit handler.
+ * Field IDs (`title`, `body`, `url`, etc.) match the `FormValues` shape
+ * consumed by the host form's submit handler.
  */
 export interface CaptureFieldOptions {
   type: string;

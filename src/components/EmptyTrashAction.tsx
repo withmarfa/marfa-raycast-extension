@@ -8,13 +8,10 @@ interface EmptyTrashActionProps {
 }
 
 /**
- * Bulk-purge every item currently in trash for the caller's tenant. Wires
- * `client.items.bulkAction({ action: 'purge', filter: { state: 'trashed' },
- * confirm: 'PURGE' })`. Server enforces the literal confirmation; we gate
- * with a Raycast `confirmAlert` so the keystroke can't slip through.
- *
- * Only rendered when the active state filter is `trashed` and the visible
- * list is non-empty — the action is meaningless otherwise.
+ * Server enforces the literal `'PURGE'` confirmation string; the Raycast
+ * `confirmAlert` is a second gate so the action can't fire from a stray
+ * keystroke. Only rendered when the active state filter is `trashed` and
+ * the visible list is non-empty.
  */
 export function EmptyTrashAction({ count, onComplete }: EmptyTrashActionProps) {
   async function handleEmpty() {
