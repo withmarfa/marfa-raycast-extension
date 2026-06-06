@@ -81,6 +81,10 @@ Trashed items: Restore action, Delete Permanently (irreversible purge). When the
 - Build outputs to `./dist/` (gitignored). Do not output to repo root — that path is destructive and removes `assets/` between runs.
 - Lint uses `ray lint --relaxed` — `--relaxed` skips ray's store-publish icon validation, which isn't relevant for private use. `package-lock.json` is committed (npm canon). If this extension is ever submitted to the Raycast store, drop `--relaxed`.
 
+## Comments
+
+Comments are self-contained and make sense to anyone reading this repository cold. Explain *why* — the decision, constraint, or non-obvious trade-off — not the *what*, which the code already states. Never reference internal trackers, ticket numbers, or project phases; a comment that only points at external context is noise. If a comment doesn't earn its place by capturing intent, delete it — the code and its history carry the rest.
+
 ## Local install
 
 Standard Raycast extension idiom — the extension lives in your Raycast app, not in this repo, after a one-time dev-mode registration.
