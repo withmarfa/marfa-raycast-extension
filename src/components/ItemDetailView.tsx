@@ -139,13 +139,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
           <Detail.Metadata.TagList title="Tier">
             <Detail.Metadata.TagList.Item
               text={item.tier === 'library' ? 'Library' : item.tier === 'feed' ? 'Feed' : '—'}
-              color={
-                item.tier === 'library'
-                  ? Color.Green
-                  : item.tier === 'feed'
-                    ? Color.SecondaryText
-                    : Color.SecondaryText
-              }
+              color={item.tier === 'library' ? Color.Green : Color.SecondaryText}
             />
           </Detail.Metadata.TagList>
           {metadata.tags.length > 0 && (
