@@ -14,16 +14,7 @@ import {
 } from '../helpers';
 import { ItemActionSections } from './ItemActions';
 import { splitItemProperties, type ScalarSidebarEntry } from '../item-metadata';
-
-interface Edge {
-  id: string;
-  source_id: string;
-  target_id: string;
-  edge_type: string;
-  properties: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
+import type { Edge } from '@withmarfa/sdk';
 
 interface ItemDetailViewProps {
   itemId: string;
