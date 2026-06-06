@@ -209,11 +209,9 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
     }
   }
 
-  // Build state transitions based on current state
   const transitions: { state: ItemState; title: string; icon: Icon }[] = [];
-  if (item.state === 'trashed') {
-    // Trashed items can be restored
-  } else {
+  // Trashed items expose no state transitions here — Restore is a separate action.
+  if (item.state !== 'trashed') {
     if (item.state !== 'active')
       transitions.push({ state: 'active', title: 'Move to Active', icon: Icon.CheckCircle });
     if (item.state !== 'archived')

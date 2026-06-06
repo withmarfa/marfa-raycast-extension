@@ -127,7 +127,6 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
       navigationTitle={getItemTitle(item)}
       metadata={
         <Detail.Metadata>
-          {/* What — type, state, tier, tags */}
           <Detail.Metadata.TagList title="Type">
             <Detail.Metadata.TagList.Item text={typeConfig.label} color={typeConfig.color} />
           </Detail.Metadata.TagList>
@@ -157,7 +156,6 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
             </Detail.Metadata.TagList>
           )}
 
-          {/* When — timestamp, updated, created */}
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label
             title="Timestamp"
@@ -172,7 +170,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
             text={`${formatDate(item.created_at)} ${formatTime(item.created_at)}`}
           />
 
-          {/* Custom — property sidebar entries from the typed schema */}
+          {/* Custom properties from the item's typed schema */}
           {sidebarEntries.length > 0 && (
             <>
               <Detail.Metadata.Separator />
@@ -180,7 +178,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
             </>
           )}
 
-          {/* Provenance — source, device, source_id */}
+          {/* Provenance */}
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label title="Source" text={item.source} />
           {item.device && <Detail.Metadata.Label title="Device" text={item.device} />}
@@ -196,13 +194,13 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
             />
           )}
 
-          {/* Identity — id, revision, schema version */}
+          {/* Identity */}
           <Detail.Metadata.Separator />
           <Detail.Metadata.Label title="ID" text={item.id} />
           <Detail.Metadata.Label title="Revision" text={String(item.version)} />
           <Detail.Metadata.Label title="Schema version" text={String(item.schema_version)} />
 
-          {/* Relationships — edges, extensions */}
+          {/* Relationships */}
           {(edgeCounts.size > 0 || extensionNamespaces.length > 0) && <Detail.Metadata.Separator />}
           {edgeCounts.size > 0 && (
             <Detail.Metadata.TagList title="Edges">

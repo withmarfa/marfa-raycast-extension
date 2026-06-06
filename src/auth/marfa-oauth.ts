@@ -47,8 +47,8 @@ function clientIdStorageKey(issuer: string): string {
   return `marfa.client_id:${stripTrailingSlash(issuer)}`;
 }
 
-/** Singleton PKCEClient — module-level so token storage is consistent
- *  across command invocations and tokens survive command boundaries. */
+/** Singleton PKCEClient — keeps token storage consistent across command
+ *  invocations so tokens survive command boundaries. */
 export const pkceClient = new OAuth.PKCEClient({
   redirectMethod: OAuth.RedirectMethod.Web,
   providerName: PROVIDER_NAME,

@@ -56,7 +56,6 @@ export function ItemListItem({
   ) : null;
 
   if (showInlineDetail) {
-    // With the inline panel on, Raycast guidance is: drop accessories.
     return (
       <List.Item
         id={item.id}
