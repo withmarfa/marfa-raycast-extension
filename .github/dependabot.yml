@@ -11,6 +11,12 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - "dependencies"
+    # @raycast/api pins these as exact peer deps; drifting splits the React
+    # type tree and breaks `tsc --noEmit`. They must track @raycast/api, not
+    # Dependabot — bump them only when @raycast/api's peer pins change.
+    ignore:
+      - dependency-name: "@types/node"
+      - dependency-name: "@types/react"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
