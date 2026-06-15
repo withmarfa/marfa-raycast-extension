@@ -5,7 +5,7 @@ import type { Item } from '@withmarfa/sdk';
  * consume this module: `ItemDetailView` (full pushed Detail) and
  * `ItemInlineDetail` (List.Item.Detail panel). Both surfaces share the same
  * ordering: What → When → Custom → Provenance → Identity → Relationships.
- * Centralising the data here keeps the two renderers from drifting.
+ * Centralizing the data here keeps the two renderers from drifting.
  */
 
 export const BODY_PROPERTY_KEYS = new Set([

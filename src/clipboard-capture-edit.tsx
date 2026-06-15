@@ -178,7 +178,7 @@ function ClipboardCaptureEditCommand() {
   }
 
   // First-render default — once the user picks a type via the dropdown,
-  // honour their choice for the rest of the session.
+  // honor their choice for the rest of the session.
   const activeType = type ?? inferDefaultType(snapshot, prefs.defaultCaptureType);
 
   async function handleSubmit(values: FormValues) {
