@@ -109,6 +109,23 @@ async function ensureClientId(issuer: string, redirectUri: string): Promise<stri
 const ISSUER_STORAGE_KEY = 'marfa.token_issuer';
 const CLIENT_ID_STORAGE_KEY = 'marfa.token_client_id';
 
+/**
+ * Raycast stores one token set per PKCE client, while the extension can point
+ * at many Marfa instances. Never let a token minted by one issuer be sent to
+ * another when the Server URL preference changes.
+ */
+async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
+  const storedIssuer = await LocalStorage.getItem<string>(ISSUER_STORAGE_KEY);
+  if (!storedIssuer || stripTrailingSlash(storedIssuer) === issuer) return;
+
+  await Promise.all([
+    pkceClient.removeTokens(),
+    LocalStorage.removeItem(ISSUER_STORAGE_KEY),
+    LocalStorage.removeItem(CLIENT_ID_STORAGE_KEY),
+    LocalStorage.removeItem(clientIdStorageKey(storedIssuer)),
+  ]);
+}
+
 async function runFullAuthFlow(issuer: string): Promise<string> {
   const stripped = stripTrailingSlash(issuer);
 
@@ -220,6 +237,7 @@ function getIssuer(): string {
  */
 export async function authorize(): Promise<string> {
   const issuer = getIssuer();
+  await discardTokensForDifferentIssuer(issuer);
   const existing = await pkceClient.getTokens();
 
   if (existing?.accessToken && !existing.isExpired()) {
