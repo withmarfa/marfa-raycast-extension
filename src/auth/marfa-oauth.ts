@@ -129,25 +129,38 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
 async function runFullAuthFlow(issuer: string): Promise<string> {
   const stripped = stripTrailingSlash(issuer);
 
-  // Build a probe request first — PKCEClient picks the redirectURI
-  // based on its configured `redirectMethod`; we need that exact URI
-  // registered with the server before the real authorize call.
-  const probe = await pkceClient.authorizationRequest({
-    endpoint: `${stripped}/auth/oauth2/authorize`,
-    clientId: 'pending-dcr',
-    scope: DEFAULT_SCOPES.join(' '),
-  });
-  const redirectUri = probe.redirectURI;
-
-  const clientId = await ensureClientId(stripped, redirectUri);
-
+  // Exactly one authorization request per sign-in. It mints the PKCE pair +
+  // state and surfaces Raycast's redirect URI. Calling authorizationRequest a
+  // second time (the old dynamic-client-registration "probe") re-mints the
+  // PKCE state, so the verifier we later exchange no longer matches the
+  // challenge Raycast actually sent in the URL — the token exchange then fails
+  // right after Raycast shows "Successfully connected", and no token is stored,
+  // which presents to the user as an immediate re-prompt to sign in. Instead we
+  // register the dynamic client against this single request's redirect URI,
+  // then hand-build the authorize URL with the real client_id while keeping
+  // this request's challenge/state/redirect intact. This is the documented
+  // AuthorizationOptions custom-URL path.
+  const scope = DEFAULT_SCOPES.join(' ');
   const request = await pkceClient.authorizationRequest({
     endpoint: `${stripped}/auth/oauth2/authorize`,
-    clientId,
-    scope: DEFAULT_SCOPES.join(' '),
+    clientId: 'pending-dcr',
+    scope,
   });
 
-  const { authorizationCode } = await pkceClient.authorize(request);
+  const clientId = await ensureClientId(stripped, request.redirectURI);
+
+  const authorizeUrl = new URL(`${stripped}/auth/oauth2/authorize`);
+  authorizeUrl.searchParams.set('response_type', 'code');
+  authorizeUrl.searchParams.set('client_id', clientId);
+  authorizeUrl.searchParams.set('redirect_uri', request.redirectURI);
+  authorizeUrl.searchParams.set('scope', scope);
+  authorizeUrl.searchParams.set('code_challenge', request.codeChallenge);
+  authorizeUrl.searchParams.set('code_challenge_method', 'S256');
+  authorizeUrl.searchParams.set('state', request.state);
+
+  const { authorizationCode } = await pkceClient.authorize({
+    url: authorizeUrl.toString(),
+  });
 
   const res = await fetch(`${stripped}/auth/oauth2/token`, {
     method: 'POST',
