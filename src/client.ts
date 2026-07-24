@@ -1,7 +1,7 @@
 import { getPreferenceValues } from '@raycast/api';
 import { getAccessToken } from '@raycast/utils';
 import { MarfaClient } from '@withmarfa/sdk';
-import { authorize } from './auth/marfa-oauth';
+import { authorize, normalizeServerUrl } from './auth/marfa-oauth';
 
 interface Preferences {
   apiUrl: string;
@@ -28,13 +28,17 @@ let cached: { client: MarfaClient; key: string } | null = null;
  */
 export function getClient(): MarfaClient {
   const { apiUrl, apiKey } = getPreferenceValues<Preferences>();
+  // The SDK does no URL normalization of its own, so a scheme-less
+  // preference value that OAuth happily accepts would make every data
+  // call throw "Failed to parse URL" after a seemingly successful sign-in.
+  const baseUrl = normalizeServerUrl(apiUrl);
 
   // Static-key escape hatch wins when explicitly set — useful for
   // smoke-testing without OAuth.
   if (apiKey?.trim()) {
-    const key = `${apiUrl}:key:${apiKey}`;
+    const key = `${baseUrl}:key:${apiKey}`;
     if (cached?.key === key) return cached.client;
-    const client = new MarfaClient({ url: apiUrl, apiKey });
+    const client = new MarfaClient({ url: baseUrl, apiKey });
     cached = { client, key };
     return client;
   }
@@ -43,10 +47,10 @@ export function getClient(): MarfaClient {
   // command body runs, so the very first `getAccessToken()` call here
   // succeeds. Subsequent SDK calls re-resolve via `authorize()` so
   // refresh-on-expiry is transparent.
-  const key = `${apiUrl}:oauth`;
+  const key = `${baseUrl}:oauth`;
   if (cached?.key === key) return cached.client;
   const client = new MarfaClient({
-    url: apiUrl,
+    url: baseUrl,
     tokenProvider: {
       async getAccessToken() {
         // Fast path: read the token already in the `withAccessToken` global.

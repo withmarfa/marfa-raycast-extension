@@ -229,6 +229,18 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
   return body.access_token;
 }
 
+/** Accept a host typed without a scheme (e.g. "api.marfa.so"). Node's
+ *  fetch/URL parser rejects scheme-less URLs with "Failed to parse URL",
+ *  which the browser silently tolerates — so the sign-in page would open and
+ *  consent succeed, yet every fetch() this extension makes (DCR, token
+ *  exchange, refresh, SDK data calls) would throw. Default a scheme-less
+ *  value to https and strip any trailing slash. */
+export function normalizeServerUrl(value: string): string {
+  const trimmed = value.trim();
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return stripTrailingSlash(withScheme);
+}
+
 /** Resolve the configured Marfa issuer from preferences. Throws a clear
  *  error if unset — the user is prompted to set it on first run by
  *  Raycast's required-preference UX. */
@@ -240,14 +252,7 @@ function getIssuer(): string {
       'Server URL is not set. Open Raycast → Extensions → Marfa and set the Server URL.',
     );
   }
-  // Accept a host typed without a scheme (e.g. "api.marfa.so"). Node's
-  // fetch/URL parser rejects scheme-less URLs with "Failed to parse URL",
-  // which the browser silently tolerates — so the sign-in page would open and
-  // consent succeed, yet every fetch() the extension makes (DCR, token
-  // exchange, refresh) would throw and no token would ever be stored. Default
-  // a scheme-less value to https.
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  return stripTrailingSlash(withScheme);
+  return normalizeServerUrl(trimmed);
 }
 
 /**
