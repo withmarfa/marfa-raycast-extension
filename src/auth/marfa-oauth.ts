@@ -162,6 +162,8 @@ async function runFullAuthFlow(issuer: string): Promise<string> {
     url: authorizeUrl.toString(),
   });
 
+  // A token exchange that hangs (proxy, captive portal, dead server) would
+  // otherwise leave the command stuck on a spinner with no error; bound it.
   const res = await fetch(`${stripped}/auth/oauth2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -172,6 +174,7 @@ async function runFullAuthFlow(issuer: string): Promise<string> {
       redirect_uri: request.redirectURI,
       client_id: clientId,
     }).toString(),
+    signal: AbortSignal.timeout(20000),
   });
   const body = (await res.json().catch(() => ({}))) as TokenResponseBody;
   if (!res.ok || !body.access_token) {
@@ -237,7 +240,14 @@ function getIssuer(): string {
       'Server URL is not set. Open Raycast → Extensions → Marfa and set the Server URL.',
     );
   }
-  return stripTrailingSlash(trimmed);
+  // Accept a host typed without a scheme (e.g. "api.marfa.so"). Node's
+  // fetch/URL parser rejects scheme-less URLs with "Failed to parse URL",
+  // which the browser silently tolerates — so the sign-in page would open and
+  // consent succeed, yet every fetch() the extension makes (DCR, token
+  // exchange, refresh) would throw and no token would ever be stored. Default
+  // a scheme-less value to https.
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return stripTrailingSlash(withScheme);
 }
 
 /**
