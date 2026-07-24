@@ -129,26 +129,41 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
 async function runFullAuthFlow(issuer: string): Promise<string> {
   const stripped = stripTrailingSlash(issuer);
 
-  // Build a probe request first — PKCEClient picks the redirectURI
-  // based on its configured `redirectMethod`; we need that exact URI
-  // registered with the server before the real authorize call.
-  const probe = await pkceClient.authorizationRequest({
-    endpoint: `${stripped}/auth/oauth2/authorize`,
-    clientId: 'pending-dcr',
-    scope: DEFAULT_SCOPES.join(' '),
-  });
-  const redirectUri = probe.redirectURI;
-
-  const clientId = await ensureClientId(stripped, redirectUri);
-
+  // Exactly one authorization request per sign-in. It mints the PKCE pair +
+  // state and surfaces Raycast's redirect URI. Calling authorizationRequest a
+  // second time (the old dynamic-client-registration "probe") re-mints the
+  // PKCE state, so the verifier we later exchange no longer matches the
+  // challenge Raycast actually sent in the URL — the token exchange then fails
+  // right after Raycast shows "Successfully connected", and no token is stored,
+  // which presents to the user as an immediate re-prompt to sign in. Instead we
+  // register the dynamic client against this single request's redirect URI,
+  // then hand-build the authorize URL with the real client_id while keeping
+  // this request's challenge/state/redirect intact. This is the documented
+  // AuthorizationOptions custom-URL path.
+  const scope = DEFAULT_SCOPES.join(' ');
   const request = await pkceClient.authorizationRequest({
     endpoint: `${stripped}/auth/oauth2/authorize`,
-    clientId,
-    scope: DEFAULT_SCOPES.join(' '),
+    clientId: 'pending-dcr',
+    scope,
   });
 
-  const { authorizationCode } = await pkceClient.authorize(request);
+  const clientId = await ensureClientId(stripped, request.redirectURI);
 
+  const authorizeUrl = new URL(`${stripped}/auth/oauth2/authorize`);
+  authorizeUrl.searchParams.set('response_type', 'code');
+  authorizeUrl.searchParams.set('client_id', clientId);
+  authorizeUrl.searchParams.set('redirect_uri', request.redirectURI);
+  authorizeUrl.searchParams.set('scope', scope);
+  authorizeUrl.searchParams.set('code_challenge', request.codeChallenge);
+  authorizeUrl.searchParams.set('code_challenge_method', 'S256');
+  authorizeUrl.searchParams.set('state', request.state);
+
+  const { authorizationCode } = await pkceClient.authorize({
+    url: authorizeUrl.toString(),
+  });
+
+  // A token exchange that hangs (proxy, captive portal, dead server) would
+  // otherwise leave the command stuck on a spinner with no error; bound it.
   const res = await fetch(`${stripped}/auth/oauth2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -159,6 +174,7 @@ async function runFullAuthFlow(issuer: string): Promise<string> {
       redirect_uri: request.redirectURI,
       client_id: clientId,
     }).toString(),
+    signal: AbortSignal.timeout(20000),
   });
   const body = (await res.json().catch(() => ({}))) as TokenResponseBody;
   if (!res.ok || !body.access_token) {
@@ -213,6 +229,18 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
   return body.access_token;
 }
 
+/** Accept a host typed without a scheme (e.g. "api.marfa.so"). Node's
+ *  fetch/URL parser rejects scheme-less URLs with "Failed to parse URL",
+ *  which the browser silently tolerates — so the sign-in page would open and
+ *  consent succeed, yet every fetch() this extension makes (DCR, token
+ *  exchange, refresh, SDK data calls) would throw. Default a scheme-less
+ *  value to https and strip any trailing slash. */
+export function normalizeServerUrl(value: string): string {
+  const trimmed = value.trim();
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return stripTrailingSlash(withScheme);
+}
+
 /** Resolve the configured Marfa issuer from preferences. Throws a clear
  *  error if unset — the user is prompted to set it on first run by
  *  Raycast's required-preference UX. */
@@ -224,7 +252,7 @@ function getIssuer(): string {
       'Server URL is not set. Open Raycast → Extensions → Marfa and set the Server URL.',
     );
   }
-  return stripTrailingSlash(trimmed);
+  return normalizeServerUrl(trimmed);
 }
 
 /**
