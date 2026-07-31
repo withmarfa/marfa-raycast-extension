@@ -29,7 +29,7 @@ export const FIRST_CLASS_SHADOW_KEYS = new Set([
   'type',
   'state',
   'tier',
-  'tenant_id',
+  'space_id',
   'properties',
   'created_at',
   'updated_at',

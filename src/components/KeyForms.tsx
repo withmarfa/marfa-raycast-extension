@@ -24,7 +24,7 @@ import { getClient } from '../client';
 
 type TypeMap = Record<string, 'read' | 'write' | 'none'>;
 type RwMap = Record<string, 'read' | 'write'>;
-type KeyRole = 'admin' | 'tenant_admin' | 'member';
+type KeyRole = 'admin' | 'space_admin' | 'member';
 
 interface PermissionBundle {
   type_permissions: TypeMap;
@@ -55,9 +55,9 @@ const CREATE_PRESETS: CreatePreset[] = [
     },
   },
   {
-    id: 'workspace-admin',
-    label: 'Workspace admin',
-    role: 'tenant_admin',
+    id: 'space-admin',
+    label: 'Space admin',
+    role: 'space_admin',
     default_tier: 'library',
     permissions: {
       type_permissions: { '*': 'write' },
@@ -414,7 +414,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         <>
           <Form.Dropdown id="role" title="Role" defaultValue="member">
             <Form.Dropdown.Item value="member" title="Member" />
-            <Form.Dropdown.Item value="tenant_admin" title="Tenant Admin" />
+            <Form.Dropdown.Item value="space_admin" title="Space Admin" />
             <Form.Dropdown.Item value="admin" title="Admin" />
           </Form.Dropdown>
           <Form.Dropdown id="default_tier" title="Default Tier" defaultValue="library">
