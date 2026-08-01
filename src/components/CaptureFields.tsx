@@ -152,6 +152,7 @@ export function CustomPropertiesFields(props: CustomPropertiesFieldOptions): Rea
 
 export interface AdditionalPropertiesFieldOptions {
   error?: string;
+  defaultValue?: string;
   onChange?: () => void;
 }
 
@@ -169,6 +170,7 @@ export function AdditionalPropertiesField(props: AdditionalPropertiesFieldOption
       placeholder={'mood: tired\nproject: marfa\n# one per line, key: value'}
       info="One per line, key: value. Skips lines starting with # and rejects collisions with first-class fields."
       error={props.error}
+      defaultValue={props.defaultValue}
       onChange={props.onChange}
     />
   );
