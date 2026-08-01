@@ -7,6 +7,7 @@ import {
   showHUD,
   useNavigation,
 } from '@raycast/api';
+import type { LaunchProps } from '@raycast/api';
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { useState } from 'react';
 import type { CreateItemInput } from '@withmarfa/sdk';
@@ -51,12 +52,12 @@ interface FormValues {
   extraProperties: string;
 }
 
-function QuickCaptureCommand() {
+function QuickCaptureCommand({ draftValues }: LaunchProps<{ draftValues: FormValues }>) {
   const prefs = getPreferenceValues<CapturePreferences>();
   const defaultType = normalizeTypeId(prefs.defaultCaptureType);
   const defaultTier = prefs.defaultTier ?? 'library';
 
-  const [type, setType] = useState(defaultType);
+  const [type, setType] = useState(draftValues?.type ?? defaultType);
   const [urlError, setUrlError] = useState<string | undefined>();
   const [titleError, setTitleError] = useState<string | undefined>();
   const [bodyError, setBodyError] = useState<string | undefined>();
@@ -130,6 +131,9 @@ function QuickCaptureCommand() {
 
   return (
     <Form
+      // Capture is the interaction drafts exist to protect: a half-typed
+      // note dismissed by accident comes back on the next launch.
+      enableDrafts
       isLoading={typesLoading}
       actions={
         <ActionPanel>
@@ -161,6 +165,10 @@ function QuickCaptureCommand() {
         <>
           <CaptureFields
             type={type}
+            defaultTitle={draftValues?.title}
+            defaultBody={draftValues?.body}
+            defaultUrl={draftValues?.url}
+            defaultDescription={draftValues?.description}
             urlError={urlError}
             titleError={titleError}
             bodyError={bodyError}
@@ -168,18 +176,28 @@ function QuickCaptureCommand() {
             onTitleChange={() => setTitleError(undefined)}
             onBodyChange={() => setBodyError(undefined)}
           />
-          <AdditionalPropertiesField error={extraError} onChange={() => setExtraError(undefined)} />
+          <AdditionalPropertiesField
+            error={extraError}
+            defaultValue={draftValues?.extraProperties}
+            onChange={() => setExtraError(undefined)}
+          />
         </>
       ) : (
         <CustomPropertiesFields
           schemaText={schemaSummary(findSchema(typeSchemas, type), type)}
           propertiesError={propertiesError}
+          defaultPropertiesJson={draftValues?.propertiesJson}
           onPropertiesChange={() => setPropertiesError(undefined)}
         />
       )}
 
       <Form.Separator />
-      <Form.TextField id="tags" title="Tags" placeholder="tag1, tag2 (comma-separated)" />
+      <Form.TextField
+        id="tags"
+        title="Tags"
+        placeholder="tag1, tag2 (comma-separated)"
+        defaultValue={draftValues?.tags}
+      />
     </Form>
   );
 }
