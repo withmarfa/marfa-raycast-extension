@@ -1,6 +1,24 @@
 import { Color, Icon } from '@raycast/api';
+import type { PlatformTypeId } from '@withmarfa/shared';
 
-export const TYPE_CONFIG: Record<string, { label: string; icon: Icon; color: Color }> = {
+interface TypeDisplay {
+  label: string;
+  icon: Icon;
+  color: Color;
+}
+
+/**
+ * Display metadata per platform type. The `satisfies` clause binds the keys to
+ * the type registry of the pinned `@withmarfa/shared`, so a type the platform
+ * renames or drops fails the typecheck here instead of silently becoming an
+ * entry that can never match an item. The map stays partial on purpose: a type
+ * without an entry falls back to its raw identifier, which is the right
+ * behavior for types this extension has no opinion about.
+ *
+ * The index signature is what callers index with a server-supplied string;
+ * `satisfies` is what constrains the literal.
+ */
+export const TYPE_CONFIG: Record<string, TypeDisplay> = {
   'core.note': { label: 'Note', icon: Icon.Document, color: Color.Blue },
   'core.bookmark': { label: 'Bookmark', icon: Icon.Link, color: Color.Green },
   'core.task': { label: 'Task', icon: Icon.CheckCircle, color: Color.Orange },
@@ -15,14 +33,13 @@ export const TYPE_CONFIG: Record<string, { label: string; icon: Icon; color: Col
   'core.media.film': { label: 'Film', icon: Icon.Video, color: Color.PrimaryText },
   'core.media.song': { label: 'Song', icon: Icon.Music, color: Color.PrimaryText },
   'core.media.album': { label: 'Album', icon: Icon.Music, color: Color.PrimaryText },
-  'core.media.podcast': { label: 'Podcast', icon: Icon.Microphone, color: Color.PrimaryText },
   'core.media.series': { label: 'Series', icon: Icon.Monitor, color: Color.PrimaryText },
-  'core.media.tv_episode': { label: 'TV Episode', icon: Icon.Monitor, color: Color.PrimaryText },
+  'core.media.episode': { label: 'Episode', icon: Icon.Monitor, color: Color.PrimaryText },
   'core.file': { label: 'File', icon: Icon.Document, color: Color.SecondaryText },
   'core.file.image': { label: 'Image', icon: Icon.Image, color: Color.SecondaryText },
   'core.file.audio': { label: 'Audio', icon: Icon.Music, color: Color.SecondaryText },
   'core.file.video': { label: 'Video', icon: Icon.Video, color: Color.SecondaryText },
-};
+} satisfies Partial<Record<PlatformTypeId, TypeDisplay>>;
 
 export const STATE_CONFIG: Record<string, { label: string; color: Color }> = {
   active: { label: 'Active', color: Color.Green },
@@ -35,8 +52,9 @@ export const CAPTURE_TYPES = [
   { value: 'core.bookmark', label: 'Bookmark' },
   { value: 'core.task', label: 'Task' },
   { value: 'core.event', label: 'Event' },
-] as const;
+] as const satisfies readonly { value: PlatformTypeId; label: string }[];
 
+/** The empty value is the "no filter" sentinel, not a type identifier. */
 export const ALL_TYPES = [
   { value: '', label: 'All Types' },
   { value: 'core.note', label: 'Note' },
@@ -51,11 +69,10 @@ export const ALL_TYPES = [
   { value: 'core.media.film', label: 'Film' },
   { value: 'core.media.song', label: 'Song' },
   { value: 'core.media.album', label: 'Album' },
-  { value: 'core.media.podcast', label: 'Podcast' },
   { value: 'core.media.series', label: 'Series' },
-  { value: 'core.media.tv_episode', label: 'TV Episode' },
+  { value: 'core.media.episode', label: 'Episode' },
   { value: 'core.file', label: 'File' },
   { value: 'core.file.image', label: 'Image' },
   { value: 'core.file.audio', label: 'Audio' },
   { value: 'core.file.video', label: 'Video' },
-] as const;
+] as const satisfies readonly { value: PlatformTypeId | ''; label: string }[];
