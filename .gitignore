@@ -5,3 +5,6 @@ dist/
 *.js.map
 *.d.ts
 !raycast-env.d.ts
+
+# Agent worktrees — transient checkouts, never part of the repository
+.claude/worktrees/
