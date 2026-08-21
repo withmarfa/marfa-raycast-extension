@@ -10,30 +10,17 @@
  * otherwise. The `client` parameter (our PKCE singleton) is what tells
  * Raycast to surface its built-in **Logout** option in extension settings.
  *
- * Server contract:
- *   - DCR endpoint:           POST /auth/oauth2/register
- *   - Authorization endpoint: /auth/oauth2/authorize
- *   - Token endpoint:         POST /auth/oauth2/token
+ * Endpoints and scopes both come from the server's own RFC 8414 discovery
+ * document rather than being written down here; see `./discovery`. The
+ * hardcoded paths that used to live in this comment are the fallback for a
+ * server that does not serve one.
  */
-import { getPreferenceValues, LocalStorage, OAuth } from '@raycast/api';
+import { getPreferenceValues, LocalStorage, OAuth, showToast, Toast } from '@raycast/api';
+import { missingScopes, resolveAuthConfig } from './discovery';
 
 const PROVIDER_NAME = 'Marfa';
 const PROVIDER_ID = 'marfa';
 const PROVIDER_ICON = 'icon.png';
-
-/** Broad scope grammar so one session covers everything Raycast does. */
-const DEFAULT_SCOPES = [
-  'openid',
-  'offline_access',
-  'profile',
-  'core.*:read',
-  'core.*:write',
-  'edge.*:read',
-  'edge.*:write',
-  'metadata:read',
-  'metadata:write',
-  'metadata.types:read',
-] as const;
 
 interface Preferences {
   apiUrl?: string;
@@ -76,8 +63,8 @@ interface TokenResponseBody {
  * Raycast restart) skip DCR. The `redirect_uris` passed at registration
  * time must include the exact URI Raycast uses on `authorize`.
  */
-async function dcrRegister(issuer: string, redirectUri: string): Promise<string> {
-  const res = await fetch(`${stripTrailingSlash(issuer)}/auth/oauth2/register`, {
+async function dcrRegister(registrationEndpoint: string, redirectUri: string): Promise<string> {
+  const res = await fetch(registrationEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -97,10 +84,14 @@ async function dcrRegister(issuer: string, redirectUri: string): Promise<string>
   return body.client_id;
 }
 
-async function ensureClientId(issuer: string, redirectUri: string): Promise<string> {
+async function ensureClientId(
+  issuer: string,
+  registrationEndpoint: string,
+  redirectUri: string,
+): Promise<string> {
   const stored = await LocalStorage.getItem<string>(clientIdStorageKey(issuer));
   if (stored) return stored;
-  const id = await dcrRegister(issuer, redirectUri);
+  const id = await dcrRegister(registrationEndpoint, redirectUri);
   await LocalStorage.setItem(clientIdStorageKey(issuer), id);
   return id;
 }
@@ -128,6 +119,9 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
 
 async function runFullAuthFlow(issuer: string): Promise<string> {
   const stripped = stripTrailingSlash(issuer);
+  // Always re-read on a full sign-in, so consent is asked against what the
+  // server offers now rather than a cached copy of what it offered before.
+  const config = await resolveAuthConfig(stripped, { refresh: true });
 
   // Exactly one authorization request per sign-in. It mints the PKCE pair +
   // state and surfaces Raycast's redirect URI. Calling authorizationRequest a
@@ -140,16 +134,16 @@ async function runFullAuthFlow(issuer: string): Promise<string> {
   // then hand-build the authorize URL with the real client_id while keeping
   // this request's challenge/state/redirect intact. This is the documented
   // AuthorizationOptions custom-URL path.
-  const scope = DEFAULT_SCOPES.join(' ');
+  const scope = config.scopes.join(' ');
   const request = await pkceClient.authorizationRequest({
-    endpoint: `${stripped}/auth/oauth2/authorize`,
+    endpoint: config.authorizationEndpoint,
     clientId: 'pending-dcr',
     scope,
   });
 
-  const clientId = await ensureClientId(stripped, request.redirectURI);
+  const clientId = await ensureClientId(stripped, config.registrationEndpoint, request.redirectURI);
 
-  const authorizeUrl = new URL(`${stripped}/auth/oauth2/authorize`);
+  const authorizeUrl = new URL(config.authorizationEndpoint);
   authorizeUrl.searchParams.set('response_type', 'code');
   authorizeUrl.searchParams.set('client_id', clientId);
   authorizeUrl.searchParams.set('redirect_uri', request.redirectURI);
@@ -164,7 +158,7 @@ async function runFullAuthFlow(issuer: string): Promise<string> {
 
   // A token exchange that hangs (proxy, captive portal, dead server) would
   // otherwise leave the command stuck on a spinner with no error; bound it.
-  const res = await fetch(`${stripped}/auth/oauth2/token`, {
+  const res = await fetch(config.tokenEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -205,7 +199,8 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
     // to a full sign-in.
     throw new Error('refresh_state_missing');
   }
-  const res = await fetch(`${issuer}/auth/oauth2/token`, {
+  const { tokenEndpoint } = await resolveAuthConfig(issuer);
+  const res = await fetch(tokenEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -227,6 +222,17 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
     scope: body.scope,
   });
   return body.access_token;
+}
+
+/**
+ * The scopes the current session actually holds, for surfaces that need to
+ * explain an absence rather than render one. Empty when signed out or when
+ * the server reported no scope, both of which mean "no basis to claim
+ * anything is missing".
+ */
+export async function getGrantedScopes(): Promise<string | undefined> {
+  const tokens = await pkceClient.getTokens();
+  return tokens?.scope;
 }
 
 /** Accept a host typed without a scheme (e.g. "api.marfa.so"). Node's
@@ -256,6 +262,41 @@ function getIssuer(): string {
 }
 
 /**
+ * Re-consent when a live grant is genuinely narrower than what the server
+ * now offers.
+ *
+ * Marfa derives its permission bundles from the type registry, so the set
+ * widens whenever types are added — a session minted last month can be
+ * missing a whole bundle while remaining perfectly valid. Left alone, the
+ * missing content simply does not appear, which is indistinguishable from
+ * an empty library and is exactly the failure this wave exists to fix.
+ *
+ * Two things keep it from becoming a nuisance. Coverage rather than set
+ * difference means a broader older grant is never treated as short, and the
+ * discovery document is cached, so the common case costs nothing. The toast
+ * fires before the browser opens: being sent to a consent screen with no
+ * explanation is its own small betrayal.
+ */
+async function reconsentIfGrantIsShort(
+  issuer: string,
+  granted: string | undefined,
+): Promise<string | null> {
+  const config = await resolveAuthConfig(issuer);
+  if (!config.fromServer) return null;
+
+  const missing = missingScopes(granted, config.scopes);
+  if (missing.length === 0) return null;
+
+  await showToast({
+    style: Toast.Style.Animated,
+    title: 'Marfa needs a fresh sign-in',
+    message: `This server now offers access ${missing.length} permissions wider than your last sign-in granted.`,
+  });
+  await pkceClient.removeTokens();
+  return runFullAuthFlow(issuer);
+}
+
+/**
  * Returns a valid access token, minting one on first use and refreshing
  * silently on expiry. Shaped to satisfy `withAccessToken({ authorize })`.
  *
@@ -269,7 +310,8 @@ export async function authorize(): Promise<string> {
   const existing = await pkceClient.getTokens();
 
   if (existing?.accessToken && !existing.isExpired()) {
-    return existing.accessToken;
+    const widened = await reconsentIfGrantIsShort(issuer, existing.scope);
+    return widened ?? existing.accessToken;
   }
 
   if (existing?.refreshToken) {
