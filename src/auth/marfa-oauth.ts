@@ -16,7 +16,7 @@
  * server that does not serve one.
  */
 import { getPreferenceValues, LocalStorage, OAuth, showToast, Toast } from '@raycast/api';
-import { missingScopes, resolveAuthConfig } from './discovery';
+import { decideReconsent, resolveAuthConfig } from './discovery';
 
 const PROVIDER_NAME = 'Marfa';
 const PROVIDER_ID = 'marfa';
@@ -96,6 +96,21 @@ async function ensureClientId(
   return id;
 }
 
+/**
+ * The scope set last sent to the authorize endpoint for an issuer.
+ *
+ * Recorded after a successful token exchange whatever the server actually
+ * granted, because it answers "what have we already asked this server for",
+ * not "what did we get".
+ */
+function requestedScopesKey(issuer: string): string {
+  return `marfa.requested_scopes:${stripTrailingSlash(issuer)}`;
+}
+
+async function rememberRequestedScopes(issuer: string, scopes: string[]): Promise<void> {
+  await LocalStorage.setItem(requestedScopesKey(issuer), scopes.join(' '));
+}
+
 /** Persist the issuer alongside tokens so refresh knows where to call. */
 const ISSUER_STORAGE_KEY = 'marfa.token_issuer';
 const CLIENT_ID_STORAGE_KEY = 'marfa.token_client_id';
@@ -114,6 +129,7 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
     LocalStorage.removeItem(ISSUER_STORAGE_KEY),
     LocalStorage.removeItem(CLIENT_ID_STORAGE_KEY),
     LocalStorage.removeItem(clientIdStorageKey(storedIssuer)),
+    LocalStorage.removeItem(requestedScopesKey(storedIssuer)),
   ]);
 }
 
@@ -185,6 +201,7 @@ async function runFullAuthFlow(issuer: string): Promise<string> {
   });
   await LocalStorage.setItem(ISSUER_STORAGE_KEY, stripped);
   await LocalStorage.setItem(CLIENT_ID_STORAGE_KEY, clientId);
+  await rememberRequestedScopes(stripped, config.scopes);
 
   return body.access_token;
 }
@@ -277,20 +294,30 @@ function getIssuer(): string {
  * fires before the browser opens: being sent to a consent screen with no
  * explanation is its own small betrayal.
  */
-async function reconsentIfGrantIsShort(
+async function reconsentIfServerOffersMore(
   issuer: string,
   granted: string | undefined,
 ): Promise<string | null> {
   const config = await resolveAuthConfig(issuer);
   if (!config.fromServer) return null;
 
-  const missing = missingScopes(granted, config.scopes);
-  if (missing.length === 0) return null;
+  const decision = decideReconsent({
+    lastRequested: await LocalStorage.getItem<string>(requestedScopesKey(issuer)),
+    advertised: config.scopes,
+    granted,
+  });
+
+  if (!decision.reconsent) {
+    // Record the set even when there is nothing to gain, so the cheap
+    // equality check short-circuits every launch after this one.
+    if (decision.remember) await rememberRequestedScopes(issuer, config.scopes);
+    return null;
+  }
 
   await showToast({
     style: Toast.Style.Animated,
     title: 'Marfa needs a fresh sign-in',
-    message: `This server now offers access ${missing.length} permissions wider than your last sign-in granted.`,
+    message: `This server offers ${String(decision.missing.length)} permissions your last sign-in did not grant.`,
   });
   await pkceClient.removeTokens();
   return runFullAuthFlow(issuer);
@@ -310,7 +337,7 @@ export async function authorize(): Promise<string> {
   const existing = await pkceClient.getTokens();
 
   if (existing?.accessToken && !existing.isExpired()) {
-    const widened = await reconsentIfGrantIsShort(issuer, existing.scope);
+    const widened = await reconsentIfServerOffersMore(issuer, existing.scope);
     return widened ?? existing.accessToken;
   }
 

@@ -203,3 +203,40 @@ export function missingScopes(granted: string | undefined, required: string[]): 
 export function isTypeGranted(granted: string | undefined, typeId: string): boolean {
   return missingScopes(granted, [`${typeId}:read`]).length === 0;
 }
+
+export interface ReconsentDecision {
+  reconsent: boolean;
+  /** Advertised scopes the grant does not cover. Informational when
+   *  `reconsent` is false. */
+  missing: string[];
+  /** Record `advertised` as the last-requested set, whatever the outcome. */
+  remember: boolean;
+}
+
+/**
+ * Whether asking for consent again could actually change anything.
+ *
+ * The rule is **"has the advertisement changed since we last asked"**, not
+ * "is the grant short of the advertisement". Those look equivalent and are
+ * not, because a server may grant less than it advertises — production
+ * advertises six scopes in its bundles that it does not issue. Deciding
+ * from the shortfall alone never terminates: each consent returns the same
+ * grant, the next launch sees the same shortfall, and the session is
+ * discarded on every launch forever. That shipped once; this is the guard.
+ *
+ * Asking again for a set already asked for cannot produce a different
+ * answer, so it is never worth a person's attention.
+ */
+export function decideReconsent(input: {
+  lastRequested: string | undefined;
+  advertised: string[];
+  granted: string | undefined;
+}): ReconsentDecision {
+  const advertised = input.advertised.join(' ');
+  if (input.lastRequested === advertised) {
+    return { reconsent: false, missing: [], remember: false };
+  }
+
+  const missing = missingScopes(input.granted, input.advertised);
+  return { reconsent: missing.length > 0, missing, remember: true };
+}
