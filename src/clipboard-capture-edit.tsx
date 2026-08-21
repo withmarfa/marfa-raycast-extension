@@ -32,6 +32,7 @@ import {
   CustomPropertiesFields,
 } from './components/CaptureFields';
 import { buildCaptureTypeOptions, findSchema, schemaSummary } from './type-options';
+import { useTypeRegistry } from './use-type-registry';
 
 /**
  * Clipboard Capture (Edit). Pre-fills a Quick-Capture-style form from
@@ -153,18 +154,7 @@ function ClipboardCaptureEditCommand() {
       await showFailureToast(err, { title: 'Failed to read clipboard' });
     },
   });
-  const { data: typeSchemas, isLoading: typesLoading } = useCachedPromise(
-    async () => {
-      const client = getClient();
-      return client.types.list();
-    },
-    [],
-    {
-      onError: async (err) => {
-        await showFailureToast(err, { title: 'Failed to load types' });
-      },
-    },
-  );
+  const { registry, schemas: typeSchemas, isLoading: typesLoading } = useTypeRegistry();
 
   const [type, setType] = useState<string | null>(null);
   const [urlError, setUrlError] = useState<string | undefined>();
@@ -264,7 +254,7 @@ function ClipboardCaptureEditCommand() {
   }
 
   const isFileType = activeType === 'core.file';
-  const typeOptions = buildCaptureTypeOptions(typeSchemas, activeType);
+  const typeOptions = buildCaptureTypeOptions(registry, activeType);
   if (!typeOptions.some((option) => option.value === FILE_CAPTURE_TYPE.value)) {
     typeOptions.push(FILE_CAPTURE_TYPE);
   }

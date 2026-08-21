@@ -8,6 +8,7 @@ import { formatDate } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 import { buildTypeFilterOptions } from './type-options';
+import { useTypeRegistry } from './use-type-registry';
 import { EmptyTrashAction } from './components/EmptyTrashAction';
 
 interface ItemWithMetadata {
@@ -52,18 +53,7 @@ function BrowseCommand() {
   // across launches). Default off — accessory view is denser at-a-glance.
   const [isShowingDetail, setIsShowingDetail] = useCachedState('browse-show-detail', false);
 
-  const { data: typeSchemas } = useCachedPromise(
-    async () => {
-      const client = getClient();
-      return client.types.list();
-    },
-    [],
-    {
-      onError: async (err) => {
-        await showFailureToast(err, { title: 'Failed to load type filters' });
-      },
-    },
-  );
+  const { registry } = useTypeRegistry();
 
   const { data, isLoading, revalidate, pagination } = useCachedPromise(
     (typeFilter: string, tierFilter: TierFilter, stateFilter: StateFilter) =>
@@ -93,7 +83,7 @@ function BrowseCommand() {
   );
 
   const groups = groupByDate(data ?? []);
-  const typeOptions = buildTypeFilterOptions(typeSchemas);
+  const typeOptions = buildTypeFilterOptions(registry);
   const typeLabel = type ? (typeOptions.find((t) => t.value === type)?.label ?? null) : null;
   const stateLabel = STATE_FILTERS.find((filter) => filter.value === state)?.label ?? state;
   const navigationTitle = [TIER_LABEL[tier], stateLabel, typeLabel].filter(Boolean).join(' · ');
@@ -177,6 +167,7 @@ function BrowseCommand() {
                 key={item.id}
                 item={item}
                 metadata={metadata}
+                registry={registry}
                 onRefresh={revalidate}
                 topActions={
                   <>

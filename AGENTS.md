@@ -68,6 +68,21 @@ Implicit OAuth on first use, following the canonical Raycast pattern. Every comm
 - **@raycast/utils:** `withAccessToken`, `getAccessToken`, `useCachedPromise`, `showFailureToast`, `getFavicon`. The OAuth HOC is what makes implicit-auth-on-first-use work.
 - **@withmarfa/sdk:** TypeScript HTTP client (from npm). `package.json` is the source of truth for the version floor.
 
+## How a type is displayed
+
+**Display comes from the instance's type registry, not from a map in this repo.** `src/type-display.ts` builds a resolver over the schemas the server returns; `src/use-type-registry.ts` is the hook every view uses to get one. Marfa is self-hostable and instances register their own types, so a hardcoded table can only ever describe the types someone remembered to add.
+
+Resolution order:
+
+- **Label** — curated override (there are none), then `schema.label`, then the humanised last segment of the identifier.
+- **Item title and body** — `display_hints.title_field` and `body_field`, walking `parent` through the fetched schemas, then the conventional property names in `helpers.ts`, then the type's label. The conventional names are wrong for plenty of real types: a captured email titles by `subject`, not `title`.
+- **Icon and colour** — `CURATED_APPEARANCE`, inherited by a family root through `parent`, else a per-tier default keyed on `classifyNamespace` from `@withmarfa/shared`.
+
+Two rules worth keeping:
+
+- **Walk ancestry across the fetched schema list, never through shared's `getTypeSchema`/`isSubtypeOf`.** Those resolve against the vocabulary compiled into the package and cannot know what a given instance registered. The grammar helpers (`classifyNamespace`, `isSystemType`) are instance-independent and are safe to call directly.
+- **Do not extend `CURATED_APPEARANCE` to cover integration or publisher types.** It exists only where a distinct glyph carries recognition a label cannot, which is true of the core vocabulary and essentially nothing else. Its `satisfies` clause pins those identifiers so a platform rename fails the build; widening it to integration types would buy a build check at the cost of the flexibility the resolver exists to provide.
+
 ## Server contract notes
 
 - **Lifecycle:** `active | archived | trashed | revoked`. core/custom items use the active/archived/trashed graph; system.* items use active/revoked. The extension only operates on user-facing items, so it surfaces the three-state subset.

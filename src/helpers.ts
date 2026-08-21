@@ -1,21 +1,30 @@
 import type { Item } from '@withmarfa/sdk';
-import { TYPE_CONFIG } from './constants';
 
-export function getItemTitle(item: Item): string {
+/**
+ * Conventional property names, tried when the type registry has no
+ * `display_hints` for a type or the item does not carry the field it names.
+ *
+ * These are a fallback and nothing more. `buildTypeRegistry` asks the
+ * registry first, because the conventional names are wrong for plenty of
+ * real types — a captured email titles by `subject`, and a type an instance
+ * defined may use any field at all. Returns `undefined` rather than a raw
+ * identifier so the caller can fall through to the type's own label.
+ */
+export function fallbackItemTitle(item: Item): string | undefined {
   const p = item.properties;
   if (typeof p.title === 'string' && p.title) return p.title;
   if (typeof p.name === 'string' && p.name) return p.name;
   if (typeof p.url === 'string' && p.url) return p.url;
   if (typeof p.body === 'string' && p.body) return p.body.slice(0, 80);
-  return TYPE_CONFIG[item.type]?.label ?? item.type;
+  return undefined;
 }
 
-export function getItemSubtitle(item: Item): string {
+export function fallbackItemSubtitle(item: Item): string | undefined {
   const p = item.properties;
-  if (typeof p.description === 'string') return p.description.slice(0, 100);
+  if (typeof p.description === 'string' && p.description) return p.description.slice(0, 100);
   if (typeof p.body === 'string' && typeof p.title === 'string') return p.body.slice(0, 100);
   if (typeof p.url === 'string' && typeof p.title === 'string') return p.url;
-  return TYPE_CONFIG[item.type]?.label ?? item.type;
+  return undefined;
 }
 
 export function formatDate(dateStr: string): string {
@@ -72,11 +81,12 @@ export function toTitleCase(key: string): string {
 }
 
 export type ImageSource =
-  | { kind: 'url'; url: string; alt: string }
-  | { kind: 'blob'; blobRef: string; mimeType: string; alt: string };
+  { kind: 'url'; url: string } | { kind: 'blob'; blobRef: string; mimeType: string };
 
 const COVER_URL_KEYS = ['cover_url', 'image_url', 'thumbnail_url', 'poster_url', 'artwork_url'];
 
+/** Alt text is the caller's job: it holds the type registry and so can
+ *  resolve a real title, which this module cannot. */
 export function getImageSource(item: Item): ImageSource | null {
   const p = item.properties;
   for (const key of COVER_URL_KEYS) {
@@ -85,12 +95,12 @@ export function getImageSource(item: Item): ImageSource | null {
       typeof candidate === 'string' &&
       (candidate.startsWith('http://') || candidate.startsWith('https://'))
     ) {
-      return { kind: 'url', url: candidate, alt: getItemTitle(item) };
+      return { kind: 'url', url: candidate };
     }
   }
   if (item.type === 'core.file.image' && typeof p.blob_ref === 'string' && p.blob_ref) {
     const mimeType = typeof p.mime_type === 'string' && p.mime_type ? p.mime_type : 'image/jpeg';
-    return { kind: 'blob', blobRef: p.blob_ref, mimeType, alt: getItemTitle(item) };
+    return { kind: 'blob', blobRef: p.blob_ref, mimeType };
   }
   return null;
 }

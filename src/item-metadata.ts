@@ -8,6 +8,16 @@ import type { Item } from '@withmarfa/sdk';
  * Centralizing the data here keeps the two renderers from drifting.
  */
 
+/**
+ * Conventional keys the two detail surfaces render as markdown above the
+ * sidebar, so the property walker must not repeat them as rows.
+ *
+ * The registry may name others through `display_hints` — a captured email
+ * puts its body in `text_body`, a podcast episode in `content_encoded` —
+ * so callers pass those in alongside this set rather than the walker
+ * guessing. Keeping the conventional names here covers every type the
+ * registry has no hint for.
+ */
 export const BODY_PROPERTY_KEYS = new Set([
   'title',
   'name',
@@ -96,12 +106,24 @@ export interface PropertySplit {
  * metadata rows) and complex entries (rendered as a JSON block in markdown
  * body). Body-property keys (rendered as markdown above) and first-class
  * shadow keys (rendered elsewhere) are dropped.
+ *
+ * `alsoRendered` carries the fields the type registry named through
+ * `display_hints`, which the caller has already rendered as the heading and
+ * body. Without it a captured email would show its subject as a heading and
+ * then repeat it as a sidebar row.
  */
-export function splitItemProperties(item: Item): PropertySplit {
+export function splitItemProperties(
+  item: Item,
+  alsoRendered: Iterable<string | undefined> = [],
+): PropertySplit {
+  const rendered = new Set(BODY_PROPERTY_KEYS);
+  for (const key of alsoRendered) {
+    if (key) rendered.add(key);
+  }
   const scalar: ScalarSidebarEntry[] = [];
   const complex: ComplexEntry[] = [];
   for (const [key, value] of Object.entries(item.properties)) {
-    if (BODY_PROPERTY_KEYS.has(key)) continue;
+    if (rendered.has(key)) continue;
     if (FIRST_CLASS_SHADOW_KEYS.has(key)) continue;
     const classified = classifyProperty(key, value);
     if (!classified) continue;

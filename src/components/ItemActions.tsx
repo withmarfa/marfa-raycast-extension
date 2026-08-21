@@ -13,7 +13,8 @@ import { showFailureToast } from '@raycast/utils';
 import { useState } from 'react';
 import type { Item, Metadata, ItemState } from '@withmarfa/sdk';
 import { getClient } from '../client';
-import { getItemTitle, getItemUrl } from '../helpers';
+import { getItemUrl } from '../helpers';
+import type { TypeRegistry } from '../type-display';
 
 function AddTagForm({ itemId, onComplete }: { itemId: string; onComplete: () => void }) {
   const { pop } = useNavigation();
@@ -151,10 +152,16 @@ function AnnotateForm({
 interface ItemActionSectionsProps {
   item: Item;
   metadata?: Metadata;
+  registry: TypeRegistry;
   onRefresh: () => void;
 }
 
-export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSectionsProps) {
+export function ItemActionSections({
+  item,
+  metadata,
+  registry,
+  onRefresh,
+}: ItemActionSectionsProps) {
   const { pop } = useNavigation();
   const url = getItemUrl(item);
 
@@ -194,7 +201,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
   async function handlePurge() {
     const confirmed = await confirmAlert({
       title: 'Delete Permanently',
-      message: `Permanently delete "${getItemTitle(item)}"? This cannot be undone.`,
+      message: `Permanently delete "${registry.titleOf(item)}"? This cannot be undone.`,
       primaryAction: { title: 'Delete Permanently', style: Alert.ActionStyle.Destructive },
     });
     if (!confirmed) return;
@@ -230,7 +237,7 @@ export function ItemActionSections({ item, metadata, onRefresh }: ItemActionSect
       <ActionPanel.Section title="Copy">
         <Action.CopyToClipboard
           title="Copy Title"
-          content={getItemTitle(item)}
+          content={registry.titleOf(item)}
           shortcut={{ modifiers: ['cmd', 'shift'], key: 'c' }}
         />
         {url && (
