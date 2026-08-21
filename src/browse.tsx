@@ -9,6 +9,7 @@ import { ItemListItem } from './components/ItemListItem';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 import { buildTypeFilterOptions } from './type-options';
 import { useTypeRegistry } from './use-type-registry';
+import { useTypeGrant } from './use-type-grant';
 import { EmptyTrashAction } from './components/EmptyTrashAction';
 
 interface ItemWithMetadata {
@@ -54,6 +55,7 @@ function BrowseCommand() {
   const [isShowingDetail, setIsShowingDetail] = useCachedState('browse-show-detail', false);
 
   const { registry } = useTypeRegistry();
+  const isGranted = useTypeGrant();
 
   const { data, isLoading, revalidate, pagination } = useCachedPromise(
     (typeFilter: string, tierFilter: TierFilter, stateFilter: StateFilter) =>
@@ -145,8 +147,13 @@ function BrowseCommand() {
     >
       {!isLoading && data?.length === 0 ? (
         <List.EmptyView
-          title="No items"
-          description="Nothing here yet"
+          icon={type && !isGranted(type) ? Icon.Lock : undefined}
+          title={type && !isGranted(type) ? 'Not shared with Raycast' : 'No items'}
+          description={
+            type && !isGranted(type)
+              ? `Your sign-in did not grant access to ${typeLabel ?? type}. Sign out and back in from Raycast's extension settings to review what Marfa is allowed to show.`
+              : 'Nothing here yet'
+          }
           actions={
             <ActionPanel>
               {filterActions}

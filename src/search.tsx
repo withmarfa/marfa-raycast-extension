@@ -9,6 +9,7 @@ import { ItemListItem } from './components/ItemListItem';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 import { buildTypeFilterOptions } from './type-options';
 import { useTypeRegistry } from './use-type-registry';
+import { useTypeGrant } from './use-type-grant';
 import { EmptyTrashAction } from './components/EmptyTrashAction';
 
 type StateFilter = ItemState | 'all';
@@ -28,6 +29,7 @@ function SearchCommand() {
   const [isShowingDetail, setIsShowingDetail] = useCachedState('search-show-detail', false);
 
   const { registry } = useTypeRegistry();
+  const isGranted = useTypeGrant();
 
   const { data, isLoading, revalidate } = useCachedPromise(
     async (q: string, typeFilter: string, tierFilter: TierFilter, stateFilter: StateFilter) => {
@@ -124,8 +126,13 @@ function SearchCommand() {
         />
       ) : data?.length === 0 ? (
         <List.EmptyView
-          title="No results"
-          description={`No items matching "${searchText}"`}
+          icon={type && !isGranted(type) ? Icon.Lock : undefined}
+          title={type && !isGranted(type) ? 'Not shared with Raycast' : 'No results'}
+          description={
+            type && !isGranted(type)
+              ? `Your sign-in did not grant access to ${type}. Sign out and back in from Raycast's extension settings to review what Marfa is allowed to show.`
+              : `No items matching "${searchText}"`
+          }
           actions={
             <ActionPanel>
               {filterActions}
