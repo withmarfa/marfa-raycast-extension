@@ -54,7 +54,8 @@
       "title": "Manage Keys",
       "subtitle": "Marfa",
       "description": "Admin: list, create, edit, and revoke API keys",
-      "mode": "view"
+      "mode": "view",
+      "disabledByDefault": true
     },
     {
       "name": "server-info",
