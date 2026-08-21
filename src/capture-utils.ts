@@ -1,4 +1,5 @@
 import type { TypeSchema } from '@withmarfa/sdk';
+import { isValidTimeZone } from '@withmarfa/shared';
 import { runAppleScript } from '@raycast/utils';
 import { CAPTURE_TYPES } from './constants';
 import { FIRST_CLASS_SHADOW_KEYS } from './item-metadata';
@@ -13,12 +14,30 @@ export interface CaptureValues {
   description?: string;
   due_at?: Date | null;
   starts_at?: Date | null;
+  ends_at?: Date | null;
+  all_day?: boolean;
+  timezone?: string;
+  end_timezone?: string;
   priority?: string;
   place?: string;
 }
 
+/**
+ * The zone this machine is in, used as the default an event carries.
+ *
+ * An event stores its own zone rather than inheriting the account's,
+ * because an event booked in another city keeps that city's hour and a
+ * recurring one anchored to the wrong zone drifts when clocks change. The
+ * device's zone is the right default precisely because it is usually where
+ * the person capturing is.
+ */
+export function deviceTimeZone(): string {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return zone && isValidTimeZone(zone) ? zone : 'UTC';
+}
+
 export interface ValidationError {
-  field: 'body' | 'title' | 'url' | 'propertiesJson' | 'extraProperties';
+  field: 'body' | 'title' | 'url' | 'ends_at' | 'timezone' | 'propertiesJson' | 'extraProperties';
   message: string;
 }
 
@@ -61,6 +80,16 @@ export function validateCoreCapture(type: string, values: CaptureValues): Valida
   if ((type === 'core.task' || type === 'core.event') && !values.title?.trim()) {
     return { field: 'title', message: 'Title is required' };
   }
+  if (type === 'core.event') {
+    for (const zone of [values.timezone, values.end_timezone]) {
+      if (zone?.trim() && !isValidTimeZone(zone.trim())) {
+        return { field: 'timezone', message: `${zone} is not a recognised time zone` };
+      }
+    }
+    if (values.starts_at && values.ends_at && values.ends_at < values.starts_at) {
+      return { field: 'ends_at', message: 'The end is before the start' };
+    }
+  }
   return null;
 }
 
@@ -90,6 +119,17 @@ export function buildCoreCaptureProperties(
     case 'core.event':
       if (values.title?.trim()) properties.title = values.title.trim();
       if (values.starts_at) properties.starts_at = values.starts_at.toISOString();
+      if (values.ends_at) properties.ends_at = values.ends_at.toISOString();
+      if (values.all_day) properties.all_day = true;
+      // The zone travels with the event. Omitted only when the form somehow
+      // has none, in which case the server's own default is a better answer
+      // than a guess made here.
+      if (values.timezone?.trim()) properties.timezone = values.timezone.trim();
+      // An end zone is stored only when it genuinely differs; a flight
+      // lands somewhere else, an ordinary meeting does not.
+      if (values.end_timezone?.trim() && values.end_timezone.trim() !== values.timezone?.trim()) {
+        properties.end_timezone = values.end_timezone.trim();
+      }
       if (values.place?.trim()) properties.place = values.place.trim();
       break;
   }

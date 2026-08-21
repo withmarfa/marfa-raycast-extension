@@ -46,6 +46,10 @@ interface FormValues {
   description: string;
   due_at: Date | null;
   starts_at: Date | null;
+  ends_at: Date | null;
+  all_day: boolean;
+  timezone: string;
+  end_timezone: string;
   priority: string;
   place: string;
   tags: string;
@@ -64,6 +68,8 @@ function QuickCaptureCommand({ draftValues }: LaunchProps<{ draftValues: FormVal
   const [bodyError, setBodyError] = useState<string | undefined>();
   const [propertiesError, setPropertiesError] = useState<string | undefined>();
   const [extraError, setExtraError] = useState<string | undefined>();
+  const [timeZoneError, setTimeZoneError] = useState<string | undefined>();
+  const [endsAtError, setEndsAtError] = useState<string | undefined>();
   const { pop } = useNavigation();
 
   const { registry, schemas: typeSchemas, isLoading: typesLoading } = useTypeRegistry();
@@ -76,6 +82,8 @@ function QuickCaptureCommand({ draftValues }: LaunchProps<{ draftValues: FormVal
         if (validation.field === 'url') setUrlError(validation.message);
         if (validation.field === 'title') setTitleError(validation.message);
         if (validation.field === 'body') setBodyError(validation.message);
+        if (validation.field === 'timezone') setTimeZoneError(validation.message);
+        if (validation.field === 'ends_at') setEndsAtError(validation.message);
         return;
       }
       properties = buildCoreCaptureProperties(type, values);
@@ -142,6 +150,8 @@ function QuickCaptureCommand({ draftValues }: LaunchProps<{ draftValues: FormVal
           setBodyError(undefined);
           setPropertiesError(undefined);
           setExtraError(undefined);
+          setTimeZoneError(undefined);
+          setEndsAtError(undefined);
         }}
       >
         {buildCaptureTypeOptions(registry, type).map((t) => (
@@ -155,6 +165,12 @@ function QuickCaptureCommand({ draftValues }: LaunchProps<{ draftValues: FormVal
         <>
           <CaptureFields
             type={type}
+            timeZoneError={timeZoneError}
+            endsAtError={endsAtError}
+            onEventTimingChange={() => {
+              setTimeZoneError(undefined);
+              setEndsAtError(undefined);
+            }}
             defaultTitle={draftValues?.title}
             defaultBody={draftValues?.body}
             defaultUrl={draftValues?.url}
