@@ -1,9 +1,8 @@
 import { Action, ActionPanel, Color, Detail, Icon } from '@raycast/api';
 import { useCachedPromise } from '@raycast/utils';
 import { getClient } from '../client';
-import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
+import { STATE_CONFIG } from '../constants';
 import {
-  getItemTitle,
   getItemUrl,
   formatDate,
   formatTime,
@@ -14,6 +13,7 @@ import {
 } from '../helpers';
 import { ItemActionSections } from './ItemActions';
 import { splitItemProperties, type ScalarSidebarEntry } from '../item-metadata';
+import { useTypeRegistry } from '../use-type-registry';
 import type { Edge } from '@withmarfa/sdk';
 
 interface ItemDetailViewProps {
@@ -22,6 +22,7 @@ interface ItemDetailViewProps {
 }
 
 export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
+  const { registry } = useTypeRegistry();
   const { data, isLoading, revalidate } = useCachedPromise(
     async (id: string) => {
       const client = getClient();
@@ -32,20 +33,17 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
       ]);
       const source = getImageSource(item);
       let imageMarkdownUrl: string | null = null;
-      let imageAlt = '';
       if (source?.kind === 'url') {
         imageMarkdownUrl = source.url;
-        imageAlt = source.alt;
       } else if (source?.kind === 'blob') {
         try {
           const bytes = await client.blobs.download(source.blobRef);
           imageMarkdownUrl = `data:${source.mimeType};base64,${arrayBufferToBase64(bytes)}`;
-          imageAlt = source.alt;
         } catch {
           imageMarkdownUrl = null;
         }
       }
-      return { item, metadata, edges: edgesResponse.data, imageMarkdownUrl, imageAlt };
+      return { item, metadata, edges: edgesResponse.data, imageMarkdownUrl };
     },
     [itemId],
   );
@@ -54,29 +52,35 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
     return <Detail isLoading={isLoading} />;
   }
 
-  const { item, metadata, edges, imageMarkdownUrl, imageAlt } = data;
+  const { item, metadata, edges, imageMarkdownUrl } = data;
+  const title = registry.titleOf(item);
+  const bodyField = registry.bodyField(item.type);
   const url = getItemUrl(item);
-  const typeConfig = TYPE_CONFIG[item.type] ?? {
-    label: item.type,
-    icon: undefined,
-    color: Color.PrimaryText,
-  };
+  const typeLabel = registry.label(item.type);
+  const typeColor = registry.appearance(item.type).color;
   const stateConfig = STATE_CONFIG[item.state];
 
   const lines: string[] = [];
   if (imageMarkdownUrl) {
-    lines.push(`![${imageAlt}](${imageMarkdownUrl})`, '');
+    lines.push(`![${title}](${imageMarkdownUrl})`, '');
   }
-  lines.push(`# ${getItemTitle(item)}`, '');
+  lines.push(`# ${title}`, '');
   const p = item.properties;
 
+  // The registry's own body field first, then the conventional names for
+  // types it has no hint for.
+  const hintedBody = bodyField ? p[bodyField] : undefined;
+  if (typeof hintedBody === 'string' && hintedBody) lines.push(hintedBody, '');
   if (typeof p.body === 'string' && p.body) lines.push(p.body, '');
   if (typeof p.description === 'string' && p.description) lines.push(p.description, '');
   if (typeof p.text === 'string' && p.text) lines.push(p.text, '');
   if (typeof p.notes === 'string' && p.notes) lines.push(p.notes, '');
   if (typeof p.url === 'string' && p.url) lines.push(`[${p.url}](${p.url})`, '');
 
-  const { scalar: sidebarEntries, complex: complexEntries } = splitItemProperties(item);
+  const { scalar: sidebarEntries, complex: complexEntries } = splitItemProperties(item, [
+    registry.titleField(item.type),
+    bodyField,
+  ]);
 
   if (complexEntries.length > 0) {
     lines.push('## Extended properties', '', '```json');
@@ -115,11 +119,11 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
     <Detail
       isLoading={isLoading}
       markdown={lines.join('\n')}
-      navigationTitle={getItemTitle(item)}
+      navigationTitle={title}
       metadata={
         <Detail.Metadata>
           <Detail.Metadata.TagList title="Type">
-            <Detail.Metadata.TagList.Item text={typeConfig.label} color={typeConfig.color} />
+            <Detail.Metadata.TagList.Item text={typeLabel} color={typeColor} />
           </Detail.Metadata.TagList>
           <Detail.Metadata.TagList title="State">
             <Detail.Metadata.TagList.Item
@@ -221,11 +225,16 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
               <Action.Push
                 title="View Edges"
                 icon={Icon.Link}
-                target={<EdgesDetailView itemTitle={getItemTitle(item)} edges={edges} />}
+                target={<EdgesDetailView itemTitle={title} edges={edges} />}
               />
             )}
           </ActionPanel.Section>
-          <ItemActionSections item={item} metadata={metadata} onRefresh={handleRefresh} />
+          <ItemActionSections
+            item={item}
+            metadata={metadata}
+            registry={registry}
+            onRefresh={handleRefresh}
+          />
         </ActionPanel>
       }
     />

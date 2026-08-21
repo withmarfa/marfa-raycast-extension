@@ -1,7 +1,8 @@
 import { Color, List } from '@raycast/api';
 import type { Item, Metadata } from '@withmarfa/sdk';
-import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
-import { getItemTitle, formatDate, formatTime, formatRelativeTime, toTitleCase } from '../helpers';
+import { STATE_CONFIG } from '../constants';
+import { formatDate, formatTime, formatRelativeTime, toTitleCase } from '../helpers';
+import type { TypeRegistry } from '../type-display';
 import { splitItemProperties, type ScalarSidebarEntry } from '../item-metadata';
 
 /**
@@ -16,6 +17,7 @@ interface ItemInlineDetailProps {
   item: Item;
   metadata?: Metadata;
   snippet?: string;
+  registry: TypeRegistry;
 }
 
 const INLINE_BODY_TRUNCATE = 600;
@@ -25,17 +27,20 @@ function truncate(text: string, max: number): string {
   return text.slice(0, max).trimEnd() + '…';
 }
 
-export function ItemInlineDetail({ item, metadata, snippet }: ItemInlineDetailProps) {
-  const typeConfig = TYPE_CONFIG[item.type] ?? {
-    label: item.type,
-    icon: undefined,
-    color: Color.PrimaryText,
-  };
+export function ItemInlineDetail({ item, metadata, snippet, registry }: ItemInlineDetailProps) {
+  const typeLabel = registry.label(item.type);
+  const typeColor = registry.appearance(item.type).color;
   const stateConfig = STATE_CONFIG[item.state];
+  const bodyField = registry.bodyField(item.type);
 
   const p = item.properties;
-  const lines: string[] = [`# ${getItemTitle(item)}`, ''];
+  const lines: string[] = [`# ${registry.titleOf(item)}`, ''];
   if (snippet) lines.push(snippet, '');
+  // The registry's own body field first — a captured email keeps its text in
+  // `text_body`, a podcast episode in `content_encoded`.
+  const hintedBody = bodyField ? p[bodyField] : undefined;
+  if (typeof hintedBody === 'string' && hintedBody)
+    lines.push(truncate(hintedBody, INLINE_BODY_TRUNCATE), '');
   if (typeof p.body === 'string' && p.body) lines.push(truncate(p.body, INLINE_BODY_TRUNCATE), '');
   if (typeof p.description === 'string' && p.description)
     lines.push(truncate(p.description, INLINE_BODY_TRUNCATE), '');
@@ -44,7 +49,10 @@ export function ItemInlineDetail({ item, metadata, snippet }: ItemInlineDetailPr
     lines.push(truncate(p.notes, INLINE_BODY_TRUNCATE), '');
   if (typeof p.url === 'string' && p.url) lines.push(`[${p.url}](${p.url})`, '');
 
-  const { scalar: sidebarEntries } = splitItemProperties(item);
+  const { scalar: sidebarEntries } = splitItemProperties(item, [
+    registry.titleField(item.type),
+    bodyField,
+  ]);
 
   const extensionNamespaces = metadata ? Object.keys(metadata.extensions) : [];
 
@@ -54,10 +62,7 @@ export function ItemInlineDetail({ item, metadata, snippet }: ItemInlineDetailPr
       metadata={
         <List.Item.Detail.Metadata>
           <List.Item.Detail.Metadata.TagList title="Type">
-            <List.Item.Detail.Metadata.TagList.Item
-              text={typeConfig.label}
-              color={typeConfig.color}
-            />
+            <List.Item.Detail.Metadata.TagList.Item text={typeLabel} color={typeColor} />
           </List.Item.Detail.Metadata.TagList>
           <List.Item.Detail.Metadata.TagList title="State">
             <List.Item.Detail.Metadata.TagList.Item

@@ -1,6 +1,8 @@
 import { Action, ActionPanel, Color, Detail, Icon, List } from '@raycast/api';
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import type { TypeSchema } from '@withmarfa/sdk';
+import { classifyNamespace } from '@withmarfa/shared';
+import type { NamespaceTier } from '@withmarfa/shared';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 
@@ -10,18 +12,18 @@ import { getClient } from './client';
  * schema as JSON for inspection. Disabled by default in package.json.
  */
 
-type TypeKind = 'core' | 'custom' | 'system';
-
-function classifyType(id: string): TypeKind {
-  if (id.startsWith('core.')) return 'core';
-  if (id.startsWith('system.')) return 'system';
-  return 'custom';
-}
-
-const KIND_COLOR: Record<TypeKind, Color> = {
+/**
+ * Tiers come from the platform's own namespace grammar rather than from
+ * prefix matching here, so a tier the platform adds is a compile error
+ * rather than a type silently filed as "custom".
+ */
+const TIER_COLOR: Record<NamespaceTier, Color> = {
   core: Color.Blue,
-  custom: Color.Purple,
   system: Color.SecondaryText,
+  app: Color.SecondaryText,
+  user: Color.Purple,
+  publisher: Color.Magenta,
+  marfa: Color.Magenta,
 };
 
 function TypeRegistryCommand() {
@@ -42,16 +44,16 @@ function TypeRegistryCommand() {
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Filter types by id or label...">
       {(data ?? []).map((schema) => {
-        const kind = classifyType(schema.id);
+        const tier = classifyNamespace(schema.id);
         return (
           <List.Item
             key={schema.id}
-            icon={{ source: Icon.Document, tintColor: KIND_COLOR[kind] }}
+            icon={{ source: Icon.Document, tintColor: TIER_COLOR[tier] }}
             title={schema.id}
             subtitle={schema.label ?? undefined}
-            keywords={[schema.id, schema.label ?? '', kind]}
+            keywords={[schema.id, schema.label ?? '', tier]}
             accessories={[
-              { tag: { value: kind, color: KIND_COLOR[kind] } },
+              { tag: { value: tier, color: TIER_COLOR[tier] } },
               schema.version !== undefined ? { text: `v${String(schema.version)}` } : { text: '' },
             ]}
             actions={

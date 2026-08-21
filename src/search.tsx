@@ -8,6 +8,7 @@ import { stripHtmlTags } from './helpers';
 import { ItemListItem } from './components/ItemListItem';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 import { buildTypeFilterOptions } from './type-options';
+import { useTypeRegistry } from './use-type-registry';
 import { EmptyTrashAction } from './components/EmptyTrashAction';
 
 type StateFilter = ItemState | 'all';
@@ -26,18 +27,7 @@ function SearchCommand() {
   const [state, setState] = useState<StateFilter>('active');
   const [isShowingDetail, setIsShowingDetail] = useCachedState('search-show-detail', false);
 
-  const { data: typeSchemas } = useCachedPromise(
-    async () => {
-      const client = getClient();
-      return client.types.list();
-    },
-    [],
-    {
-      onError: async (err) => {
-        await showFailureToast(err, { title: 'Failed to load type filters' });
-      },
-    },
-  );
+  const { registry } = useTypeRegistry();
 
   const { data, isLoading, revalidate } = useCachedPromise(
     async (q: string, typeFilter: string, tierFilter: TierFilter, stateFilter: StateFilter) => {
@@ -61,7 +51,7 @@ function SearchCommand() {
 
   const toggleDetail = () => setIsShowingDetail((v) => !v);
 
-  const typeOptions = buildTypeFilterOptions(typeSchemas);
+  const typeOptions = buildTypeFilterOptions(registry);
   const typeSubmenu = (
     <ActionPanel.Submenu
       title="Filter by Type"
@@ -154,6 +144,7 @@ function SearchCommand() {
             key={result.item.id}
             item={result.item}
             metadata={result.metadata}
+            registry={registry}
             snippet={result.snippet_html ? stripHtmlTags(result.snippet_html) : undefined}
             onRefresh={revalidate}
             topActions={

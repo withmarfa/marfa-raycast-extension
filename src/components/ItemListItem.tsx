@@ -1,9 +1,10 @@
-import { ActionPanel, Action, Icon, List, Color } from '@raycast/api';
+import { ActionPanel, Action, Icon, List } from '@raycast/api';
 import { getFavicon } from '@raycast/utils';
 import type { ReactNode } from 'react';
 import type { Item, Metadata } from '@withmarfa/sdk';
-import { TYPE_CONFIG, STATE_CONFIG } from '../constants';
-import { getItemTitle, getItemUrl, formatTime, formatDate, formatRelativeTime } from '../helpers';
+import { STATE_CONFIG } from '../constants';
+import { getItemUrl, formatTime, formatDate, formatRelativeTime } from '../helpers';
+import type { TypeRegistry } from '../type-display';
 import { ItemDetailView } from './ItemDetailView';
 import { ItemInlineDetail } from './ItemInlineDetail';
 import { ItemActionSections } from './ItemActions';
@@ -11,6 +12,7 @@ import { ItemActionSections } from './ItemActions';
 interface ItemListItemProps {
   item: Item;
   metadata?: Metadata;
+  registry: TypeRegistry;
   snippet?: string;
   onRefresh: () => void;
   topActions?: ReactNode;
@@ -27,6 +29,7 @@ interface ItemListItemProps {
 export function ItemListItem({
   item,
   metadata,
+  registry,
   snippet,
   onRefresh,
   topActions,
@@ -34,17 +37,14 @@ export function ItemListItem({
   onToggleDetail,
   isShowingDetail,
 }: ItemListItemProps) {
-  const typeConfig = TYPE_CONFIG[item.type] ?? {
-    label: item.type,
-    icon: Icon.Circle,
-    color: Color.PrimaryText,
-  };
+  const typeLabel = registry.label(item.type);
+  const { icon: typeIcon, color: typeColor } = registry.appearance(item.type);
   const stateConfig = STATE_CONFIG[item.state];
   const url = getItemUrl(item);
 
   const icon = url
     ? getFavicon(url, { fallback: Icon.Link })
-    : { source: typeConfig.icon, tintColor: typeConfig.color };
+    : { source: typeIcon, tintColor: typeColor };
 
   const toggleAction = onToggleDetail ? (
     <Action
@@ -59,10 +59,12 @@ export function ItemListItem({
     return (
       <List.Item
         id={item.id}
-        title={getItemTitle(item)}
+        title={registry.titleOf(item)}
         icon={icon}
-        keywords={[typeConfig.label, ...(metadata?.tags ?? [])]}
-        detail={<ItemInlineDetail item={item} metadata={metadata} snippet={snippet} />}
+        keywords={[typeLabel, item.type, ...(metadata?.tags ?? [])]}
+        detail={
+          <ItemInlineDetail item={item} metadata={metadata} snippet={snippet} registry={registry} />
+        }
         actions={
           <ActionPanel>
             <ActionPanel.Section>
@@ -76,7 +78,12 @@ export function ItemListItem({
               {toggleAction}
             </ActionPanel.Section>
             {topActions}
-            <ItemActionSections item={item} metadata={metadata} onRefresh={onRefresh} />
+            <ItemActionSections
+              item={item}
+              metadata={metadata}
+              registry={registry}
+              onRefresh={onRefresh}
+            />
           </ActionPanel>
         }
       />
@@ -98,11 +105,11 @@ export function ItemListItem({
   return (
     <List.Item
       id={item.id}
-      title={getItemTitle(item)}
+      title={registry.titleOf(item)}
       subtitle={snippet}
       icon={icon}
       accessories={accessories}
-      keywords={[typeConfig.label, ...(metadata?.tags ?? [])]}
+      keywords={[typeLabel, item.type, ...(metadata?.tags ?? [])]}
       actions={
         <ActionPanel>
           <ActionPanel.Section>
@@ -116,7 +123,12 @@ export function ItemListItem({
             {toggleAction}
           </ActionPanel.Section>
           {topActions}
-          <ItemActionSections item={item} metadata={metadata} onRefresh={onRefresh} />
+          <ItemActionSections
+            item={item}
+            metadata={metadata}
+            registry={registry}
+            onRefresh={onRefresh}
+          />
         </ActionPanel>
       }
     />

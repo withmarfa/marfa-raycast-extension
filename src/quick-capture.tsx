@@ -8,7 +8,7 @@ import {
   useNavigation,
 } from '@raycast/api';
 import type { LaunchProps } from '@raycast/api';
-import { showFailureToast, useCachedPromise } from '@raycast/utils';
+import { showFailureToast } from '@raycast/utils';
 import { useState } from 'react';
 import type { CreateItemInput } from '@withmarfa/sdk';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
@@ -29,6 +29,7 @@ import {
   CustomPropertiesFields,
 } from './components/CaptureFields';
 import { buildCaptureTypeOptions, findSchema, schemaSummary } from './type-options';
+import { useTypeRegistry } from './use-type-registry';
 
 interface CapturePreferences {
   defaultTier?: 'library' | 'feed';
@@ -65,18 +66,7 @@ function QuickCaptureCommand({ draftValues }: LaunchProps<{ draftValues: FormVal
   const [extraError, setExtraError] = useState<string | undefined>();
   const { pop } = useNavigation();
 
-  const { data: typeSchemas, isLoading: typesLoading } = useCachedPromise(
-    async () => {
-      const client = getClient();
-      return client.types.list();
-    },
-    [],
-    {
-      onError: async (err) => {
-        await showFailureToast(err, { title: 'Failed to load types' });
-      },
-    },
-  );
+  const { registry, schemas: typeSchemas, isLoading: typesLoading } = useTypeRegistry();
 
   async function handleSubmit(values: FormValues) {
     let properties: Record<string, unknown>;
@@ -154,7 +144,7 @@ function QuickCaptureCommand({ draftValues }: LaunchProps<{ draftValues: FormVal
           setExtraError(undefined);
         }}
       >
-        {buildCaptureTypeOptions(typeSchemas, type).map((t) => (
+        {buildCaptureTypeOptions(registry, type).map((t) => (
           <Form.Dropdown.Item key={t.value} value={t.value} title={t.label} />
         ))}
       </Form.Dropdown>

@@ -1,18 +1,11 @@
 import type { TypeSchema } from '@withmarfa/sdk';
-import { ALL_TYPES, CAPTURE_TYPES } from './constants';
+import { ALL_TYPES_OPTION, CAPTURE_TYPES } from './constants';
+import type { TypeRegistry } from './type-display';
 import type { TypeSchemaWithRequired } from './capture-utils';
 
 export interface TypeOption {
   value: string;
   label: string;
-}
-
-function isSystemType(id: string): boolean {
-  return id.startsWith('system.');
-}
-
-function optionLabel(schema: TypeSchema): string {
-  return schema.label ? `${schema.label} · ${schema.id}` : schema.id;
 }
 
 function addOption(options: TypeOption[], option: TypeOption): void {
@@ -21,25 +14,39 @@ function addOption(options: TypeOption[], option: TypeOption): void {
   }
 }
 
-export function buildTypeFilterOptions(schemas: TypeSchema[] | undefined): TypeOption[] {
-  const options: TypeOption[] = [...ALL_TYPES];
-  for (const schema of [...(schemas ?? [])].sort((a, b) => a.id.localeCompare(b.id))) {
-    if (isSystemType(schema.id)) continue;
-    addOption(options, { value: schema.id, label: optionLabel(schema) });
+/**
+ * Filter options are whatever the instance actually holds, in the
+ * registry's own label order. There is no seeded list of core types: the
+ * server returns those too, and a second copy could only disagree with it
+ * — including on a self-hosted instance that registered something else
+ * entirely.
+ */
+export function buildTypeFilterOptions(registry: TypeRegistry): TypeOption[] {
+  const options: TypeOption[] = [{ ...ALL_TYPES_OPTION }];
+  for (const schema of registry.selectableTypes()) {
+    addOption(options, { value: schema.id, label: registry.label(schema.id) });
   }
   return options;
 }
 
+/**
+ * Capture options lead with the types Quick Capture has native fields for,
+ * then everything else the instance knows. The currently selected type is
+ * appended when the registry has never heard of it, so a preference
+ * pointing at a type this server does not hold still shows what it is set
+ * to rather than silently resetting.
+ */
 export function buildCaptureTypeOptions(
-  schemas: TypeSchema[] | undefined,
+  registry: TypeRegistry,
   selectedType: string,
 ): TypeOption[] {
-  const options: TypeOption[] = [...CAPTURE_TYPES];
-  const sorted = [...(schemas ?? [])].sort((a, b) => a.id.localeCompare(b.id));
+  const options: TypeOption[] = CAPTURE_TYPES.map((type) => ({
+    value: type.value,
+    label: registry.schema(type.value) ? registry.label(type.value) : type.label,
+  }));
 
-  for (const schema of sorted) {
-    if (isSystemType(schema.id)) continue;
-    addOption(options, { value: schema.id, label: optionLabel(schema) });
+  for (const schema of registry.selectableTypes()) {
+    addOption(options, { value: schema.id, label: registry.label(schema.id) });
   }
 
   if (!options.some((option) => option.value === selectedType)) {
