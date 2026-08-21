@@ -1,5 +1,19 @@
 import { Form } from '@raycast/api';
 import type { ReactNode } from 'react';
+import { deviceTimeZone } from '../capture-utils';
+
+/**
+ * Every IANA zone the runtime knows, device zone first so the common case
+ * is the top entry. Raycast dropdowns are searchable, so the full list is
+ * more usable than a hand-picked shortlist would be — and a shortlist is
+ * exactly the kind of hardcoded guess this extension is getting rid of.
+ */
+function timeZoneOptions(): string[] {
+  const device = deviceTimeZone();
+  const all =
+    typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
+  return [device, ...all.filter((zone) => zone !== device)];
+}
 
 /**
  * Field IDs (`title`, `body`, `url`, etc.) match the `FormValues` shape
@@ -7,6 +21,9 @@ import type { ReactNode } from 'react';
  */
 export interface CaptureFieldOptions {
   type: string;
+  timeZoneError?: string;
+  endsAtError?: string;
+  onEventTimingChange?: () => void;
   defaultTitle?: string;
   defaultBody?: string;
   defaultUrl?: string;
@@ -29,6 +46,9 @@ export interface CustomPropertiesFieldOptions {
 export function CaptureFields(props: CaptureFieldOptions): ReactNode {
   const {
     type,
+    timeZoneError,
+    endsAtError,
+    onEventTimingChange,
     defaultTitle,
     defaultBody,
     defaultUrl,
@@ -114,7 +134,8 @@ export function CaptureFields(props: CaptureFieldOptions): ReactNode {
           </Form.Dropdown>
         </>
       );
-    case 'core.event':
+    case 'core.event': {
+      const zones = timeZoneOptions();
       return (
         <>
           <Form.TextField
@@ -125,10 +146,41 @@ export function CaptureFields(props: CaptureFieldOptions): ReactNode {
             error={titleError}
             onChange={onTitleChange}
           />
-          <Form.DatePicker id="starts_at" title="Starts At" />
+          <Form.DatePicker id="starts_at" title="Starts" />
+          <Form.DatePicker
+            id="ends_at"
+            title="Ends"
+            error={endsAtError}
+            onChange={onEventTimingChange}
+          />
+          <Form.Checkbox id="all_day" label="All day" defaultValue={false} />
+          <Form.Dropdown
+            id="timezone"
+            title="Time zone"
+            defaultValue={zones[0]}
+            error={timeZoneError}
+            onChange={onEventTimingChange}
+            info="The event keeps this zone wherever it is read from, so a booking in another city holds that city's hour."
+          >
+            {zones.map((zone) => (
+              <Form.Dropdown.Item key={zone} value={zone} title={zone} />
+            ))}
+          </Form.Dropdown>
+          <Form.Dropdown
+            id="end_timezone"
+            title="Ends in"
+            defaultValue=""
+            info="Only for something that ends somewhere else, like a flight."
+          >
+            <Form.Dropdown.Item value="" title="Same as start" />
+            {zones.map((zone) => (
+              <Form.Dropdown.Item key={zone} value={zone} title={zone} />
+            ))}
+          </Form.Dropdown>
           <Form.TextField id="place" title="Place" placeholder="Location" />
         </>
       );
+    }
     default:
       return null;
   }
