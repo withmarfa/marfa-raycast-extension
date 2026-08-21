@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Icon, List } from '@raycast/api';
+import { Action, ActionPanel, Icon, List, Keyboard } from '@raycast/api';
 import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
 import { useState } from 'react';
 import type { ItemState } from '@withmarfa/sdk';
@@ -74,7 +74,7 @@ function SearchCommand() {
     <ActionPanel.Submenu
       title="Filter by State"
       icon={Icon.Filter}
-      shortcut={{ modifiers: ['cmd', 'shift'], key: 's' }}
+      shortcut={Keyboard.Shortcut.Common.Duplicate}
     >
       {STATE_FILTERS.map((filter) => (
         <Action

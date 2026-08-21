@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Color, Detail, Icon } from '@raycast/api';
+import { Action, ActionPanel, Color, Detail, Icon, Keyboard } from '@raycast/api';
 import { useCachedPromise } from '@raycast/utils';
 import { getClient } from '../client';
 import { STATE_CONFIG } from '../constants';
@@ -152,7 +152,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
           />
           <Detail.Metadata.Label
             title="Updated"
-            text={`${formatRelativeTime(item.updated_at)} · ${formatDate(item.updated_at)} ${formatTime(item.updated_at)}`}
+            text={`${formatDate(item.updated_at)} ${formatTime(item.updated_at)} (${formatRelativeTime(item.updated_at)})`}
           />
           <Detail.Metadata.Label
             title="Created"
@@ -218,7 +218,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
             <Action
               title="Refresh"
               icon={Icon.ArrowClockwise}
-              shortcut={{ modifiers: ['cmd'], key: 'r' }}
+              shortcut={Keyboard.Shortcut.Common.Refresh}
               onAction={handleRefresh}
             />
             {edges.length > 0 && (

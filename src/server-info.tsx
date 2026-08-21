@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Detail, getPreferenceValues, Icon } from '@raycast/api';
+import { Action, ActionPanel, Detail, getPreferenceValues, Icon, Keyboard } from '@raycast/api';
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
@@ -80,7 +80,7 @@ function ServerInfoCommand() {
           <Action
             title="Refresh"
             icon={Icon.ArrowClockwise}
-            shortcut={{ modifiers: ['cmd'], key: 'r' }}
+            shortcut={Keyboard.Shortcut.Common.Refresh}
             onAction={revalidate}
           />
         </ActionPanel>

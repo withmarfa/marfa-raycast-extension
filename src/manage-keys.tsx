@@ -8,6 +8,7 @@ import {
   List,
   showToast,
   Toast,
+  Keyboard,
 } from '@raycast/api';
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import type { ApiKey } from '@withmarfa/sdk';
@@ -82,7 +83,7 @@ function ManageKeysCommand() {
             <Action.Push
               title="Create New Key"
               icon={Icon.Plus}
-              shortcut={{ modifiers: ['cmd'], key: 'n' }}
+              shortcut={Keyboard.Shortcut.Common.New}
               target={<CreateKeyForm onCreated={() => mutate()} />}
             />
           </ActionPanel>
@@ -115,24 +116,24 @@ function ManageKeysCommand() {
               <Action.Push
                 title="Edit"
                 icon={Icon.Pencil}
-                shortcut={{ modifiers: ['cmd'], key: 'e' }}
+                shortcut={Keyboard.Shortcut.Common.Edit}
                 target={<EditKeyForm apiKey={key} onSaved={() => mutate()} />}
               />
               <Action.CopyToClipboard
                 title="Copy Key ID"
                 content={key.id}
-                shortcut={{ modifiers: ['cmd'], key: '.' }}
+                shortcut={Keyboard.Shortcut.Common.Pin}
               />
               <Action.CopyToClipboard
                 title="Copy Source"
                 content={key.source}
-                shortcut={{ modifiers: ['cmd', 'shift'], key: 's' }}
+                shortcut={Keyboard.Shortcut.Common.Duplicate}
               />
               <ActionPanel.Section>
                 <Action.Push
                   title="Create New Key"
                   icon={Icon.Plus}
-                  shortcut={{ modifiers: ['cmd'], key: 'n' }}
+                  shortcut={Keyboard.Shortcut.Common.New}
                   target={<CreateKeyForm onCreated={() => mutate()} />}
                 />
               </ActionPanel.Section>

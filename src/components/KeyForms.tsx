@@ -530,7 +530,14 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
       {usingPreset && activePreset && (
         <Form.Description
           title="Permissions"
-          text={`Role: ${activePreset.role} · Default tier: ${activePreset.default_tier} · Types: ${stringifyMap(activePreset.permissions.type_permissions)} · Extensions: ${stringifyMap(activePreset.permissions.extension_permissions)} · Edges: ${stringifyMap(activePreset.permissions.edge_permissions)} · Metadata: ${stringifyMap(activePreset.permissions.metadata_permissions)}`}
+          text={[
+            `Role: ${activePreset.role}`,
+            `Default tier: ${activePreset.default_tier}`,
+            `Types: ${stringifyMap(activePreset.permissions.type_permissions)}`,
+            `Extensions: ${stringifyMap(activePreset.permissions.extension_permissions)}`,
+            `Edges: ${stringifyMap(activePreset.permissions.edge_permissions)}`,
+            `Metadata: ${stringifyMap(activePreset.permissions.metadata_permissions)}`,
+          ].join('\n')}
         />
       )}
     </Form>
