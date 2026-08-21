@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Icon, List } from '@raycast/api';
+import { Action, ActionPanel, Icon, List, Keyboard } from '@raycast/api';
 import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
 import { useState } from 'react';
 import type { Item, ItemState, Metadata } from '@withmarfa/sdk';
@@ -88,7 +88,7 @@ function BrowseCommand() {
   const typeOptions = buildTypeFilterOptions(registry);
   const typeLabel = type ? (typeOptions.find((t) => t.value === type)?.label ?? null) : null;
   const stateLabel = STATE_FILTERS.find((filter) => filter.value === state)?.label ?? state;
-  const navigationTitle = [TIER_LABEL[tier], stateLabel, typeLabel].filter(Boolean).join(' · ');
+  const navigationTitle = [TIER_LABEL[tier], stateLabel, typeLabel].filter(Boolean).join(', ');
 
   const toggleDetail = () => setIsShowingDetail((v) => !v);
 
@@ -112,7 +112,7 @@ function BrowseCommand() {
     <ActionPanel.Submenu
       title="Filter by State"
       icon={Icon.Filter}
-      shortcut={{ modifiers: ['cmd', 'shift'], key: 's' }}
+      shortcut={Keyboard.Shortcut.Common.Duplicate}
     >
       {STATE_FILTERS.map((filter) => (
         <Action

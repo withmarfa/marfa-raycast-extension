@@ -9,6 +9,7 @@ import {
   showToast,
   Toast,
   useNavigation,
+  Keyboard,
 } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
 import type { ApiKey } from '@withmarfa/sdk';
@@ -133,12 +134,12 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
           <Action.CopyToClipboard
             title="Copy Key ID"
             content={apiKey.id}
-            shortcut={{ modifiers: ['cmd'], key: '.' }}
+            shortcut={Keyboard.Shortcut.Common.Pin}
           />
           <Action.CopyToClipboard
             title="Copy Source"
             content={apiKey.source}
-            shortcut={{ modifiers: ['cmd', 'shift'], key: 's' }}
+            shortcut={Keyboard.Shortcut.Common.Duplicate}
           />
           <ActionPanel.Section title="Danger">
             <Action

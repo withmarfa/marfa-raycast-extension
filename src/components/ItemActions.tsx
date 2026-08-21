@@ -8,6 +8,7 @@ import {
   useNavigation,
   confirmAlert,
   Alert,
+  Keyboard,
 } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
 import { useState } from 'react';
@@ -230,7 +231,7 @@ export function ItemActionSections({
     <>
       {url && (
         <ActionPanel.Section>
-          <Action.OpenInBrowser url={url} shortcut={{ modifiers: ['cmd'], key: 'o' }} />
+          <Action.OpenInBrowser url={url} shortcut={Keyboard.Shortcut.Common.Open} />
         </ActionPanel.Section>
       )}
 
@@ -238,7 +239,7 @@ export function ItemActionSections({
         <Action.CopyToClipboard
           title="Copy Title"
           content={registry.titleOf(item)}
-          shortcut={{ modifiers: ['cmd', 'shift'], key: 'c' }}
+          shortcut={Keyboard.Shortcut.Common.Copy}
         />
         {url && (
           <Action.CopyToClipboard
@@ -250,7 +251,7 @@ export function ItemActionSections({
         <Action.CopyToClipboard
           title="Copy ID"
           content={item.id}
-          shortcut={{ modifiers: ['cmd'], key: '.' }}
+          shortcut={Keyboard.Shortcut.Common.Pin}
         />
       </ActionPanel.Section>
 

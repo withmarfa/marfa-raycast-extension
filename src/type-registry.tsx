@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Color, Detail, Icon, List } from '@raycast/api';
+import { Action, ActionPanel, Color, Detail, Icon, List, Keyboard } from '@raycast/api';
 import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import type { TypeSchema } from '@withmarfa/sdk';
 import { classifyNamespace } from '@withmarfa/shared';
@@ -66,12 +66,12 @@ function TypeRegistryCommand() {
                 <Action.CopyToClipboard
                   title="Copy Type ID"
                   content={schema.id}
-                  shortcut={{ modifiers: ['cmd'], key: '.' }}
+                  shortcut={Keyboard.Shortcut.Common.Pin}
                 />
                 <Action
                   title="Refresh"
                   icon={Icon.ArrowClockwise}
-                  shortcut={{ modifiers: ['cmd'], key: 'r' }}
+                  shortcut={Keyboard.Shortcut.Common.Refresh}
                   onAction={revalidate}
                 />
               </ActionPanel>
@@ -100,12 +100,12 @@ function TypeDetail({ schema }: { schema: TypeSchema }) {
           <Action.CopyToClipboard
             title="Copy Type ID"
             content={schema.id}
-            shortcut={{ modifiers: ['cmd'], key: '.' }}
+            shortcut={Keyboard.Shortcut.Common.Pin}
           />
           <Action.CopyToClipboard
             title="Copy Schema JSON"
             content={JSON.stringify(schema, null, 2)}
-            shortcut={{ modifiers: ['cmd', 'shift'], key: 'c' }}
+            shortcut={Keyboard.Shortcut.Common.Copy}
           />
         </ActionPanel>
       }
