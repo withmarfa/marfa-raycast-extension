@@ -47,13 +47,15 @@ Implicit OAuth on first use, following the canonical Raycast pattern. Every comm
 
 ## Commands
 
+Browse, Search and Quick Capture are the three a person runs daily and the only three on the root launcher. Everything else ships `disabledByDefault` and is switched on in Raycast's extension settings when it is actually wanted — which keeps the launcher uncluttered and stops an unfamiliar user walking into an admin surface.
+
 - **Browse:** list items with date grouping, type icons, metadata. Paginated with auto-loading. Native Raycast filtering within loaded items. Tier filter in the search accessory; type and lifecycle filters in the action panel. Custom types discovered from the server registry where available. `⌘D` toggles the inline detail panel (per-command, persisted via `useCachedState`).
 - **Search:** full-text search with debounced input. Shows snippets and metadata. Shares tier, type, and lifecycle filtering with Browse. Same `⌘D` detail toggle.
 - **Quick Capture:** create core notes, bookmarks, tasks, or events with native type-specific fields and validation. Free-form "Additional properties" field accepts `key: value` lines for ad-hoc properties (booleans/numbers coerced; shadow keys rejected). Other registered types use a generic properties JSON editor with schema context. Honors capture preference defaults.
-- **Manage Keys:** admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, four permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Supports `metadata_permissions` and `space_admin`. Non-admin principals see an "admin credentials required" empty state.
 
 ### Disabled by default (enable in Raycast Preferences → Extensions → Marfa)
 
+- **Manage Keys:** admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, four permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Supports `metadata_permissions` and `space_admin`. Non-admin principals see an "admin credentials required" empty state.
 - **Clipboard Capture:** no-view command. Reads clipboard, routes by content: URL → bookmark; file → `core.file`; HTML-rich text → note (with `html` preserved); plain text → note. Uploads blobs via `client.blobs.upload`. Disabled while the redo bakes; flip on once verified.
 - **Clipboard Capture (Edit):** view command. Pre-fills a form from the clipboard, lets the user adjust type / fields before submitting. File clipboard content routes to `core.file`; non-file content can use the configured default type, including custom types.
 - **Server Info:** read-only view of the connected instance, auth mode, and signed-in identity.
