@@ -79,3 +79,22 @@ export function getClient(): MarfaClient {
 export function invalidateClientCache(): void {
   cached = null;
 }
+
+/**
+ * Whether this session is a pasted API key rather than a browser sign-in.
+ *
+ * The same preference `getClient` branches on, exported so a command can ask
+ * the question without reaching for preferences itself and drifting from the
+ * client's answer.
+ *
+ * It decides what a command may offer, not what it may do. The server refuses
+ * key minting on an OAuth token deliberately: an app granted narrow
+ * permissions could otherwise mint an unrestricted key, and the key would
+ * outlive the grant that produced it, so revoking the app would not revoke
+ * the key. That refusal stays. This only stops the extension advertising an
+ * action that is certain to be refused.
+ */
+export function isStaticKeySession(): boolean {
+  const { apiKey } = getPreferenceValues<Preferences>();
+  return Boolean(apiKey?.trim());
+}

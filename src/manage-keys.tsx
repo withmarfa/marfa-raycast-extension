@@ -14,10 +14,21 @@ import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import type { ApiKey } from '@withmarfa/sdk';
 import { ForbiddenError } from '@withmarfa/sdk';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
-import { getClient } from './client';
+import { getClient, isStaticKeySession } from './client';
 import { formatRelativeTime } from './helpers';
 import { CreateKeyForm, EditKeyForm } from './components/KeyForms';
 import { KeyDetailView } from './components/KeyDetailView';
+
+/**
+ * Why key minting is unavailable on a browser sign-in.
+ *
+ * The reason rather than the refusal, because the boundary is deliberate and
+ * a person told only "forbidden" reasonably concludes the extension is
+ * broken. A key minted from an OAuth token would carry permissions the grant
+ * never had, and would keep working after the app was revoked.
+ */
+const KEY_MINTING_NEEDS_A_KEY =
+  'A key would outlive the app you signed in with, so it has to be created somewhere that already holds one. Paste an admin API key into Preferences, or create the key in the web console.';
 
 function ManageKeysCommand() {
   const {
@@ -72,22 +83,42 @@ function ManageKeysCommand() {
     );
   }
 
+  // Minting a key is refused on a browser sign-in, so the command says why
+  // instead of offering an action that cannot succeed. Offering it anyway
+  // reads as a broken extension rather than a deliberate boundary, and the
+  // refusal arrives as a bare permission error that names no reason.
+  const canCreate = isStaticKeySession();
+  const createAction = canCreate ? (
+    <Action.Push
+      title="Create New Key"
+      icon={Icon.Plus}
+      shortcut={Keyboard.Shortcut.Common.New}
+      target={<CreateKeyForm onCreated={() => mutate()} />}
+    />
+  ) : (
+    // Present rather than hidden, so cmd+N answers the question a person is
+    // about to ask instead of doing nothing at all.
+    <Action
+      title="Why Can't I Create a Key?"
+      icon={Icon.QuestionMark}
+      shortcut={Keyboard.Shortcut.Common.New}
+      onAction={() =>
+        showToast({
+          style: Toast.Style.Failure,
+          title: 'Keys cannot be created from a browser sign-in',
+          message: KEY_MINTING_NEEDS_A_KEY,
+        })
+      }
+    />
+  );
+
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Filter keys by label, source, or role...">
       <List.EmptyView
         icon={Icon.Key}
         title="No keys"
-        description="Create your first key with cmd+N."
-        actions={
-          <ActionPanel>
-            <Action.Push
-              title="Create New Key"
-              icon={Icon.Plus}
-              shortcut={Keyboard.Shortcut.Common.New}
-              target={<CreateKeyForm onCreated={() => mutate()} />}
-            />
-          </ActionPanel>
-        }
+        description={canCreate ? 'Create your first key with cmd+N.' : KEY_MINTING_NEEDS_A_KEY}
+        actions={<ActionPanel>{createAction}</ActionPanel>}
       />
       {(keys ?? []).map((key) => (
         <List.Item
@@ -129,14 +160,7 @@ function ManageKeysCommand() {
                 content={key.source}
                 shortcut={Keyboard.Shortcut.Common.Duplicate}
               />
-              <ActionPanel.Section>
-                <Action.Push
-                  title="Create New Key"
-                  icon={Icon.Plus}
-                  shortcut={Keyboard.Shortcut.Common.New}
-                  target={<CreateKeyForm onCreated={() => mutate()} />}
-                />
-              </ActionPanel.Section>
+              <ActionPanel.Section>{createAction}</ActionPanel.Section>
               <ActionPanel.Section title="Danger">
                 <Action
                   title="Revoke"
