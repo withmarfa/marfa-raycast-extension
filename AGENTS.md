@@ -104,6 +104,14 @@ Two rules worth keeping:
 - Build outputs to `./dist/` (gitignored). Do not output to repo root; that path is destructive and removes `assets/` between runs.
 - Lint uses `ray lint --relaxed`. `--relaxed` skips ray's store-publish icon validation, irrelevant for private use. `package-lock.json` is committed (npm canon). If this extension is ever submitted to the Raycast store, drop `--relaxed`.
 
+## CI
+
+Runs on a managed ARM runner rather than the local self-hosted pool, selected by the repository variable `CI_RUNNER`. The workflow reads it directly, so returning this repository to local CI is a variable change and nothing else.
+
+- **The npm cache is enabled unconditionally**, which is correct here and worth stating because the sibling repositories condition theirs. Those are pnpm and share a persistent store on the local pool, where caching costs more than it saves; this repository is npm on an ephemeral runner that keeps nothing between jobs, so there is nothing to condition on. Any reasoning about the pnpm cache condition simply does not describe this repository.
+- **`npm ci --legacy-peer-deps`** in CI, matching the `.npmrc` above rather than relying on it.
+- **Measured at parity on the managed runner**, 32 seconds against 31 locally, which is why it moved without argument. The jobs that do not travel well are the ones asserting a duration, a rate, or a burst crossing a threshold; this extension has none.
+
 ## Comments
 
 Comments are self-contained and make sense to anyone reading this repository cold. Explain *why* (the decision, constraint, or non-obvious trade-off), not the *what*, which the code already states. Never reference internal trackers, ticket numbers, or project phases; a comment that only points at external context is noise. If a comment doesn't earn its place by capturing intent, delete it.
