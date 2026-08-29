@@ -12,10 +12,11 @@ npm run lint        # lint with Raycast rules (ESLint 9 flat config)
 npm run typecheck   # tsc --noEmit. Faster signal than `ray build` for type errors
 ```
 
-Standard Raycast extension layout: `npm` + `package-lock.json`, no workspace files. Two gotchas baked into config:
+Standard Raycast extension layout: `npm` + `package-lock.json`, no workspace files. Three gotchas baked into config:
 
 - **`.npmrc` carries `legacy-peer-deps=true`.** Documented workaround for an npm-7+ strict-peer-deps quirk in the eslint-9 toolchain that `@raycast/eslint-config@2.x` pulls in. Without it, `npm install` errors on a transitive `knip` devDependency in `@eslint-community/eslint-utils`.
 - **`@types/react` and `@types/node` are pinned to exact versions.** They match what `@raycast/api` declares as peer deps. Drifting to `^` ranges duplicates the React type tree under `node_modules/@raycast/api/node_modules/@types/react` and breaks `tsc --noEmit`.
+- **`scripts/check-withmarfa-versions.cjs` runs before `typecheck`, `dev`, and `build`, so none of them answer against a stale tree.** CI installs from the lockfile on a fresh checkout and is therefore always right, which means nothing in CI can notice that a working copy is not. A dependency bump merged without anyone reinstalling locally leaves the installed tree measuring a different `@withmarfa/*` version from the one the lockfile resolved, and both `tsc` and `ray develop`/`ray build` answer that wrong question silently. The guard compares each installed `@withmarfa/*` package's version against what `package-lock.json` actually resolved it to — not against `package.json`'s declared range, which `npm ls` checks and which a same-range bump (a minor within `^6.0.0`, say) satisfies whether or not anyone reinstalled. It names the offending package and both versions and exits non-zero in a fraction of a second; the fix is `npm ci --legacy-peer-deps`.
 
 ## Configuration
 
@@ -33,9 +34,9 @@ Extension preferences (Raycast → Extensions → Marfa):
 Implicit OAuth on first use, following the canonical Raycast pattern. Every command's default export is wrapped with `withMarfaAccessToken(...)`, a thin local wrapper over `withAccessToken({ authorize, client: pkceClient, personalAccessToken })` from `@raycast/utils`.
 
 - **Endpoints and scopes come from the server, not from this repo.** `src/auth/discovery.ts` reads the instance's RFC 8414 document (`/.well-known/oauth-authorization-server`), takes its three endpoints, and expands the `marfa_permission_bundles` it advertises into the scope string. Cached in `LocalStorage` per issuer for a day; a full sign-in always re-reads. The hardcoded paths and scope list survive only as the fallback for a server that serves no document.
-- **Bundles cover content, not capabilities.** The advertised bundles name item types. They say nothing about edges, metadata or `offline_access`, which are operations this extension performs whatever content it is granted, so `CAPABILITY_SCOPES` is unioned in. Removing that union silently breaks tagging, the detail view's edges, and the type registry itself.
+- **Bundles cover content, not operations.** The advertised bundles name item types. They say nothing about edges or metadata, which are operations this extension performs whatever content it is granted, nor about `offline_access`, which is not a permission over data at all. `ALWAYS_REQUESTED_SCOPES` is unioned in to cover both. Removing that union silently breaks tagging, the detail view's edges, and the type registry itself. It is not the platform's `capability.*` family, which names administrative surfaces and is granted only scope by scope.
 - **OAuth path (API Key empty):** first invocation against a new server triggers DCR against the advertised registration endpoint (persisting `client_id` in `LocalStorage` keyed by issuer) and PKCE consent. Later invocations refresh silently when the access token expires.
-- **A grant narrower than what the server offers triggers exactly one re-consent.** `missingScopes` compares by coverage, not set difference, so a token holding `core.*:read` is not treated as short of `core.note:read`; only a scope nothing held can satisfy counts. An unknown or empty grant never prompts. Use `typeMatchesPattern` for this, never `matchesTypePattern` (which takes a list, so a bare string silently matches on the `*` character). `scopeCovers` used to be on that list because it compared patterns exactly and reported no coverage at all for a wildcard grant; that was fixed in `@withmarfa/shared` (T-734) and it now honours wildcards and refuses edge, metadata and OIDC scopes. Keep using the local `missingScopes`, which is scoped to this extension's re-consent decision rather than to a single type-and-operation question.
+- **A grant narrower than what the server offers triggers exactly one re-consent.** `missingScopes` compares by coverage, not set difference, so a token holding `core.*:read` is not treated as short of `core.note:read`; only a scope nothing held can satisfy counts. An unknown or empty grant never prompts. Use `typeMatchesPattern` for this, never `matchesTypePattern` (which takes a list, so a bare string silently matches on the `*` character). `scopeCovers` used to be on that list because it compared patterns exactly and reported no coverage at all for a wildcard grant; that was fixed in `@withmarfa/shared`, which now honors wildcards and refuses edge, metadata and OIDC scopes. Keep using the local `missingScopes`, which is scoped to this extension's re-consent decision rather than to a single type-and-operation question.
 - **Static-key path:** `src/client.ts` builds `MarfaClient` from the static API key when set, using Raycast's `personalAccessToken` path so commands do not force OAuth before the SDK can use the key. Otherwise the client uses the global OAuth access token resolved by the HOC via a thin `tokenProvider`.
 - **No Sign In or Sign Out command.** Sign-out is the Raycast-built-in **Logout** option that auto-surfaces in extension settings once tokens are stored.
 
@@ -79,9 +80,9 @@ Browse, Search and Quick Capture are the three a person runs daily and the only 
 
 Resolution order:
 
-- **Label** — curated override (there are none), then `schema.label`, then the humanised last segment of the identifier.
+- **Label** — curated override (there are none), then `schema.label`, then the humanized last segment of the identifier.
 - **Item title and body** — `display_hints.title_field` and `body_field`, walking `parent` through the fetched schemas, then the conventional property names in `helpers.ts`, then the type's label. The conventional names are wrong for plenty of real types: a captured email titles by `subject`, not `title`.
-- **Icon and colour** — `CURATED_APPEARANCE`, inherited by a family root through `parent`, else a per-tier default keyed on `classifyNamespace` from `@withmarfa/shared`.
+- **Icon and color** — `CURATED_APPEARANCE`, inherited by a family root through `parent`, else a per-tier default keyed on `classifyNamespace` from `@withmarfa/shared`.
 
 Two rules worth keeping:
 
@@ -126,7 +127,7 @@ Standard Raycast extension idiom: the extension lives in your Raycast app, not i
 
 Stopping dev mode loses hot reload (file edits don't propagate) and console-log streaming. The extension itself stays fully functional.
 
-**Update ritual after pulling new code** (e.g. after a PR merges to main): run `npm run dev` briefly so Raycast picks up the fresh build, then `Ctrl+C` again.
+**Update ritual after pulling new code** (e.g. after a PR merges to main): run `npm ci --legacy-peer-deps` if the pull touched `package-lock.json`, then `npm run dev` briefly so Raycast picks up the fresh build, then `Ctrl+C` again. `npm run dev` installs nothing, so skipping the install leaves the built extension running against whatever was on disk before — `predev` now refuses to build against a tree that drifted from the lockfile rather than doing so silently.
 
 ## Adjacent context
 

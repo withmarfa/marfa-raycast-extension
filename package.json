@@ -151,9 +151,13 @@
   },
   "scripts": {
     "build": "ray build -o ./dist",
+    "check-withmarfa-versions": "node scripts/check-withmarfa-versions.cjs",
     "dev": "ray develop",
     "fix-lint": "ray lint --fix --relaxed",
     "lint": "ray lint --relaxed",
+    "prebuild": "npm run check-withmarfa-versions",
+    "predev": "npm run check-withmarfa-versions",
+    "pretypecheck": "npm run check-withmarfa-versions",
     "typecheck": "tsc --noEmit"
   }
 }

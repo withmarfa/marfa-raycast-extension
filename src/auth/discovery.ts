@@ -30,21 +30,31 @@ export interface MarfaAuthConfig {
 }
 
 /**
- * What this extension needs in order to work at all, whatever content it is
- * granted.
+ * Scopes requested on every authorization, whatever the server advertises.
  *
- * The advertised bundles describe access to *content* — which item types a
- * grant may read and write. They deliberately say nothing about edges or
- * metadata, which are operations rather than content: the detail view reads
- * an item's edges, tagging writes metadata, and every list reads the type
- * registry. Asking for these alongside the bundles is not second-guessing
- * the server, it is asking for the verbs to go with the nouns.
+ * An instance advertises permission bundles, and a bundle names item types:
+ * it describes which *content* a grant may read and write. Several things
+ * this extension does are not content. The detail view reads an item's
+ * edges, tagging writes metadata, and every list reads the type registry —
+ * operations it performs against whatever content it is granted, and which
+ * no bundle will ever mention. Asking for them alongside the expanded
+ * bundles is not second-guessing the server, it is asking for the verbs to
+ * go with the nouns.
  *
- * `offline_access` sits here for the same reason. No bundle declares it
+ * `offline_access` is here for a different reason, and is the one member
+ * that is not an operation on a resource at all. No bundle declares it
  * because it is not a permission over data; without it every command would
- * re-prompt once the access token expired.
+ * send the user back through consent the moment the access token expired.
+ * It stays in this list because the list is defined by *when* these are
+ * asked for — always, unconditionally — rather than by what family they
+ * belong to.
+ *
+ * These are deliberately not the platform's `capability.*` scopes, which are
+ * a separate family naming administrative surfaces such as key management,
+ * and which are granted only by being named individually. Nothing granted
+ * unconditionally belongs in that family, so nothing from it belongs here.
  */
-const CAPABILITY_SCOPES = [
+const ALWAYS_REQUESTED_SCOPES = [
   'offline_access',
   'edge.*:read',
   'edge.*:write',
@@ -63,7 +73,7 @@ const FALLBACK_SCOPES = [
   'profile',
   'core.*:read',
   'core.*:write',
-  ...CAPABILITY_SCOPES,
+  ...ALWAYS_REQUESTED_SCOPES,
 ] as const;
 
 const DISCOVERY_PATH = '/.well-known/oauth-authorization-server';
@@ -119,7 +129,7 @@ export async function resolveAuthConfig(
 
   const bundles = doc?.marfa_permission_bundles ?? [];
   const scopes = bundles.length
-    ? [...new Set([...expandBundlesToScopes(bundles), ...CAPABILITY_SCOPES])].sort()
+    ? [...new Set([...expandBundlesToScopes(bundles), ...ALWAYS_REQUESTED_SCOPES])].sort()
     : [...FALLBACK_SCOPES];
 
   return {
