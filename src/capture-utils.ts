@@ -83,7 +83,7 @@ export function validateCoreCapture(type: string, values: CaptureValues): Valida
   if (type === 'core.event') {
     for (const zone of [values.timezone, values.end_timezone]) {
       if (zone?.trim() && !isValidTimeZone(zone.trim())) {
-        return { field: 'timezone', message: `${zone} is not a recognised time zone` };
+        return { field: 'timezone', message: `${zone} is not a recognized time zone` };
       }
     }
     if (values.starts_at && values.ends_at && values.ends_at < values.starts_at) {
