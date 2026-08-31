@@ -77,7 +77,7 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
           <Detail.Metadata.TagList title="Role">
             <Detail.Metadata.TagList.Item
               text={apiKey.role}
-              color={apiKey.role === 'admin' ? Color.Red : Color.Blue}
+              color={apiKey.role === 'instance_admin' ? Color.Red : Color.Blue}
             />
           </Detail.Metadata.TagList>
           <Detail.Metadata.Label title="Source" text={apiKey.source} />

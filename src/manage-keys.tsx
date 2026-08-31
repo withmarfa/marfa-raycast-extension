@@ -125,7 +125,7 @@ function ManageKeysCommand() {
           key={key.id}
           icon={{
             source: Icon.Key,
-            tintColor: key.role === 'admin' ? Color.Red : Color.Blue,
+            tintColor: key.role === 'instance_admin' ? Color.Red : Color.Blue,
           }}
           title={key.label}
           subtitle={key.role}
