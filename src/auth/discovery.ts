@@ -76,7 +76,28 @@ const FALLBACK_SCOPES = [
   ...ALWAYS_REQUESTED_SCOPES,
 ] as const;
 
-const DISCOVERY_PATH = '/.well-known/oauth-authorization-server';
+/**
+ * **Path-aware, because the value passed here is the server URL and the
+ * issuer is `<server>/auth`.** A Marfa deployment mounts its authorization
+ * server under `/auth` and publishes that as its issuer identifier, and
+ * RFC 8414 §3.1 forms the metadata URL by inserting the well-known segment
+ * between host and issuer path — so the issuer's path is a suffix here, not
+ * a prefix.
+ *
+ * The bare-root form this used to request is a pre-spec alias the server
+ * keeps only for clients already pinned to it, and it is going. **This
+ * client fails quietly when it does**: `fetchDocument` swallows the error
+ * and the caller falls back to `FALLBACK_SCOPES`, so sign-in keeps working
+ * with a narrower grant and nothing says why. That is the harder failure to
+ * diagnose of the two hand-rolled clients — the web app's equivalent fetch
+ * hard-fails and names the instance.
+ *
+ * **Nothing here can catch a regression to the bare root.** This extension
+ * has no test harness, so the value is held by this comment and by the
+ * server's own path-aware registrations, and a wrong one would surface only
+ * as a quietly narrowed grant on a live deployment.
+ */
+const DISCOVERY_PATH = '/.well-known/oauth-authorization-server/auth';
 
 /** Long enough that launches are never gated on a network call, short
  *  enough that a bundle added to the server is picked up the next day. */
