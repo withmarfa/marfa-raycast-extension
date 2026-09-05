@@ -130,7 +130,7 @@ function SearchCommand() {
           title={type && !isGranted(type) ? 'Not shared with Raycast' : 'No results'}
           description={
             type && !isGranted(type)
-              ? `Your sign-in did not grant access to ${type}. Sign out and back in from Raycast's extension settings to review what Marfa is allowed to show.`
+              ? `Your sign-in did not grant access to ${type}.`
               : `No items matching "${searchText}"`
           }
           actions={

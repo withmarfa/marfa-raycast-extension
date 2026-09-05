@@ -16,7 +16,8 @@
  * server that does not serve one.
  */
 import { getPreferenceValues, LocalStorage, OAuth, showToast, Toast } from '@raycast/api';
-import { decideReconsent, resolveAuthConfig } from './discovery';
+import { decideReconsent, resolveAuthConfig, scopesGranted } from './discovery';
+import type { GrantRecord } from './discovery';
 
 const PROVIDER_NAME = 'Marfa';
 const PROVIDER_ID = 'marfa';
@@ -34,7 +35,7 @@ function clientIdStorageKey(issuer: string): string {
   return `marfa.client_id:${stripTrailingSlash(issuer)}`;
 }
 
-/** Singleton PKCEClient — keeps token storage consistent across command
+/** Singleton PKCEClient, keeping token storage consistent across command
  *  invocations so tokens survive command boundaries. */
 export const pkceClient = new OAuth.PKCEClient({
   redirectMethod: OAuth.RedirectMethod.Web,
@@ -97,18 +98,46 @@ async function ensureClientId(
 }
 
 /**
- * The scope set last sent to the authorize endpoint for an issuer.
+ * What the last successful token exchange asked for and was given, per issuer.
  *
- * Recorded after a successful token exchange whatever the server actually
- * granted, because it answers "what have we already asked this server for",
- * not "what did we get".
+ * The key is new because the value is a different question. The one it replaces
+ * recorded only what had been asked for, on the reasoning that asking the same
+ * thing twice cannot produce a different answer. True, and it made a grant
+ * narrower than the offer permanent and silent: the full advertised set was
+ * written down, a subset was issued, and every launch afterwards concluded
+ * there was nothing left to ask for.
  */
-function requestedScopesKey(issuer: string): string {
+function grantRecordKey(issuer: string): string {
+  return `marfa.grant_record:${stripTrailingSlash(issuer)}`;
+}
+
+/** Written by the exchange that produced it, so it can only ever record an
+ *  outcome that actually happened. */
+function legacyRequestedScopesKey(issuer: string): string {
   return `marfa.requested_scopes:${stripTrailingSlash(issuer)}`;
 }
 
-async function rememberRequestedScopes(issuer: string, scopes: string[]): Promise<void> {
-  await LocalStorage.setItem(requestedScopesKey(issuer), scopes.join(' '));
+async function readGrantRecord(issuer: string): Promise<GrantRecord | undefined> {
+  const raw = await LocalStorage.getItem<string>(grantRecordKey(issuer));
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as Partial<GrantRecord>;
+    // A record this build cannot read is no record. Treating a malformed one as
+    // an empty grant would report every advertised scope as missing and send
+    // someone through consent on the strength of a parse failure.
+    if (!Array.isArray(parsed.advertised) || !Array.isArray(parsed.granted)) return undefined;
+    return { advertised: parsed.advertised, granted: parsed.granted };
+  } catch {
+    return undefined;
+  }
+}
+
+async function writeGrantRecord(issuer: string, record: GrantRecord): Promise<void> {
+  await Promise.all([
+    LocalStorage.setItem(grantRecordKey(issuer), JSON.stringify(record)),
+    // The value it replaces answers a question nothing asks any more.
+    LocalStorage.removeItem(legacyRequestedScopesKey(issuer)),
+  ]);
 }
 
 /** Persist the issuer alongside tokens so refresh knows where to call. */
@@ -129,7 +158,8 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
     LocalStorage.removeItem(ISSUER_STORAGE_KEY),
     LocalStorage.removeItem(CLIENT_ID_STORAGE_KEY),
     LocalStorage.removeItem(clientIdStorageKey(storedIssuer)),
-    LocalStorage.removeItem(requestedScopesKey(storedIssuer)),
+    LocalStorage.removeItem(grantRecordKey(storedIssuer)),
+    LocalStorage.removeItem(legacyRequestedScopesKey(storedIssuer)),
   ]);
 }
 
@@ -143,7 +173,7 @@ async function runFullAuthFlow(issuer: string): Promise<string> {
   // state and surfaces Raycast's redirect URI. Calling authorizationRequest a
   // second time (the old dynamic-client-registration "probe") re-mints the
   // PKCE state, so the verifier we later exchange no longer matches the
-  // challenge Raycast actually sent in the URL — the token exchange then fails
+  // challenge Raycast actually sent in the URL, so the token exchange fails
   // right after Raycast shows "Successfully connected", and no token is stored,
   // which presents to the user as an immediate re-prompt to sign in. Instead we
   // register the dynamic client against this single request's redirect URI,
@@ -201,7 +231,25 @@ async function runFullAuthFlow(issuer: string): Promise<string> {
   });
   await LocalStorage.setItem(ISSUER_STORAGE_KEY, stripped);
   await LocalStorage.setItem(CLIENT_ID_STORAGE_KEY, clientId);
-  await rememberRequestedScopes(stripped, config.scopes);
+  // Only when the advertised set is the server's own. A document that failed to
+  // load leaves the hardcoded fallback in `config.scopes`, and a record saying
+  // that is what was advertised is simply false. Writing nothing leaves the
+  // next launch to record the pair from a document it could actually read.
+  //
+  // **This is not what stops a re-consent loop, and reading it that way would
+  // invite removing the thing that does.** What stops one is `resolveAuthConfig`
+  // falling back to the cache on a forced re-read: the check that decides to
+  // re-consent reads the cached document, so if it saw a server advertisement
+  // then a cache exists, and the exchange resolves the same set rather than the
+  // fallback. That is what lets the record it writes match what the next launch
+  // compares against. Without it, the two paths resolve different advertised
+  // sets, the pair never matches, and every launch forces a fresh sign-in.
+  if (config.fromServer) {
+    await writeGrantRecord(stripped, {
+      advertised: config.scopes,
+      granted: scopesGranted(body, config.scopes),
+    });
+  }
 
   return body.access_token;
 }
@@ -212,7 +260,7 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
     LocalStorage.getItem<string>(CLIENT_ID_STORAGE_KEY),
   ]);
   if (!issuer || !clientId) {
-    // Cached tokens predate the issuer/clientId persistence — fall through
+    // Cached tokens predate the issuer/clientId persistence, so fall through
     // to a full sign-in.
     throw new Error('refresh_state_missing');
   }
@@ -232,13 +280,56 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
       `Token refresh failed (HTTP ${res.status}): ${body.error_description ?? body.error ?? 'unknown'}`,
     );
   }
+  // The scope is carried forward when the response omits it. RFC 6749 section
+  // 5.1 makes it optional on a refresh whose grant matches the request, so
+  // writing the absence through would empty the stored scope roughly an hour
+  // after a sign-in, and every surface that explains an absence would quietly
+  // stop being able to. A verification run immediately after signing in would
+  // see none of it.
+  const existing = await pkceClient.getTokens();
   await pkceClient.setTokens({
     accessToken: body.access_token,
     refreshToken: body.refresh_token ?? refreshToken,
     expiresIn: body.expires_in,
-    scope: body.scope,
+    scope: body.scope ?? existing?.scope,
   });
   return body.access_token;
+}
+
+/**
+ * Which advertised scopes this session's grant does not cover.
+ *
+ * The shortfall exists whether or not anything can be done about it, and a
+ * person told their content is not shared needs somewhere to read what else
+ * is not. It runs the same decision the re-consent check runs, so the two
+ * cannot drift into disagreeing about what is missing.
+ *
+ * Empty when there is nothing missing, and also when there is no basis to say:
+ * no server document, no grant reported, no configured issuer.
+ *
+ * Not free of side effects, despite reading like it. Resolving the config on a
+ * cold or expired cache fetches the discovery document and stores it, so
+ * opening this screen can install a newer advertisement that the next command
+ * launch then acts on. That is the same caching every other caller gets and is
+ * not worth a second code path, but it does mean this is a read that can arm a
+ * consent prompt.
+ */
+export async function getGrantShortfall(): Promise<string[]> {
+  try {
+    const issuer = getIssuer();
+    const config = await resolveAuthConfig(issuer);
+    if (!config.fromServer) return [];
+    const tokens = await pkceClient.getTokens();
+    return decideReconsent({
+      record: await readGrantRecord(issuer),
+      advertised: config.scopes,
+      liveGranted: tokens?.scope?.split(/\s+/).filter(Boolean),
+    }).missing;
+  } catch {
+    // A surface that cannot name a shortfall says nothing, rather than
+    // reporting the failure to look as a finding.
+    return [];
+  }
 }
 
 /**
@@ -254,7 +345,7 @@ export async function getGrantedScopes(): Promise<string | undefined> {
 
 /** Accept a host typed without a scheme (e.g. "api.marfa.so"). Node's
  *  fetch/URL parser rejects scheme-less URLs with "Failed to parse URL",
- *  which the browser silently tolerates — so the sign-in page would open and
+ *  which the browser silently tolerates, so the sign-in page would open and
  *  consent succeed, yet every fetch() this extension makes (DCR, token
  *  exchange, refresh, SDK data calls) would throw. Default a scheme-less
  *  value to https and strip any trailing slash. */
@@ -265,7 +356,7 @@ export function normalizeServerUrl(value: string): string {
 }
 
 /** Resolve the configured Marfa issuer from preferences. Throws a clear
- *  error if unset — the user is prompted to set it on first run by
+ *  error if unset. The user is prompted to set it on first run by
  *  Raycast's required-preference UX. */
 function getIssuer(): string {
   const { apiUrl } = getPreferenceValues<Preferences>();
@@ -283,7 +374,7 @@ function getIssuer(): string {
  * now offers.
  *
  * Marfa derives its permission bundles from the type registry, so the set
- * widens whenever types are added — a session minted last month can be
+ * widens whenever types are added, so a session minted last month can be
  * missing a whole bundle while remaining perfectly valid. Left alone, the
  * missing content simply does not appear, which is indistinguishable from
  * an empty library and is exactly the failure this wave exists to fix.
@@ -302,15 +393,16 @@ async function reconsentIfServerOffersMore(
   if (!config.fromServer) return null;
 
   const decision = decideReconsent({
-    lastRequested: await LocalStorage.getItem<string>(requestedScopesKey(issuer)),
+    record: await readGrantRecord(issuer),
     advertised: config.scopes,
-    granted,
+    liveGranted: granted?.split(/\s+/).filter(Boolean),
   });
 
   if (!decision.reconsent) {
-    // Record the set even when there is nothing to gain, so the cheap
-    // equality check short-circuits every launch after this one.
-    if (decision.remember) await rememberRequestedScopes(issuer, config.scopes);
+    // Written even when there is nothing to gain, because that is what makes
+    // the next launch cheap and, more importantly, what terminates: a shortfall
+    // this has already been asked about is one it will not ask about again.
+    if (decision.remember) await writeGrantRecord(issuer, decision.remember);
     return null;
   }
 
@@ -345,7 +437,7 @@ export async function authorize(): Promise<string> {
     try {
       return await refreshExistingTokens(existing.refreshToken);
     } catch (err) {
-      // Refresh failed — drop the stale tokens and fall through to a
+      // Refresh failed, so drop the stale tokens and fall through to a
       // full sign-in. The user gets one extra consent click rather than
       // an opaque error.
       if (err instanceof Error && err.message === 'refresh_state_missing') {
