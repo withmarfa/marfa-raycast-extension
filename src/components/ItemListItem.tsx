@@ -17,8 +17,8 @@ interface ItemListItemProps {
   onRefresh: () => void;
   topActions?: ReactNode;
   /** When true, render the inline `<List.Item.Detail>` panel and drop
-   *  accessories (per the Raycast guideline — keep one source of truth for
-   *  the metadata when the side panel is showing). */
+   *  accessories, per the Raycast guideline: one source of truth for the
+   *  metadata when the side panel is showing. */
   showInlineDetail?: boolean;
   /** Wired by the parent so the toggle action is consistent across every
    *  list item (and visible in the action panel of empty list states too). */
@@ -42,9 +42,13 @@ export function ItemListItem({
   const stateConfig = STATE_CONFIG[item.state];
   const url = getItemUrl(item);
 
-  const icon = url
-    ? getFavicon(url, { fallback: Icon.Link })
-    : { source: typeIcon, tintColor: typeColor };
+  // The type's own glyph, always. A favicon used to win whenever an item
+  // carried a URL, which is most of them once integrations are syncing, so a
+  // list holding a note, a bookmark, a video and an article showed three
+  // websites and one glyph. The resolver exists precisely so a book, a song and
+  // a film are told apart at a glance, and that is worth more in a mixed list
+  // than the site is. The favicon still says which site, one column over.
+  const icon = { source: typeIcon, tintColor: typeColor };
 
   const toggleAction = onToggleDetail ? (
     <Action
@@ -96,6 +100,17 @@ export function ItemListItem({
   }
   for (const tag of (metadata?.tags ?? []).slice(0, 2)) {
     accessories.push({ tag });
+  }
+  if (url) {
+    // After the tags and before the timestamp. The timestamp is the one
+    // accessory every row carries, so it keeps the rightmost slot and stays in
+    // the same place down the list.
+    //
+    // The fallback is deliberately not `Icon.Link`, which is the curated glyph
+    // for a bookmark: a favicon that fails to resolve would then render a link
+    // icon at both ends of the row, two identical marks carrying nothing, which
+    // is the duplication moving the favicon here was meant to remove.
+    accessories.push({ icon: getFavicon(url, { fallback: Icon.Globe }), tooltip: url });
   }
   accessories.push({
     text: formatRelativeTime(item.timestamp),

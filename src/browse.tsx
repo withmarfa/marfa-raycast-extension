@@ -1,6 +1,6 @@
 import { Action, ActionPanel, Icon, launchCommand, LaunchType, List, Keyboard } from '@raycast/api';
 import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Item, ItemState, Metadata } from '@withmarfa/sdk';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
@@ -47,7 +47,13 @@ function groupByDate(entries: ItemWithMetadata[]): Map<string, ItemWithMetadata[
 }
 
 function BrowseCommand() {
-  const [searchText, setSearchText] = useState('');
+  // A ref, not state. The text is read at one moment, when the hand-off action
+  // fires, and holding it in state re-rendered the whole command on every
+  // keystroke: regrouping every loaded item by date and rebuilding every row,
+  // detail panel and action panel, for a bar Raycast filters natively and which
+  // cost zero renders before. On a list several pages deep that is the
+  // difference between typing and waiting.
+  const searchText = useRef('');
   const [tier, setTier] = useState<TierFilter>('all');
   const [state, setState] = useState<StateFilter>('active');
   const [type, setType] = useState('');
@@ -141,13 +147,20 @@ function BrowseCommand() {
       title="Search All Items"
       icon={Icon.MagnifyingGlass}
       shortcut={{ modifiers: ['cmd', 'shift'], key: 'f' }}
-      onAction={() =>
-        launchCommand({
-          name: 'search',
-          type: LaunchType.UserInitiated,
-          fallbackText: searchText,
-        })
-      }
+      onAction={async () => {
+        try {
+          await launchCommand({
+            name: 'search',
+            type: LaunchType.UserInitiated,
+            fallbackText: searchText.current,
+          });
+        } catch (error) {
+          // Raycast throws when the target command is disabled, which is a
+          // toggle in ordinary use here. Unhandled, the action did nothing at
+          // all and said nothing about why.
+          await showFailureToast(error, { title: 'Could not open Search' });
+        }
+      }}
     />
   );
 
@@ -171,7 +184,7 @@ function BrowseCommand() {
       // Raycast's own filtering off, and narrowing what is on screen is the
       // thing this bar is for.
       filtering={true}
-      onSearchTextChange={setSearchText}
+      onSearchTextChange={(text) => (searchText.current = text)}
       searchBarPlaceholder="Filter the items loaded here..."
       pagination={pagination}
       isShowingDetail={isShowingDetail}
