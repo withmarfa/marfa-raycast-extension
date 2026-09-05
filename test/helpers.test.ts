@@ -141,8 +141,26 @@ describe('formatRelativeTime', () => {
 
 describe('toTitleCase', () => {
   it('splits on underscores and capitalizes only the first word', () => {
-    expect(toTitleCase('source_id')).toBe('Source id');
+    expect(toTitleCase('published_at')).toBe('Published at');
     expect(toTitleCase('title')).toBe('Title');
+  });
+
+  it('shouts an initialism rather than lowercasing it', () => {
+    // Every one of these was rendered as a word in the sidebar, which reads as
+    // a typo on a screen whose whole job is showing a record accurately.
+    expect(toTitleCase('source_id')).toBe('Source ID');
+    expect(toTitleCase('playlist_id')).toBe('Playlist ID');
+    expect(toTitleCase('html_link')).toBe('HTML link');
+    expect(toTitleCase('url')).toBe('URL');
+    expect(toTitleCase('mime_type')).toBe('MIME type');
+    expect(toTitleCase('sha256')).toBe('SHA256');
+  });
+
+  it('leaves a word it does not know exactly as it was', () => {
+    // The set is small on purpose, so a miss degrades to the old behavior
+    // rather than to something wrong.
+    expect(toTitleCase('etag')).toBe('Etag');
+    expect(toTitleCase('privacy_status')).toBe('Privacy status');
   });
 
   it('returns a key it cannot split rather than an empty string', () => {

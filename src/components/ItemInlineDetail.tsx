@@ -8,9 +8,9 @@ import { splitItemProperties, type ScalarSidebarEntry } from '../item-metadata';
 /**
  * Inline detail panel rendered on the right-hand side of `<List>` when the
  * user toggles "Show Details" (⌘D). Mirrors the layout of the full Detail
- * view's metadata sidebar — same What → When → Custom → Provenance → Identity
- * ordering — but skips edges (no extra fetch per selection) and renders body
- * text inline as markdown rather than pushing into a separate view.
+ * view's metadata sidebar, with the same What, When, Custom, Provenance and
+ * Identity ordering, but it skips edges so a selection costs no extra fetch and
+ * renders body text inline rather than pushing into a separate view.
  */
 
 interface ItemInlineDetailProps {
@@ -36,7 +36,7 @@ export function ItemInlineDetail({ item, metadata, snippet, registry }: ItemInli
   const p = item.properties;
   const lines: string[] = [`# ${registry.titleOf(item)}`, ''];
   if (snippet) lines.push(snippet, '');
-  // The registry's own body field first — a captured email keeps its text in
+  // The registry's own body field first. A captured email keeps its text in
   // `text_body`, a podcast episode in `content_encoded`.
   const hintedBody = bodyField ? p[bodyField] : undefined;
   if (typeof hintedBody === 'string' && hintedBody)
@@ -70,12 +70,14 @@ export function ItemInlineDetail({ item, metadata, snippet, registry }: ItemInli
               color={stateConfig?.color ?? Color.PrimaryText}
             />
           </List.Item.Detail.Metadata.TagList>
-          <List.Item.Detail.Metadata.TagList title="Tier">
-            <List.Item.Detail.Metadata.TagList.Item
-              text={item.tier === 'library' ? 'Library' : item.tier === 'feed' ? 'Feed' : '—'}
-              color={item.tier === 'library' ? Color.Green : Color.SecondaryText}
-            />
-          </List.Item.Detail.Metadata.TagList>
+          {item.tier && (
+            <List.Item.Detail.Metadata.TagList title="Tier">
+              <List.Item.Detail.Metadata.TagList.Item
+                text={item.tier === 'library' ? 'Library' : 'Feed'}
+                color={item.tier === 'library' ? Color.Green : Color.SecondaryText}
+              />
+            </List.Item.Detail.Metadata.TagList>
+          )}
           {metadata && metadata.tags.length > 0 && (
             <List.Item.Detail.Metadata.TagList title="Tags">
               {metadata.tags.map((tag) => (
