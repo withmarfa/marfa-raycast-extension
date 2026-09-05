@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Icon, List, Keyboard } from '@raycast/api';
+import { Action, ActionPanel, Icon, launchCommand, LaunchType, List, Keyboard } from '@raycast/api';
 import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
 import { useState } from 'react';
 import type { Item, ItemState, Metadata } from '@withmarfa/sdk';
@@ -47,6 +47,7 @@ function groupByDate(entries: ItemWithMetadata[]): Map<string, ItemWithMetadata[
 }
 
 function BrowseCommand() {
+  const [searchText, setSearchText] = useState('');
   const [tier, setTier] = useState<TierFilter>('all');
   const [state, setState] = useState<StateFilter>('active');
   const [type, setType] = useState('');
@@ -124,8 +125,35 @@ function BrowseCommand() {
       ))}
     </ActionPanel.Submenu>
   );
+  /**
+   * This bar narrows what is already on screen, and pagination means that is
+   * rarely everything. A term matching an item three pages down simply found
+   * nothing, with no way to tell that from the item not existing, which is the
+   * same shape as the permissions failures and compounded diagnosing them.
+   *
+   * The filter stays, because narrowing a visible list is genuinely what a
+   * launcher is for and Raycast users expect it. What changes is that the
+   * placeholder says so, and that the full-text search is one keystroke away
+   * carrying whatever was typed.
+   */
+  const searchEverythingAction = (
+    <Action
+      title="Search All Items"
+      icon={Icon.MagnifyingGlass}
+      shortcut={{ modifiers: ['cmd', 'shift'], key: 'f' }}
+      onAction={() =>
+        launchCommand({
+          name: 'search',
+          type: LaunchType.UserInitiated,
+          fallbackText: searchText,
+        })
+      }
+    />
+  );
+
   const filterActions = (
     <>
+      {searchEverythingAction}
       {typeSubmenu}
       {stateSubmenu}
     </>
@@ -139,7 +167,12 @@ function BrowseCommand() {
   return (
     <List
       isLoading={isLoading}
-      filtering
+      // Explicit, because supplying `onSearchTextChange` otherwise turns
+      // Raycast's own filtering off, and narrowing what is on screen is the
+      // thing this bar is for.
+      filtering={true}
+      onSearchTextChange={setSearchText}
+      searchBarPlaceholder="Filter the items loaded here..."
       pagination={pagination}
       isShowingDetail={isShowingDetail}
       navigationTitle={navigationTitle}

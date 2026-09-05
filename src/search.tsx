@@ -1,4 +1,5 @@
 import { Action, ActionPanel, Icon, List, Keyboard } from '@raycast/api';
+import type { LaunchProps } from '@raycast/api';
 import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
 import { useState } from 'react';
 import type { ItemState } from '@withmarfa/sdk';
@@ -21,8 +22,11 @@ const STATE_FILTERS: Array<{ value: StateFilter; label: string }> = [
   { value: 'all', label: 'All States' },
 ];
 
-function SearchCommand() {
-  const [searchText, setSearchText] = useState('');
+function SearchCommand({ fallbackText }: LaunchProps) {
+  // Browse hands its typed text over here, because its own bar only narrows
+  // what is loaded. Raycast delivers it as fallback text rather than filling
+  // the bar, so the bar is driven from state seeded with it.
+  const [searchText, setSearchText] = useState(fallbackText ?? '');
   const [type, setType] = useState('');
   const [tier, setTier] = useState<TierFilter>('all');
   const [state, setState] = useState<StateFilter>('active');
@@ -101,6 +105,7 @@ function SearchCommand() {
   return (
     <List
       isLoading={isLoading}
+      searchText={searchText}
       onSearchTextChange={setSearchText}
       searchBarPlaceholder="Search items..."
       searchBarAccessory={<TierFilterDropdown onChange={setTier} />}
