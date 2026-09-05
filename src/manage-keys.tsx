@@ -15,6 +15,7 @@ import type { ApiKey } from '@withmarfa/sdk';
 import { ForbiddenError } from '@withmarfa/sdk';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient, isStaticKeySession } from './client';
+import { roleColor } from './constants';
 import { formatRelativeTime } from './helpers';
 import { CreateKeyForm, EditKeyForm } from './components/KeyForms';
 import { KeyDetailView } from './components/KeyDetailView';
@@ -123,15 +124,16 @@ function ManageKeysCommand() {
       {(keys ?? []).map((key) => (
         <List.Item
           key={key.id}
-          icon={{
-            source: Icon.Key,
-            tintColor: key.role === 'instance_admin' ? Color.Red : Color.Blue,
-          }}
+          icon={{ source: Icon.Key, tintColor: roleColor(key.role) }}
           title={key.label}
-          subtitle={key.role}
           keywords={[key.source, key.role, key.label]}
           accessories={[
-            { tag: key.source },
+            // The source is deliberately absent. The server derives a runtime
+            // key's label from it, so the two render as the same string with
+            // one character between them, and a row showing an identifier twice
+            // makes a person doubt the rest of the screen. It is on the detail,
+            // where it is the only place it appears.
+            { tag: { value: key.role, color: roleColor(key.role) } },
             {
               date: new Date(key.created_at),
               tooltip: `Created ${formatRelativeTime(key.created_at)}`,

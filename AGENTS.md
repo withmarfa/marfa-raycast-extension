@@ -94,7 +94,7 @@ Browse, Search and Quick Capture are the three a person runs daily and the only 
 - **Clipboard Capture:** no-view command. Reads clipboard, routes by content: URL → bookmark; file → `core.file`; HTML-rich text → note (with `html` preserved); plain text → note. Uploads blobs via `client.blobs.upload`. Disabled while the redo bakes; flip on once verified.
 - **Clipboard Capture (Edit):** view command. Pre-fills a form from the clipboard, lets the user adjust type / fields before submitting. File clipboard content routes to `core.file`; non-file content can use the configured default type, including custom types.
 - **Server Info:** read-only view of the connected instance, auth mode, and signed-in identity. Auth mode is derived from the credential the client is using, never from whether a call succeeded: the profile route is gated on a scope no shipped bundle grants, so a browser sign-in usually cannot read its own identity, and reporting that refusal as "API key" pointed diagnosis at the wrong preference. The refusal is named instead.
-- **Type Registry:** read-only list of every type registered on the instance (core / custom / system). Detail per type shows the full schema JSON.
+- **Type Registry:** read-only list of every type registered on the instance (core / custom / system), with each row carrying its type's own glyph from the display resolver. Opening one lists its fields, resolved through the type's ancestry, with each field's kind, whether it is required, and an enum's actual values. The raw schema is a copy action rather than the view.
 
 ## Action panel
 

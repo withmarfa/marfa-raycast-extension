@@ -1,4 +1,12 @@
-import { Action, ActionPanel, Detail, getPreferenceValues, Icon, Keyboard } from '@raycast/api';
+import {
+  Action,
+  ActionPanel,
+  Color,
+  Detail,
+  getPreferenceValues,
+  Icon,
+  Keyboard,
+} from '@raycast/api';
 import { useCachedPromise } from '@raycast/utils';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getGrantShortfall } from './auth/marfa-oauth';
@@ -41,20 +49,11 @@ function ServerInfoCommand() {
     }
   }, []);
 
-  const lines: string[] = ['# Server Info', ''];
-  lines.push('| Field | Value |');
-  lines.push('| --- | --- |');
-  lines.push(`| **Instance URL** | \`${apiUrl ?? '(not set)'}\` |`);
-  if (data) {
-    lines.push(
-      `| **Auth mode** | ${data.authMode === 'oauth' ? 'OAuth (PKCE)' : 'API key (static)'} |`,
-    );
-    lines.push(`| **Identity** | ${data.identity} |`);
-  }
-  if (data?.authMode === 'apiKey' && apiKey) {
-    lines.push(`| **API key fingerprint** | \`${apiKey.slice(0, 8)}…${apiKey.slice(-4)}\` |`);
-  }
-  lines.push('');
+  // The body carries what does not fit a row: the reason an identity is
+  // missing, and the scopes this session was not given. Everything that is a
+  // field is a field, in the sidebar, which is what `Detail.Metadata` is for
+  // and what the item views already use.
+  const lines: string[] = [];
   // Below the table rather than in it. The reason can be a message the server
   // wrote, and a pipe or a newline in a table cell silently reshapes every row
   // after it. Out here the worst a stray character does is read oddly.
@@ -78,6 +77,26 @@ function ServerInfoCommand() {
     <Detail
       isLoading={isLoading}
       markdown={lines.join('\n')}
+      metadata={
+        <Detail.Metadata>
+          <Detail.Metadata.Label title="Instance URL" text={apiUrl ?? '(not set)'} />
+          {data && (
+            <Detail.Metadata.TagList title="Auth mode">
+              <Detail.Metadata.TagList.Item
+                text={data.authMode === 'oauth' ? 'OAuth (PKCE)' : 'API key (static)'}
+                color={data.authMode === 'oauth' ? Color.Green : Color.Yellow}
+              />
+            </Detail.Metadata.TagList>
+          )}
+          {data && <Detail.Metadata.Label title="Identity" text={data.identity} />}
+          {data?.authMode === 'apiKey' && apiKey && (
+            <Detail.Metadata.Label
+              title="Key fingerprint"
+              text={`${apiKey.slice(0, 8)}…${apiKey.slice(-4)}`}
+            />
+          )}
+        </Detail.Metadata>
+      }
       actions={
         <ActionPanel>
           {apiUrl && (
