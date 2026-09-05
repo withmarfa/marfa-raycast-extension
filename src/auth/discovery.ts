@@ -355,3 +355,19 @@ export function scopesGranted(body: { scope?: string }, requested: readonly stri
   const reported = body.scope?.split(/\s+/).filter(Boolean);
   return reported?.length ? reported : [...requested];
 }
+
+/**
+ * Whether a scope names read access to a kind of content.
+ *
+ * `ALWAYS_REQUESTED_SCOPES` and the identity scopes are the reason this
+ * predicate exists. They ride along on every request and say nothing about
+ * what content a session can see, so counting them as content produces
+ * "cannot read 1" for a session that declined nothing but `offline_access`
+ * and can in fact read everything. Telling someone their results are
+ * incomplete when they are complete is the same harm as the reverse.
+ */
+export function isContentReadScope(scope: string): boolean {
+  if (!scope.endsWith(':read')) return false;
+  if ((ALWAYS_REQUESTED_SCOPES as readonly string[]).includes(scope)) return false;
+  return !scope.startsWith('capability.');
+}

@@ -1,6 +1,6 @@
 import { grantCoversScope } from '@withmarfa/shared';
 import { describe, expect, it } from 'vitest';
-import { missingScopes } from '../src/auth/discovery';
+import { isContentReadScope, missingScopes } from '../src/auth/discovery';
 
 /**
  * The extension asks the platform whether a grant covers a scope, and this is
@@ -214,5 +214,60 @@ describe('agreement over combinations nobody enumerated', () => {
     const answers = HELD.flatMap((held) => REQUIRED.map((required) => covers(held, required)));
     expect(answers.filter(Boolean).length).toBeGreaterThan(20);
     expect(answers.filter((a) => !a).length).toBeGreaterThan(20);
+  });
+});
+
+describe('which scopes are content a person could be told about', () => {
+  it('takes a read scope over a type', () => {
+    expect(isContentReadScope('core.note:read')).toBe(true);
+    expect(isContentReadScope('core.*:read')).toBe(true);
+    expect(isContentReadScope('readwise.highlight:read')).toBe(true);
+  });
+
+  it('leaves out the scopes that ride along on every request', () => {
+    // The reason this predicate exists. A shortfall is a scope list, and it
+    // carries these whether or not any content is missing, so counting them
+    // told a session that declined nothing but `offline_access` that its
+    // search results were incomplete. Saying that when it is untrue is the
+    // same harm as staying silent when it is true.
+    expect(isContentReadScope('offline_access')).toBe(false);
+    expect(isContentReadScope('edge.*:read')).toBe(false);
+    expect(isContentReadScope('metadata:read')).toBe(false);
+    expect(isContentReadScope('metadata.types:read')).toBe(false);
+  });
+
+  it('leaves out writes and administrative surfaces', () => {
+    expect(isContentReadScope('core.note:write')).toBe(false);
+    expect(isContentReadScope('edge.*:write')).toBe(false);
+    expect(isContentReadScope('capability.admin:read')).toBe(false);
+    expect(isContentReadScope('openid')).toBe(false);
+    expect(isContentReadScope('profile')).toBe(false);
+  });
+
+  it('reports nothing missing for a session short only of what always rides along', () => {
+    // The end-to-end shape of the defect: this is what the note is computed
+    // from, and it must be empty here or every search claims to be partial.
+    // The grant deliberately holds none of the always-requested scopes, so a
+    // predicate that let one through would report a shortfall here. An earlier
+    // version did exactly that and every search claimed to be partial.
+    const advertised = [
+      'core.note:read',
+      'core.note:write',
+      'offline_access',
+      'edge.*:read',
+      'edge.*:write',
+      'metadata:read',
+      'metadata.types:read',
+    ];
+    expect(missingScopes('core.*:read core.note:write', advertised.filter(isContentReadScope))).toEqual(
+      [],
+    );
+  });
+
+  it('still reports content the server offered and did not grant', () => {
+    const advertised = ['core.note:read', 'readwise.highlight:read', 'offline_access'];
+    expect(missingScopes('core.note:read', advertised.filter(isContentReadScope))).toEqual([
+      'readwise.highlight:read',
+    ]);
   });
 });

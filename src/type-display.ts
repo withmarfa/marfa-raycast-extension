@@ -10,7 +10,7 @@ export interface TypeAppearance {
 }
 
 /**
- * Curated appearance overrides — an override over the registry-driven
+ * Curated appearance overrides, sitting over the registry-driven
  * default, not the mechanism by which types are displayed.
  *
  * Labels are deliberately absent: the server returns a `label` for every
@@ -18,7 +18,7 @@ export interface TypeAppearance {
  * agreement with it. An icon is the one thing the registry does not
  * supply, which is why this map exists at all.
  *
- * An entry earns its place on one test — a distinct glyph carries
+ * An entry earns its place on one test: a distinct glyph carries
  * recognition the label cannot, so a book, a song and a film are told apart
  * at a glance in a dense list. That is true of the core vocabulary and
  * essentially nothing else, so the map stops there. Every integration

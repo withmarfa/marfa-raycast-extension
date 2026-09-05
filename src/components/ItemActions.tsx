@@ -218,7 +218,7 @@ export function ItemActionSections({
   }
 
   const transitions: { state: ItemState; title: string; icon: Icon }[] = [];
-  // Trashed items expose no state transitions here — Restore is a separate action.
+  // Trashed items expose no state transitions here; Restore is a separate action.
   if (item.state !== 'trashed') {
     if (item.state !== 'active')
       transitions.push({ state: 'active', title: 'Move to Active', icon: Icon.CheckCircle });

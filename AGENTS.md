@@ -49,13 +49,19 @@ Implicit OAuth on first use, following the canonical Raycast pattern. Every comm
 
 ## Testing
 
-**Automated coverage is deliberately narrow: pure logic only.** Property classification and
-display resolution are covered today. Scope grammar and the capture validators are the two other
-surfaces that belong here and do not have tests yet, so a green suite is not yet evidence about
-either. All four are functions taking values and returning values, which is where every defect
-that has cost real time in this extension has lived. Component rendering is not harnessed and should not be, because the components are a
-mechanical transform over data those functions produce and a render test would assert only that a
-loop exists.
+**Automated coverage is deliberately narrow: pure logic only.** Property classification, display
+resolution, the scope grammar, the re-consent decision and the capture validators are covered.
+All of them are functions taking values and returning values, which is where every defect that has
+cost real time in this extension has lived. Component rendering is not harnessed and should not
+be, because the components are a mechanical transform over data those functions produce and a
+render test would assert only that a loop exists.
+
+**What that leaves uncovered is the glue, and it is not a small gap.** Nothing tests `src/tools/`,
+`src/client.ts` or the views, so a defect in how a tool assembles its arguments or in how the token
+provider resolves is invisible to a green suite. Both have shipped one: a memoized token that could
+never refresh, and a note computed from a scope list that counts `offline_access` as content. Each
+was found by reading, and the lesson taken was to move the answerable part of the question into a
+pure function that a test can reach, rather than to harness the glue.
 
 - **Tests live in `test/`, mirroring `src/`, and not beside the source.** `ray lint` runs ESLint
   over every file in the source directory, so a colocated test is a linted test. `ray build`
@@ -100,6 +106,22 @@ The cost of hiding them was not neutral. Three commands nobody launched accumula
 - **Server Info:** read-only view of the connected instance, auth mode, and signed-in identity. Auth mode is derived from the credential the client is using, never from whether a call succeeded: the profile route is gated on a scope no shipped bundle grants, so a browser sign-in usually cannot read its own identity, and reporting that refusal as "API key" pointed diagnosis at the wrong preference. The refusal is named instead.
 - **Type Registry:** read-only list of every type registered on the instance (core / custom / system), with each row carrying its type's own glyph from the display resolver. Opening one lists its fields, resolved through the type's ancestry, with each field's kind, whether it is required, and an enum's actual values. The raw schema is a copy action rather than the view.
 
+## AI tools
+
+Four tools in `src/tools/`, registered in the manifest and instructed from `ai.yaml`. Three read (`search-items`, `list-items`, `list-types`) and one writes (`capture-item`, behind a `Tool.Confirmation`).
+
+- **A tool has no `withAccessToken` wrapper.** Whether that wrapper works at a tool entry point is not something the Raycast documentation answers, and its implementation does branch on a no-view command, so the confident version of this sentence, that a wrapper is a component boundary and a tool renders nothing, was wrong. `getClient` removes the need to know: its token provider falls through to `authorize()` when no wrapper has put a token in the global, which is the ordinary path in a tool rather than an edge case.
+- **That fallback runs per request, and caching what it returns is a trap worth naming.** The SDK asks for a token on every call, so it is tempting to memoize; `authorize()` is also the refresh path, so a memoized result is an expired token handed out for the life of the process, recovering only when the extension restarts. It short-circuits on a token that is still valid, which is what makes repeating it cheap enough.
+- **A hook guards nothing in a tool**, because a hook runs where something renders. The grant check the lists use is a hook, so tools call `typeReadableBySession` directly. Without it a tool returns an empty list for a type the session cannot read, and a model reports that the person has none of them, which is the failure this whole area exists to avoid.
+- **That guard only fires when a type was named, and the tools tell the model to omit it for everything**, so the common read had nothing checking it. A partially granted session got the granted subset and no indication it was a subset. The reads therefore answer with `{ items, note }`, where `note` names the content this session was not granted, and the instructions tell the model to pass it on. It rides alongside the results rather than throwing, because the items are real: what would be wrong is calling them complete.
+- **The note is computed from the stored grant record, and from content read scopes only.** Two things it must not do. Resolving the auth config reads the discovery document and caches it when the copy has aged out, so a search would install a newer advertisement that the next launch acts on, and a consent screen would appear later with nothing connecting it to anything the person did; that is a fair trade on an operator screen someone opened deliberately and not on a read. And a shortfall is a scope list carrying `offline_access` and every write scope, so counting it told a session that had declined nothing but `offline_access` that its results were incomplete. Telling someone their search is partial when it is not is the same harm as the silence this note replaced.
+- **A tool passes the plan whole and reserves no field names.** `reservedByForm` exists because the form renders controls of its own and two cannot share an id; a tool renders nothing, so a type declaring a field named `__extra` is capturable through one. The primary and secondary halves are not flattened either, because both the shaper and the validator read them together: the split is about how much of a form to show at once, and a caller supplying values is not looking at one.
+- **A tool eval asserts only what the documented matcher grammar covers.** `properties` is an array of objects, and the documented matchers are scalars, `includes` and `matches` over nested objects; nothing describes matching one element of an array. A guessed syntax that does not match anything passes vacuously, which is worse than asserting less, so the capture eval pins the tool and the type and stops there.
+- **`capture-item` runs the same plan and validator the form does**, including the defaults. A tool supplies text where a control supplies a `Date` or an array, so `valuesFromText` shapes it and one validator answers for both. A second copy would eventually disagree about what a type requires, and an event captured by asking would carry no timezone while the same event captured through the form carried the device's.
+- **Text reaching the validator is parsed, never coerced quietly.** A date-only string read as `new Date(...)` is UTC midnight, which is the previous day for anyone west of Greenwich, so date text is read as calendar parts; a date the parser cannot read is refused and named rather than dropped, which is what a form's picker makes impossible and a tool makes routine; and an enum is checked against the schema's values, since a dropdown constrains a person and nothing constrains a caller.
+- **Properties are a list of name and value pairs, not a map.** Raycast extracts a tool's schema from the TypeScript and cannot resolve a `Record`, which the build reports rather than shipping.
+- **`list-types` exists so nothing has to assume.** Instances register their own types and integrations bring theirs, so the set is not knowable in advance; the instructions tell the model to call it before capturing anything unconfirmed.
+
 ## Action panel
 
 - **All items:** View Detail, Copy Title/ID, Add/Remove Tags, Reply (in-thread edge), Annotate (`references` edge → `core.highlight`), State transitions (Active/Archived/Trash). The detail's Edges view lists the item's outbound edges, grouped by type, with the item on the other end resolved and reachable rather than rendered as a JSON block. Inbound edges are a separate read (`items.backrefs`) and are not shown; an item that only ever appears as a target therefore has no Edges action.
@@ -120,7 +142,8 @@ The cost of hiding them was not neutral. Three commands nobody launched accumula
 - **A list is one value per line, never comma-separated.** `core.event.recurrence` holds RFC 5545 rules and those contain commas.
 - **A date sends the day the person picked, in their zone.** Slicing an ISO string is the UTC day, which is a different day for anyone west of Greenwich after their afternoon.
 - **Errors are keyed by field name.** The shape this replaced had a closed union of seven, so a failure outside it fell through a bare `return` and the form did nothing at all: no toast, no marked field. The renderer maps over the same plan, so that is now unreachable.
-- **Three small tables hold what a schema states in prose and gives no field to read**, all of them for `core.event`: the timezone controls, dropping an end zone equal to the start, and the ordering and zone checks. They are decorations over a form that works without them, not the gate the type list they replaced was. A test asserts which types have them, so growing that set is a deliberate act.
+- **Four small tables hold what a schema states in prose and gives no field to read**, all of them for `core.event`: the timezone controls, dropping an end zone equal to the start, the ordering and zone checks, and the zone the capture fills in when nobody chose one. They are decorations over a form that works without them, not the gate the type list they replaced was. A test asserts which types have them, so growing that set is a deliberate act, and every table feeds that list rather than sitting beside it, because a per-type rule the assertion cannot see is the thing the assertion exists to prevent.
+- **The defaults table is for a caller with no control, and the form deliberately does not read it.** A dropdown must carry a selection that is one of its own options, so the form defaults every start zone to the device's whatever the type; a tool can write nothing instead, and taking that option is what made an event captured by asking advance in UTC. Routing the form through the table looks like the fix for that and is not: a type outside it would default its zone dropdown to an empty string matching none of its options.
 - **A type with no schema on this server still gets the whole-payload JSON editor**, which is what every unrecognized type used to get. It is no longer the default for anything, and a submit is refused while the registry is still loading, since an unarrived registry looks exactly like an unknown type.
 - **The form's own controls are `__`-prefixed and the planner refuses any schema field that starts with the prefix.** The platform accepts a field literally named `__extra`, so the prefix alone guarantees nothing. Four shipped types declare a field called `tags`, which is how this was found: the extension's tag box owned that id and the two controls split one value between them.
 - **A field the form supplies a value for is never behind the toggle.** `core.event` declares seventeen fields and `timezone` is the fifteenth, so an ordering rule alone hid the control that defaults to the device zone. A hidden control writes a zone nobody chose, and an untouched one writes none, which that field says means the schedule advances in UTC.
@@ -145,7 +168,7 @@ Two rules worth keeping:
 ## Server contract notes
 
 - **Lifecycle:** `active | archived | trashed | revoked`. core/custom items use the active/archived/trashed graph; system.* items use active/revoked. The extension only operates on user-facing items, so it surfaces the three-state subset.
-- **Tier:** items carry `tier: 'library' | 'feed'`. Quick Capture, Clipboard Capture, Reply, and Annotate stamp `tier: 'library'` to mirror user-captured intent. Browse and Search pass an explicit `tier` filter (`library` | `feed` | `all`). `system.*` items have no tier; the detail view renders `—` if it ever encounters one.
+- **Tier:** items carry `tier: 'library' | 'feed'`. Quick Capture, Clipboard Capture, Reply, and Annotate stamp `tier: 'library'` to mirror user-captured intent. Browse and Search pass an explicit `tier` filter (`library` | `feed` | `all`). `system.*` items have no tier, and the detail view omits the row rather than rendering a placeholder: a row whose only content is that it has none is a row that should not exist.
 - **Typed edges:** the Item shape carries no `parent_id`, `thread_id`, or `metadata.about`. Relationships are first-class typed edges: Reply creates an `in-thread` edge, Annotate creates a `references` edge. Atomic edge writes go through the `edges` field on `client.items.create`.
 - **Source is server-stamped** from the credential, never set by the client.
 

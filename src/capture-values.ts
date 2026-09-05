@@ -97,12 +97,37 @@ export function alwaysShownFields(typeId: string): ReadonlySet<string> {
   return new Set(ALWAYS_SHOWN[typeId] ?? []);
 }
 
+/**
+ * Fields a caller with no control gets filled in from the device.
+ *
+ * **For a caller supplying values directly, not for the form**, and the two are
+ * not the same question however much they look it. A dropdown must carry a
+ * selection that is one of its own options, so the form defaults every start
+ * zone to the device's whatever the type; there is no "write nothing" for it to
+ * express. A tool has that option, and taking it is what made an event captured
+ * by asking carry no zone at all, which `core.event` defines as a schedule that
+ * advances in UTC.
+ *
+ * Routing the form through this table looked like the fix for that drift and
+ * was not: a type outside the table would have defaulted its zone dropdown to
+ * an empty string matching none of its options.
+ */
+const DEVICE_ZONE_FIELDS: Record<string, string[]> = {
+  'core.event': ['timezone'],
+};
+
+export function captureDefaults(typeId: string, deviceZone: string): Record<string, string> {
+  const fields = DEVICE_ZONE_FIELDS[typeId] ?? [];
+  return Object.fromEntries(fields.map((field) => [field, deviceZone]));
+}
+
 /** The types this file knows anything specific about. Asserted by a test, so
  *  growing it is a deliberate act with a name on the diff. */
 export const TYPES_WITH_RULES = Object.keys({
   ...CROSS_FIELD_CHECKS,
   ...NORMALIZERS,
   ...ALWAYS_SHOWN,
+  ...DEVICE_ZONE_FIELDS,
 }).sort();
 
 function coerceScalar(
@@ -124,6 +149,24 @@ function coerceScalar(
     return { value: raw === 'true' };
   }
   return { value: raw };
+}
+
+/**
+ * A date-only string as the day it names, in the reader's own zone.
+ *
+ * **`new Date('2026-03-15')` is UTC midnight**, which is the fourteenth for
+ * anyone west of Greenwich, so parsing and then formatting locally moved the
+ * day by one. A calendar date carries no instant, so its parts are read
+ * directly rather than through an instant that has to be in some zone.
+ */
+function parseDateText(text: string): Date | null {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 /** A date as the calendar day a person picked, in their own zone. An ISO string
@@ -150,10 +193,19 @@ function readField(field: PlannedField, raw: unknown): { value?: unknown } | { e
       return raw === true ? { value: true } : field.required ? { value: false } : {};
 
     case 'datetime':
-      return raw instanceof Date ? { value: raw.toISOString() } : {};
-
-    case 'date':
-      return raw instanceof Date ? { value: localDate(raw) } : {};
+    case 'date': {
+      if (raw instanceof Date) {
+        return { value: field.kind === 'date' ? localDate(raw) : raw.toISOString() };
+      }
+      // Text reaches here from a tool and from a revived draft. Anything the
+      // parser cannot read is reported rather than dropped: a task whose due
+      // date silently did not survive is worse than one that was refused.
+      const text = typeof raw === 'string' ? raw.trim() : '';
+      if (!text) return {};
+      const parsed = parseDateText(text);
+      if (!parsed) return { error: `${field.title} is not a date this can read` };
+      return { value: field.kind === 'date' ? localDate(parsed) : parsed.toISOString() };
+    }
 
     case 'tagpicker': {
       const values = Array.isArray(raw) ? raw.filter((v) => typeof v === 'string') : [];
@@ -204,6 +256,12 @@ function readField(field: PlannedField, raw: unknown): { value?: unknown } | { e
       if (!text) return {};
       if (field.rawType === 'url' && !isValidUrl(text)) {
         return { error: `${field.title} must be a URL` };
+      }
+      // A form constrains an enum with a dropdown. Nothing constrains a caller
+      // supplying text, so the values are checked here or the server refuses
+      // it later with less to say.
+      if (field.enumValues?.length && !field.enumValues.includes(text)) {
+        return { error: `${field.title} must be one of: ${field.enumValues.join(', ')}` };
       }
       return { value: text };
     }
@@ -267,4 +325,73 @@ export function buildCaptureProperties(
 
   NORMALIZERS[typeId]?.(properties);
   return { properties };
+}
+
+/**
+ * Text values, as the form's own controls would have produced them.
+ *
+ * An AI tool supplies text where a form supplies whatever its control emits:
+ * a `Date` from a picker, an array from a tag picker, a boolean from a checkbox.
+ * Converting here means one validator answers for both, rather than a second
+ * copy that could disagree about what a type requires.
+ */
+export function valuesFromText(
+  plan: FormPlan,
+  properties: readonly { name: string; value: string }[],
+): Record<string, unknown> {
+  const supplied = new Map(properties.map((entry) => [entry.name, entry.value]));
+  const values: Record<string, unknown> = {};
+
+  // Both halves. The split is about how much of a form to show at once, and a
+  // caller supplying values directly is not looking at one, so reading only
+  // `primary` here would refuse a field purely for being declared far enough
+  // down the schema to sit behind the toggle.
+  const fields = [...plan.primary, ...plan.secondary];
+
+  for (const field of fields) {
+    const raw = supplied.get(field.name);
+    if (raw === undefined) continue;
+    switch (field.kind) {
+      case 'datetime':
+      case 'date': {
+        // The same parser the validator uses. `new Date('2026-03-15')` is UTC
+        // midnight, which is the previous day everywhere west of Greenwich, so
+        // reading it here and taking the local day later moved every date-only
+        // value back by one.
+        const parsed = parseDateText(raw);
+        // Text the parser cannot read passes through as text, so the refusal
+        // comes from the validator and names the field, rather than an Invalid
+        // Date travelling on to somewhere with less to say.
+        values[field.name] = parsed ?? raw;
+        break;
+      }
+      case 'tagpicker':
+        values[field.name] = raw
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean);
+        break;
+      case 'checkbox':
+        values[field.name] = raw === 'true';
+        break;
+      default:
+        // Text, numbers, lists and JSON all reach the validator as the strings
+        // a form control would have produced, which is what keeps this one
+        // validator rather than two that could disagree.
+        values[field.name] = raw;
+    }
+  }
+
+  // A name the type does not declare is reported rather than dropped: a model
+  // inventing a field should hear about it, not watch it vanish.
+  const known = new Set(fields.map((field) => field.name));
+  const unknown = [...supplied.keys()].filter((name) => !known.has(name));
+  if (unknown.length > 0) {
+    throw new Error(
+      `${fields.length === 0 ? 'This type declares no fields' : 'Not fields of this type'}: ` +
+        `${unknown.join(', ')}. Call list-types to see what it declares.`,
+    );
+  }
+
+  return values;
 }
