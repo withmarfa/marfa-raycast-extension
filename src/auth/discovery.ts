@@ -235,6 +235,28 @@ export function isTypeGranted(granted: string | undefined, typeId: string): bool
   return missingScopes(granted, [`${typeId}:read`]).length === 0;
 }
 
+/**
+ * Whether a session may read a type, for a surface that has to explain an
+ * absence rather than render one.
+ *
+ * **Two of the three answers are "make no claim", and that is the whole
+ * shape.** A pasted static key is not an OAuth grant, and the tokens from an
+ * earlier browser sign-in survive in storage after one is set, so reading them
+ * answers about a credential no request is using. An unknown grant is not
+ * evidence of a narrow one either. Only a grant the server actually reported
+ * can support saying a type is withheld, and saying it wrongly produces the
+ * most confusing state the extension can reach: a filter reporting a type as
+ * unshared while the call behind it returns that type normally.
+ */
+export function typeReadableBySession(
+  session: { staticKey: boolean; granted: string | undefined },
+  typeId: string,
+): boolean {
+  if (session.staticKey) return true;
+  if (!session.granted) return true;
+  return isTypeGranted(session.granted, typeId);
+}
+
 export interface ReconsentDecision {
   reconsent: boolean;
   /** Advertised scopes the grant does not cover. Informational when
