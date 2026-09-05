@@ -1,5 +1,5 @@
 import { LocalStorage } from '@raycast/api';
-import { expandBundlesToScopes, parseScope, typeMatchesPattern } from '@withmarfa/shared';
+import { expandBundlesToScopes, grantCoversScope } from '@withmarfa/shared';
 import type { PermissionBundle } from '@withmarfa/shared';
 
 /**
@@ -35,9 +35,9 @@ export interface MarfaAuthConfig {
  * An instance advertises permission bundles, and a bundle names item types:
  * it describes which *content* a grant may read and write. Several things
  * this extension does are not content. The detail view reads an item's
- * edges, tagging writes metadata, and every list reads the type registry —
- * operations it performs against whatever content it is granted, and which
- * no bundle will ever mention. Asking for them alongside the expanded
+ * edges, tagging writes metadata, and every list reads the type registry.
+ * Those are operations it performs against whatever content it is granted, and
+ * which no bundle will ever mention. Asking for them alongside the expanded
  * bundles is not second-guessing the server, it is asking for the verbs to
  * go with the nouns.
  *
@@ -46,7 +46,7 @@ export interface MarfaAuthConfig {
  * because it is not a permission over data; without it every command would
  * send the user back through consent the moment the access token expired.
  * It stays in this list because the list is defined by *when* these are
- * asked for — always, unconditionally — rather than by what family they
+ * asked for, always and unconditionally, rather than by what family they
  * belong to.
  *
  * These are deliberately not the platform's `capability.*` scopes, which are
@@ -64,8 +64,8 @@ const ALWAYS_REQUESTED_SCOPES = [
 ] as const;
 
 /**
- * Used only when the discovery document cannot be read — an unreachable
- * server, or one predating bundles. Narrower than what a current Marfa
+ * Used only when the discovery document cannot be read, whether from an
+ * unreachable server or one predating bundles. Narrower than what a current Marfa
  * grants, which is the trade for signing in at all.
  */
 const FALLBACK_SCOPES = [
@@ -81,15 +81,15 @@ const FALLBACK_SCOPES = [
  * issuer is `<server>/auth`.** A Marfa deployment mounts its authorization
  * server under `/auth` and publishes that as its issuer identifier, and
  * RFC 8414 §3.1 forms the metadata URL by inserting the well-known segment
- * between host and issuer path — so the issuer's path is a suffix here, not
- * a prefix.
+ * between host and issuer path, so the issuer's path is a suffix here rather
+ * than a prefix.
  *
  * The bare-root form this used to request is a pre-spec alias the server
  * keeps only for clients already pinned to it, and it is going. **This
  * client fails quietly when it does**: `fetchDocument` swallows the error
  * and the caller falls back to `FALLBACK_SCOPES`, so sign-in keeps working
  * with a narrower grant and nothing says why. That is the harder failure to
- * diagnose of the two hand-rolled clients — the web app's equivalent fetch
+ * diagnose of the two hand-rolled clients: the web app's equivalent fetch
  * hard-fails and names the instance.
  *
  * **Nothing here can catch a regression to the bare root.** This extension
@@ -165,62 +165,46 @@ export async function resolveAuthConfig(
 /**
  * Which of `required` a granted scope string does not cover.
  *
- * Coverage rather than set difference, because a broader grant is not a
- * shortfall: a token minted with `core.*:read` genuinely covers
- * `core.note:read`, and treating that as missing would re-prompt on every
- * launch forever. Only a scope nothing held can satisfy counts.
+ * **Coverage is the platform's question and this asks the platform.** It used
+ * to walk the scope grammar here: parse each held scope, compare kinds, match
+ * type patterns, and decide. That copy disagreed with the real rule on the
+ * content category, where a grant of `content:read` covers every type through
+ * a projection this had no arm for, and it reported the whole registry as
+ * unreadable to a session that could read all of it. It also waved through any
+ * requirement it could not parse, which is fail-open on the one axis where a
+ * new scope family is most likely to appear.
  *
- * An unknown grant returns nothing missing. A token whose scope the server
- * did not report is not evidence of a narrow grant, and guessing would put
- * a consent screen in front of someone for no reason.
+ * That is not a bug this copy happened to have. `grantCoversScope` carries a
+ * docblock about five comparisons beside it that compared text, and about a
+ * neighboring helper with the right shape being fail-open until a review found
+ * it. A sixth was never going to end differently.
+ *
+ * Coverage rather than set difference is still the property that matters: a
+ * token minted with `core.*:read` genuinely covers `core.note:read`, and
+ * treating that as missing would re-prompt on every launch forever.
+ *
+ * The change with the widest reach is quieter than the content category and
+ * worth naming. The copy returned on the first held pattern that matched with a
+ * sufficient verb, so `core.*:write core.media.*:read` read as covering a write
+ * to `core.media.book`. The request path resolves the other way, taking the
+ * longest matching wildcard first, and refuses it. Answering yes where the
+ * server says no is the direction that matters here, because what reads this
+ * decides whether to tell someone their content is visible.
  */
 export function missingScopes(granted: string | undefined, required: string[]): string[] {
   const held = (granted ?? '').split(/\s+/).filter(Boolean);
+
+  // **A precondition, not a shortcut, and the one line here that is not the
+  // platform's answer.** `grantCoversScope` reports an empty grant as covering
+  // nothing, which is correct for the question it answers and wrong for this
+  // one: a token whose scopes the server did not report is not evidence of a
+  // narrow grant. Without this, an unknown grant reads as short of everything,
+  // and the surface that consumes this decides from a shortfall. That is the
+  // shape that once discarded the session on every launch and presented as
+  // signing out immediately after signing in.
   if (held.length === 0) return [];
 
-  const heldSet = new Set(held);
-  const heldParsed = held.map(parseScope).filter((scope) => scope !== null);
-  const satisfiesOperation = (heldOp: string, requiredOp: string) =>
-    heldOp === 'write' || requiredOp === 'read';
-
-  function isCovered(scope: string): boolean {
-    if (heldSet.has(scope)) return true;
-
-    const need = parseScope(scope);
-    // An unparseable requirement is this extension's bug, not the grant's.
-    if (!need) return true;
-
-    // OIDC literals carry no read/write semantics, so exact membership is
-    // the only test that means anything for them.
-    if (need.kind === 'oidc') return false;
-
-    for (const have of heldParsed) {
-      if (have.kind !== need.kind) continue;
-      if (!satisfiesOperation(have.operation, need.operation)) continue;
-
-      if (need.kind === 'edge') {
-        if (have.edgeType === '*' || have.edgeType === need.edgeType) return true;
-        continue;
-      }
-      if (need.kind === 'metadata') {
-        // A grant over the whole metadata namespace covers each
-        // sub-resource under it.
-        if (have.subresource === undefined || have.subresource === need.subresource) return true;
-        continue;
-      }
-      // Item types, where a wildcard grant genuinely covers its subtree:
-      // `core.*:read` satisfies `core.note:read`, and a token holding it is
-      // not short. `typeMatchesPattern` is the platform's own rule for this
-      // — note it takes a single pattern, where `matchesTypePattern` takes a
-      // list, and passing a bare string to the latter silently matches on
-      // the `*` character.
-      if (typeMatchesPattern(need.typePattern, have.typePattern)) return true;
-    }
-
-    return false;
-  }
-
-  return required.filter((scope) => !isCovered(scope));
+  return required.filter((scope) => !grantCoversScope(held, scope));
 }
 
 /**
@@ -271,8 +255,8 @@ export interface ReconsentDecision {
  *
  * The rule is **"has the advertisement changed since we last asked"**, not
  * "is the grant short of the advertisement". Those look equivalent and are
- * not, because a server may grant less than it advertises — production
- * advertises six scopes in its bundles that it does not issue. Deciding
+ * not, because a server may grant less than it advertises, and has. Whether
+ * any given deployment does so today is not a fact this file can hold. Deciding
  * from the shortfall alone never terminates: each consent returns the same
  * grant, the next launch sees the same shortfall, and the session is
  * discarded on every launch forever. That shipped once; this is the guard.
