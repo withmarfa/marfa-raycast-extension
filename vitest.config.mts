@@ -36,6 +36,27 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    // Date rendering converts an instant to the reader's own day before it
+    // decides what to call it, so an unpinned zone makes those tests report on
+    // the machine rather than on the code: a fixture that is yesterday in
+    // London is today in UTC, and the suite would pass here and fail in CI.
+    // Deliberately not UTC. A zone with a real offset is what exercises the
+    // conversion at all, and an implementation that assumed UTC would pass
+    // against UTC and be wrong for every reader.
+    //
+    // The locale is pinned for the same reason and one more: these functions
+    // are supposed to render in whatever locale the machine is set to, and an
+    // expectation built from the runtime default can only prove that on a
+    // machine whose default is not the one the code used to hardcode. Pinning a
+    // different one is what makes re-hardcoding `en-US` a failing test rather
+    // than a silent pass.
+    // The locale half of this works because the default `forks` pool passes the
+    // environment when it spawns a worker; ICU fixes its default at process
+    // start and does not reread it. Moving to `pool: 'threads'` would silently
+    // leave the locale at the runner's own, and the delegation assertions would
+    // then pass against a hardcoded literal again. `TZ` survives either way,
+    // since Node reacts to assigning it.
+    env: { TZ: 'America/New_York', LC_ALL: 'en_GB.UTF-8', LANG: 'en_GB.UTF-8' },
   },
   resolve: {
     alias: {

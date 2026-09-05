@@ -6,7 +6,7 @@ import type { Item } from '@withmarfa/sdk';
  *
  * These are a fallback and nothing more. `buildTypeRegistry` asks the
  * registry first, because the conventional names are wrong for plenty of
- * real types — a captured email titles by `subject`, and a type an instance
+ * real types. A captured email titles by `subject`, and a type an instance
  * defined may use any field at all. Returns `undefined` rather than a raw
  * identifier so the caller can fall through to the type's own label.
  */
@@ -35,24 +35,45 @@ export function fallbackItemSubtitle(item: Item): string | undefined {
   return undefined;
 }
 
+/**
+ * A date as a person reading this machine would write it.
+ *
+ * Every branch renders through the runtime's own locale rather than a fixed
+ * one. A launcher is read by whoever is at the keyboard, and a hardcoded
+ * `en-US` puts a month before a day for a reader whose system says otherwise,
+ * which is not merely unfamiliar: `05/09` is a different day in each reading.
+ */
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffDays = Math.floor((today.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
+  // Rounded, not floored. Both operands are local midnights, and the interval
+  // between two consecutive local midnights is 23 or 25 hours across a
+  // daylight-saving change rather than 24. Flooring 23 hours gives zero, so on
+  // the day after a spring forward yesterday's items said "Today", and a day
+  // later both of the preceding days said "Yesterday" and Browse merged two
+  // days into one section. Rounding is exact in both directions because the
+  // quantity being measured is always a whole number of calendar days.
+  const diffDays = Math.round((today.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
 
+  // A weekday name only ever means the one just gone. The window is bounded at
+  // both ends because a future date subtracts to a negative, and an unbounded
+  // comparison put an event a year out under the same heading as last week's
+  // notes: an item dated next September rendered as "Sunday". Anything ahead of
+  // today falls through to a real date, which is unambiguous in a way a
+  // weekday cannot be once both directions are in the list.
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'long' });
+  if (diffDays > 1 && diffDays < 7) return date.toLocaleDateString(undefined, { weekday: 'long' });
   if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   }
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return new Date(dateStr).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 export function formatRelativeTime(dateStr: string | null): string {
