@@ -1,113 +1,86 @@
 import { describe, expect, it } from 'vitest';
-import { parseCustomPropertiesJson } from '../src/capture-utils';
+import { planCaptureForm } from '../src/capture-plan';
+import { buildCaptureProperties } from '../src/capture-values';
 import { requiredFieldNames } from '../src/schema-fields';
+import { toTitleCase } from '../src/helpers';
 import { schema } from './fixtures';
 
-const field = (over: Record<string, unknown> = {}) => ({ type: 'string', ...over }) as never;
-const NONE: ReadonlySet<string> = new Set();
+const f = (over: Record<string, unknown> = {}) => ({ type: 'string', ...over }) as never;
 
-/** The live shape, which is where this went wrong: two fields marked required
- *  per-field, and no top-level array anywhere. */
+/**
+ * The end-to-end shape of the defect this replaced: a type with required fields
+ * that the form said required nothing, and submitted anyway.
+ *
+ * Read live from a real instance, which is where the wrong assumption showed:
+ * two fields marked required per-field, and no top-level array anywhere.
+ */
 const PLAYLIST = [
   schema('google.youtube.playlist', {
     label: 'YouTube Playlist',
+    display_hints: { title_field: 'title', body_field: 'description' },
     fields: {
-      playlist_id: field({ required: true }),
-      title: field({ required: true }),
-      description: field(),
+      playlist_id: f({ required: true, description: 'YouTube playlist id' }),
+      title: f({ required: true }),
+      description: f({}),
+      item_count: f({ type: 'number' }),
+      privacy_status: f({ type: 'enum', enum_values: ['public', 'unlisted', 'private'] }),
     },
   }),
 ];
 
-describe('a capture is refused before it reaches the network', () => {
-  const required = requiredFieldNames(PLAYLIST, 'google.youtube.playlist');
+const plan = planCaptureForm(PLAYLIST, 'google.youtube.playlist', {
+  titleField: 'title',
+  bodyField: 'description',
+  toTitle: toTitleCase,
+});
+const build = (values: Record<string, unknown>) =>
+  buildCaptureProperties(plan, 'google.youtube.playlist', values);
 
-  it('names the field that is missing', () => {
-    const result = parseCustomPropertiesJson('{"playlist_id":"PL1"}', required);
+describe('a capture is refused before it reaches the network', () => {
+  it('knows the type requires two fields, where the form used to say none', () => {
+    expect([...requiredFieldNames(PLAYLIST, 'google.youtube.playlist')].sort()).toEqual([
+      'playlist_id',
+      'title',
+    ]);
+  });
+
+  it('names each missing field against the field itself', () => {
+    const result = build({ playlist_id: 'PL1' });
+    expect(result).toEqual({ errors: { title: expect.stringContaining('required') } });
+  });
+
+  it('refuses an empty form rather than posting nothing', () => {
+    const result = build({});
     expect(result).toEqual({
-      error: { field: 'propertiesJson', message: 'Missing required property: title' },
+      errors: {
+        playlist_id: expect.stringContaining('required'),
+        title: expect.stringContaining('required'),
+      },
     });
   });
 
-  it('refuses an empty editor, which is where the check used to be skipped', () => {
-    // The early return for empty input sat before the loop, so clearing the box
-    // or resuming a draft that had stored an empty string submitted nothing and
-    // let the server refuse it instead.
-    for (const raw of ['', '   ', undefined, '{}']) {
-      expect(parseCustomPropertiesJson(raw, required)).toHaveProperty('error');
-    }
+  it('treats present-but-blank as absent, which is what the server does', () => {
+    expect(build({ playlist_id: 'PL1', title: '   ' })).toEqual({
+      errors: { title: expect.stringContaining('required') },
+    });
   });
 
-  it('refuses a required field present but blank', () => {
-    // Present-and-empty is not provided. The server would reject it, and the
-    // round trip is the thing worth saving.
-    expect(parseCustomPropertiesJson('{"playlist_id":"PL1","title":"  "}', required)).toHaveProperty(
-      'error',
-    );
-    expect(parseCustomPropertiesJson('{"playlist_id":"PL1","title":null}', required)).toHaveProperty(
-      'error',
-    );
-  });
-
-  it('accepts a payload that carries everything required', () => {
-    expect(parseCustomPropertiesJson('{"playlist_id":"PL1","title":"Mix"}', required)).toEqual({
+  it('accepts a payload carrying everything required', () => {
+    expect(build({ playlist_id: 'PL1', title: 'Mix' })).toEqual({
       properties: { playlist_id: 'PL1', title: 'Mix' },
     });
   });
 
-  it('allows an empty payload for a type that requires nothing', () => {
-    expect(parseCustomPropertiesJson('', NONE)).toEqual({ properties: {} });
-    expect(parseCustomPropertiesJson('{}', NONE)).toEqual({ properties: {} });
-  });
-});
-
-describe('the JSON itself', () => {
-  it('refuses what is not an object, before asking about fields', () => {
-    expect(parseCustomPropertiesJson('not json', NONE)).toHaveProperty('error');
-    expect(parseCustomPropertiesJson('[1,2]', NONE)).toHaveProperty('error');
-    expect(parseCustomPropertiesJson('null', NONE)).toHaveProperty('error');
-    expect(parseCustomPropertiesJson('"a string"', NONE)).toHaveProperty('error');
-  });
-});
-
-describe('what a subtype inherits, and what it can lift', () => {
-  it('requires what a parent requires', () => {
-    const registry = [
-      schema('acme.deal', { fields: { deal_name: field({ required: true }) } }),
-      schema('acme.deal.enterprise', { parent: 'acme.deal', fields: { seats: field() } }),
-    ];
-    const required = requiredFieldNames(registry, 'acme.deal.enterprise');
-    expect(parseCustomPropertiesJson('{"seats":"10"}', required)).toHaveProperty('error');
-  });
-
-  it('lets a subtype make an inherited field optional by re-declaring it', () => {
-    // Checked against the platform: re-declaring without the flag resolves to
-    // `required: undefined` there, so accumulating requirements across the
-    // chain would refuse a capture the server accepts.
-    const registry = [
-      schema('acme.deal', { fields: { deal_name: field({ required: true }) } }),
-      schema('acme.deal.lite', { parent: 'acme.deal', fields: { deal_name: field() } }),
-    ];
-    expect([...requiredFieldNames(registry, 'acme.deal.lite')]).toEqual([]);
-    expect(parseCustomPropertiesJson('{}', requiredFieldNames(registry, 'acme.deal.lite'))).toEqual({
-      properties: {},
-    });
-  });
-
-  it('resolves a chain deeper than any small fixed bound', () => {
-    // A depth counter picked by hand truncates a legal chain, and a field never
-    // seen is a requirement never enforced, which is this module's own bug
-    // pointed at a different input.
-    const depth = 20;
-    const registry = [
-      schema('deep.0', { fields: { root_field: field({ required: true }) } }),
-      ...Array.from({ length: depth }, (_, i) =>
-        schema(`deep.${String(i + 1)}`, {
-          parent: `deep.${String(i)}`,
-          fields: { [`f${String(i + 1)}`]: field() },
-        }),
-      ),
-    ];
-    expect([...requiredFieldNames(registry, `deep.${String(depth)}`)]).toEqual(['root_field']);
+  it('renders the type it was never written for as real controls', () => {
+    // The point of the whole change. Nothing in this repository knows what a
+    // YouTube playlist is, and it gets a dropdown over the values the server
+    // declared rather than a textarea expecting JSON.
+    const privacy = plan.primary.find((field) => field.name === 'privacy_status');
+    expect(privacy?.kind).toBe('dropdown');
+    expect(privacy?.enumValues).toEqual(['public', 'unlisted', 'private']);
+    expect(plan.primary.find((field) => field.name === 'item_count')?.kind).toBe('number');
+    expect(plan.primary.find((field) => field.name === 'playlist_id')?.info).toBe(
+      'YouTube playlist id',
+    );
   });
 });

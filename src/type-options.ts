@@ -1,7 +1,5 @@
-import type { TypeSchema } from '@withmarfa/sdk';
-import { ALL_TYPES_OPTION, CAPTURE_TYPES } from './constants';
+import { ALL_TYPES_OPTION } from './constants';
 import type { TypeRegistry } from './type-display';
-import { requiredFieldNames, resolveSchemaFields } from './schema-fields';
 
 export interface TypeOption {
   value: string;
@@ -30,62 +28,27 @@ export function buildTypeFilterOptions(registry: TypeRegistry): TypeOption[] {
 }
 
 /**
- * Capture options lead with the types Quick Capture has native fields for,
- * then everything else the instance knows. The currently selected type is
- * appended when the registry has never heard of it, so a preference
- * pointing at a type this server does not hold still shows what it is set
- * to rather than silently resetting.
+ * Every type an instance holds, for the capture dropdown.
+ *
+ * **No seeded list leads it any more.** Four types used to come first because
+ * those were the four with a hand-written form; every type now gets a form
+ * built from its own schema, so there is nothing to privilege and the registry's
+ * own label order is the whole answer.
+ *
+ * A selected type the registry has never heard of is appended, so a preference
+ * pointing at something this server does not hold still shows what it is set to
+ * rather than silently resetting.
  */
 export function buildCaptureTypeOptions(
   registry: TypeRegistry,
   selectedType: string,
 ): TypeOption[] {
-  const options: TypeOption[] = CAPTURE_TYPES.map((type) => ({
-    value: type.value,
-    label: registry.schema(type.value) ? registry.label(type.value) : type.label,
-  }));
-
+  const options: TypeOption[] = [];
   for (const schema of registry.selectableTypes()) {
     addOption(options, { value: schema.id, label: registry.label(schema.id) });
   }
-
-  if (!options.some((option) => option.value === selectedType)) {
+  if (selectedType && !options.some((option) => option.value === selectedType)) {
     addOption(options, { value: selectedType, label: `${selectedType} (unverified)` });
   }
-
   return options;
-}
-
-export function findSchema(
-  schemas: TypeSchema[] | undefined,
-  type: string,
-): TypeSchema | undefined {
-  return schemas?.find((schema) => schema.id === type);
-}
-
-export function schemaSummary(schemas: TypeSchema[] | undefined, type: string): string {
-  const schema = findSchema(schemas, type);
-  if (!schema) {
-    return `No schema was available for ${type}. Submit a JSON object and Marfa will validate it.`;
-  }
-
-  // Both resolved through the type's ancestry, so a subtype that inherits its
-  // parent's fields describes them rather than appearing to have none.
-  const fields = Object.entries(resolveSchemaFields(schemas, type));
-  const requiredNames = [...requiredFieldNames(schemas, type)];
-  const required = requiredNames.length ? requiredNames.join(', ') : 'none';
-  const fieldList =
-    fields.length > 0
-      ? fields
-          .map(([name, definition]) => {
-            const typeName =
-              typeof definition === 'object' && definition && 'type' in definition
-                ? String(definition.type)
-                : 'unknown';
-            return `${name}: ${typeName}`;
-          })
-          .join(', ')
-      : 'none';
-
-  return `Required: ${required}\nFields: ${fieldList}`;
 }

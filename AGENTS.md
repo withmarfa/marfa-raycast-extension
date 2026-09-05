@@ -90,13 +90,13 @@ The cost of hiding them was not neutral. Three commands nobody launched accumula
 
 - **Browse:** list items with date grouping, type icons, metadata. A row's icon is always its type's glyph; a favicon rides as an accessory when the item carries a URL, so a mixed list stays legible by type. Paginated with auto-loading. Native Raycast filtering, which narrows the items already loaded and says so in its placeholder rather than reading as a search; `cmd+shift+F` hands the typed text to the Search command, which is the one that queries the server. Tier filter in the search accessory; type and lifecycle filters in the action panel. Custom types discovered from the server registry where available. `⌘D` toggles the inline detail panel (per-command, persisted via `useCachedState`).
 - **Search:** opens on the most recent items and switches to full-text search once something is typed, under the same filters either way, so a launch is useful before a query exists. Shows snippets on results and metadata on both. Shares tier, type, and lifecycle filtering with Browse. Same `⌘D` detail toggle.
-- **Quick Capture:** create core notes, bookmarks, tasks, or events with native type-specific fields and validation. Free-form "Additional properties" field accepts `key: value` lines for ad-hoc properties (booleans/numbers coerced; shadow keys rejected). Other registered types use a generic properties JSON editor with schema context. Honors capture preference defaults.
+- **Quick Capture:** create an item of any registered type, with the form built from that type's schema. Every scalar and enum gets a real control, an enum's values come from the schema, and a required field is validated before a request is made. Free-form "Additional properties" accepts `key: value` lines for anything the type does not declare (booleans/numbers coerced; shadow keys rejected). Honors capture preference defaults.
 
 ### Auxiliary commands
 
 - **Manage Keys:** admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, four permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Supports `metadata_permissions` and `space_admin`. Non-admin principals see an "admin credentials required" empty state.
 - **Clipboard Capture:** no-view command. Reads clipboard, routes by content: URL → bookmark; file → `core.file`; HTML-rich text → note (with `html` preserved); plain text → note. Uploads blobs via `client.blobs.upload`. Disabled while the redo bakes; flip on once verified.
-- **Clipboard Capture (Edit):** view command. Pre-fills a form from the clipboard, lets the user adjust type / fields before submitting. File clipboard content routes to `core.file`; non-file content can use the configured default type, including custom types.
+- **Clipboard Capture (Edit):** view command. The same generated form, pre-filled from the clipboard and adjustable before submitting. A type that declares `blob_ref` and `mime_type` is offered a file picker, which covers `core.file` and its subtypes without naming any of them.
 - **Server Info:** read-only view of the connected instance, auth mode, and signed-in identity. Auth mode is derived from the credential the client is using, never from whether a call succeeded: the profile route is gated on a scope no shipped bundle grants, so a browser sign-in usually cannot read its own identity, and reporting that refusal as "API key" pointed diagnosis at the wrong preference. The refusal is named instead.
 - **Type Registry:** read-only list of every type registered on the instance (core / custom / system), with each row carrying its type's own glyph from the display resolver. Opening one lists its fields, resolved through the type's ancestry, with each field's kind, whether it is required, and an enum's actual values. The raw schema is a copy action rather than the view.
 
@@ -111,6 +111,20 @@ The cost of hiding them was not neutral. Three commands nobody launched accumula
 - **@raycast/api:** Raycast platform SDK. Carries every Raycast primitive (`List`, `Form`, `Detail`, `Action`, `OAuth.PKCEClient`, `LocalStorage`, `Clipboard`, etc.). `package.json` is the source of truth for the version floor.
 - **@raycast/utils:** `withAccessToken`, `getAccessToken`, `useCachedPromise`, `showFailureToast`, `getFavicon`. The OAuth HOC is what makes implicit-auth-on-first-use work.
 - **@withmarfa/sdk:** TypeScript HTTP client (from npm). `package.json` is the source of truth for the version floor.
+
+## How a capture form is built
+
+**The form comes from the type's schema, not from a branch per type.** `src/capture-plan.ts` turns the resolved fields into controls; `src/capture-values.ts` turns what was typed into properties and refuses what the server would refuse. Both are pure and tested.
+
+- **Kinds map through a total record**, so a `FieldType` the platform adds fails the build here rather than falling through to a text box. A kind this build has never heard of, which can arrive over the wire, becomes a JSON box.
+- **A list is one value per line, never comma-separated.** `core.event.recurrence` holds RFC 5545 rules and those contain commas.
+- **A date sends the day the person picked, in their zone.** Slicing an ISO string is the UTC day, which is a different day for anyone west of Greenwich after their afternoon.
+- **Errors are keyed by field name.** The shape this replaced had a closed union of seven, so a failure outside it fell through a bare `return` and the form did nothing at all: no toast, no marked field. The renderer maps over the same plan, so that is now unreachable.
+- **Three small tables hold what a schema states in prose and gives no field to read**, all of them for `core.event`: the timezone controls, dropping an end zone equal to the start, and the ordering and zone checks. They are decorations over a form that works without them, not the gate the type list they replaced was. A test asserts which types have them, so growing that set is a deliberate act.
+- **A type with no schema on this server still gets the whole-payload JSON editor**, which is what every unrecognized type used to get. It is no longer the default for anything, and a submit is refused while the registry is still loading, since an unarrived registry looks exactly like an unknown type.
+- **The form's own controls are `__`-prefixed and the planner refuses any schema field that starts with the prefix.** The platform accepts a field literally named `__extra`, so the prefix alone guarantees nothing. Four shipped types declare a field called `tags`, which is how this was found: the extension's tag box owned that id and the two controls split one value between them.
+- **A field the form supplies a value for is never behind the toggle.** `core.event` declares seventeen fields and `timezone` is the fifteenth, so an ordering rule alone hid the control that defaults to the device zone. A hidden control writes a zone nobody chose, and an untouched one writes none, which that field says means the schedule advances in UTC.
+- **The toggle expands only.** Collapsing unmounts the extra items, and an unmounted control contributes no value to the submission, so closing the section again would silently discard everything typed into it.
 
 ## How a type is displayed
 
