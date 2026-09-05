@@ -51,7 +51,7 @@ function BrowseCommand() {
   const [state, setState] = useState<StateFilter>('active');
   const [type, setType] = useState('');
   // Persist the inline-detail preference per command (Raycast caches by key
-  // across launches). Default off — accessory view is denser at-a-glance.
+  // across launches). Default off, since the accessory view is denser.
   const [isShowingDetail, setIsShowingDetail] = useCachedState('browse-show-detail', false);
 
   const { registry } = useTypeRegistry();
@@ -151,7 +151,7 @@ function BrowseCommand() {
           title={type && !isGranted(type) ? 'Not shared with Raycast' : 'No items'}
           description={
             type && !isGranted(type)
-              ? `Your sign-in did not grant access to ${typeLabel ?? type}. Sign out and back in from Raycast's extension settings to review what Marfa is allowed to show.`
+              ? `Your sign-in did not grant access to ${typeLabel ?? type}.`
               : 'Nothing here yet'
           }
           actions={

@@ -144,8 +144,14 @@ export async function resolveAuthConfig(
   issuer: string,
   options: { refresh?: boolean } = {},
 ): Promise<MarfaAuthConfig> {
+  // A forced re-read falls back to the cache rather than to the hardcoded set.
+  // The refresh exists so consent is asked against what the server offers now,
+  // and a document that fails to load is not evidence that it offers less: a
+  // day-old copy is far closer to the truth than the fallback, which is
+  // narrower than any real instance and would mint exactly the narrow grant
+  // this whole check exists to notice.
   const doc = options.refresh
-    ? await fetchDocument(issuer)
+    ? ((await fetchDocument(issuer)) ?? (await readCache(issuer)))
     : ((await readCache(issuer)) ?? (await fetchDocument(issuer)));
 
   const bundles = doc?.marfa_permission_bundles ?? [];
@@ -241,39 +247,111 @@ export function typeReadableBySession(
   return isTypeGranted(session.granted, typeId);
 }
 
+/**
+ * What the last successful token exchange asked for, and what it was given.
+ *
+ * **Both halves, because either alone is the defect.** Recording only the
+ * request says nothing about the outcome, which is how a grant narrower than
+ * the offer became permanent and invisible: the extension wrote down the full
+ * advertised set, the server issued a subset, and every launch afterwards
+ * concluded there was nothing left to ask for. Recording only the grant cannot
+ * tell a server that widened its offer from one that did not.
+ */
+export interface GrantRecord {
+  advertised: string[];
+  granted: string[];
+}
+
 export interface ReconsentDecision {
   reconsent: boolean;
-  /** Advertised scopes the grant does not cover. Informational when
-   *  `reconsent` is false. */
+  /** Advertised scopes the grant does not cover. Present whatever the outcome,
+   *  because a shortfall nobody can act on is still a shortfall someone should
+   *  be able to read. */
   missing: string[];
-  /** Record `advertised` as the last-requested set, whatever the outcome. */
-  remember: boolean;
+  /** The pair to persist now, or null when re-consenting, because that flow
+   *  writes the actual outcome of its own exchange instead. */
+  remember: GrantRecord | null;
+}
+
+/** Set equality. A server free to report `core.note:read` twice, or in a
+ *  different order, has not changed what it granted, and treating either as a
+ *  change would cost a browser sign-in per launch. */
+const sameScopes = (a: readonly string[], b: readonly string[]) => {
+  const norm = (xs: readonly string[]) => [...new Set(xs)].sort().join(' ');
+  return norm(a) === norm(b);
+};
+
+/**
+ * Whether asking for consent again could change anything.
+ *
+ * **The rule is "has anything changed since this exact ask produced this exact
+ * answer", and the termination argument rests entirely on that.** A shortfall
+ * alone cannot decide it: a server may issue less than it advertises, so each
+ * consent returns the same grant, the next launch sees the same shortfall, and
+ * the session is discarded forever. That shipped once, and presented as signing
+ * out immediately after signing in.
+ *
+ * The guard that fixed it compared advertisements and never looked at the
+ * grant, which terminates but is blind: a server that quietly narrows is
+ * indistinguishable from one that granted everything. Comparing the pair
+ * terminates for the same reason and stays honest, because a grant that comes
+ * back short is recorded as short. A server that permanently refuses a scope
+ * therefore costs exactly one consent screen ever, rather than one per launch
+ * or none at all.
+ *
+ * **The live token is a hint and the record is authoritative.** A refresh
+ * response may omit `scope` entirely when it matches the request, and reading
+ * that absence as an empty grant would silently switch this whole check off an
+ * hour after a sign-in that verified it working.
+ *
+ * A first launch after this shipped has no record. It writes one and asks
+ * nothing, because a surprise consent screen on upgrade is indistinguishable
+ * from a real detection, and one of those is worth a person's attention.
+ */
+export function decideReconsent(input: {
+  record: GrantRecord | undefined;
+  advertised: string[];
+  /** The live token's scopes, when it reported any. */
+  liveGranted: string[] | undefined;
+}): ReconsentDecision {
+  // An empty live report is not a report. A token carrying `scope: ""` splits
+  // to an empty array rather than to undefined, so a nullish fallback alone
+  // would read it as a grant of nothing and overwrite a recorded grant with
+  // one, permanently silencing this check for that issuer.
+  const live = input.liveGranted?.length ? input.liveGranted : undefined;
+  const known = live ?? input.record?.granted;
+  const granted = known ?? [];
+  const pair: GrantRecord = { advertised: input.advertised, granted };
+  const missing = missingScopes(granted.join(' '), input.advertised);
+
+  // Nothing was reported and nothing was remembered, so there is nothing worth
+  // writing down. Recording an empty grant here would assert a narrow one on no
+  // evidence, and the empty-grant guard would then keep it silent forever.
+  if (!known) return { reconsent: false, missing, remember: null };
+
+  if (!input.record) return { reconsent: false, missing, remember: pair };
+  if (missing.length === 0) return { reconsent: false, missing, remember: pair };
+
+  const unchanged =
+    sameScopes(input.record.advertised, pair.advertised) &&
+    sameScopes(input.record.granted, pair.granted);
+
+  // Asked before, answered the same way. Reporting it is all that is left.
+  if (unchanged) return { reconsent: false, missing, remember: null };
+
+  return { reconsent: true, missing, remember: null };
 }
 
 /**
- * Whether asking for consent again could actually change anything.
+ * What the server actually issued.
  *
- * The rule is **"has the advertisement changed since we last asked"**, not
- * "is the grant short of the advertisement". Those look equivalent and are
- * not, because a server may grant less than it advertises, and has. Whether
- * any given deployment does so today is not a fact this file can hold. Deciding
- * from the shortfall alone never terminates: each consent returns the same
- * grant, the next launch sees the same shortfall, and the session is
- * discarded on every launch forever. That shipped once; this is the guard.
- *
- * Asking again for a set already asked for cannot produce a different
- * answer, so it is never worth a person's attention.
+ * **An absent `scope` means "as requested", not "nothing".** RFC 6749 section
+ * 5.1 makes the field optional precisely when the grant matches the request, so
+ * reading its absence as an empty set would be safe against a re-prompt loop
+ * and would throw away the fact that the grant was full, which is exactly the
+ * half a shortfall report depends on.
  */
-export function decideReconsent(input: {
-  lastRequested: string | undefined;
-  advertised: string[];
-  granted: string | undefined;
-}): ReconsentDecision {
-  const advertised = input.advertised.join(' ');
-  if (input.lastRequested === advertised) {
-    return { reconsent: false, missing: [], remember: false };
-  }
-
-  const missing = missingScopes(input.granted, input.advertised);
-  return { reconsent: missing.length > 0, missing, remember: true };
+export function scopesGranted(body: { scope?: string }, requested: readonly string[]): string[] {
+  const reported = body.scope?.split(/\s+/).filter(Boolean);
+  return reported?.length ? reported : [...requested];
 }
