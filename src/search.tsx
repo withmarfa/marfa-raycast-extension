@@ -2,7 +2,7 @@ import { Action, ActionPanel, Icon, List, Keyboard } from '@raycast/api';
 import type { LaunchProps } from '@raycast/api';
 import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
 import { useState } from 'react';
-import type { ItemState } from '@withmarfa/sdk';
+import type { Item, ItemState, Metadata } from '@withmarfa/sdk';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 import { stripHtmlTags } from './helpers';
@@ -14,6 +14,14 @@ import { useTypeGrant } from './use-type-grant';
 import { EmptyTrashAction } from './components/EmptyTrashAction';
 
 type StateFilter = ItemState | 'all';
+
+/** What both fetches return. A search adds a snippet; a recent read does not,
+ *  and the row renders one when it is there. */
+interface Result {
+  item: Item;
+  metadata: Metadata;
+  snippet_html?: string;
+}
 
 const STATE_FILTERS: Array<{ value: StateFilter; label: string }> = [
   { value: 'active', label: 'Active' },
@@ -36,17 +44,39 @@ function SearchCommand({ fallbackText }: LaunchProps) {
   const isGranted = useTypeGrant();
 
   const { data, isLoading, revalidate } = useCachedPromise(
-    async (q: string, typeFilter: string, tierFilter: TierFilter, stateFilter: StateFilter) => {
-      if (!q.trim()) return [];
+    async (
+      q: string,
+      typeFilter: string,
+      tierFilter: TierFilter,
+      stateFilter: StateFilter,
+    ): Promise<Result[]> => {
       const client = getClient();
-      return client.search(q, {
+      const filters = {
         type: typeFilter || undefined,
         state: stateFilter === 'all' ? undefined : stateFilter,
         tier: tierFilter,
-        limit: 20,
-      });
+      };
+
+      // With nothing typed, the most recent items rather than nothing at all.
+      // A command whose whole value is being one keystroke away should not open
+      // inert, and the same filters apply, so the dropdowns work before a query
+      // exists rather than after.
+      if (!q.trim()) {
+        const recent = await client.items.listWithMetadata({
+          ...filters,
+          sort: 'timestamp',
+          direction: 'desc',
+          limit: 20,
+        });
+        return recent.data;
+      }
+
+      return client.search(q, { ...filters, limit: 20 });
     },
-    [searchText, type, tier, state],
+    // Trimmed, because the fetcher branches on the trimmed value: an untrimmed
+    // key makes every whitespace variant a separate cache entry resolving to the
+    // same recent-items read.
+    [searchText.trim(), type, tier, state],
     {
       keepPreviousData: true,
       onError: async (err) => {
@@ -112,31 +142,16 @@ function SearchCommand({ fallbackText }: LaunchProps) {
       isShowingDetail={isShowingDetail}
       throttle
     >
-      {!searchText.trim() ? (
-        <List.EmptyView
-          title="Search Marfa"
-          description="Type to search your items"
-          icon="icon.png"
-          actions={
-            <ActionPanel>
-              {filterActions}
-              <Action
-                title={isShowingDetail ? 'Hide Details' : 'Show Details'}
-                icon={Icon.Sidebar}
-                shortcut={{ modifiers: ['cmd'], key: 'd' }}
-                onAction={toggleDetail}
-              />
-            </ActionPanel>
-          }
-        />
-      ) : data?.length === 0 ? (
+      {data?.length === 0 ? (
         <List.EmptyView
           icon={type && !isGranted(type) ? Icon.Lock : undefined}
-          title={type && !isGranted(type) ? 'Not shared with Raycast' : 'No results'}
+          title={type && !isGranted(type) ? 'Not shared with Raycast' : 'Nothing here'}
           description={
             type && !isGranted(type)
               ? `Your sign-in did not grant access to ${type}.`
-              : `No items matching "${searchText}"`
+              : searchText.trim()
+                ? `No items matching "${searchText}"`
+                : 'No items yet'
           }
           actions={
             <ActionPanel>
