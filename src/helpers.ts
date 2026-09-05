@@ -99,14 +99,54 @@ export function stripHtmlTags(html: string): string {
   return html.replace(/<[^>]*>/g, '');
 }
 
+/**
+ * Initialisms that read as shouting when lowercased, which the sidebar did to
+ * every one of them: `playlist_id` rendered as "Playlist id", `html_link` as
+ * "Html link".
+ *
+ * A hand-written set, and defensibly so. This is a fact about written English
+ * rather than about any Marfa instance, so it cannot drift the way a copy of
+ * the type registry would, and a word missing from it degrades to exactly the
+ * old behavior rather than to something wrong.
+ */
+const INITIALISMS = new Set([
+  'api',
+  'css',
+  'guid',
+  'html',
+  'http',
+  'https',
+  'id',
+  'isbn',
+  'isrc',
+  'iso8601',
+  'json',
+  'md5',
+  'mime',
+  'oauth',
+  'rss',
+  'sha256',
+  'sku',
+  'sql',
+  'uri',
+  'url',
+  'utc',
+  'uuid',
+  'xml',
+]);
+
 export function toTitleCase(key: string): string {
   const words = key.split('_').filter(Boolean);
   if (words.length === 0) return key;
-  const [first, ...rest] = words;
-  return [
-    first.charAt(0).toUpperCase() + first.slice(1).toLowerCase(),
-    ...rest.map((w) => w.toLowerCase()),
-  ].join(' ');
+  return words
+    .map((word, index) => {
+      const lower = word.toLowerCase();
+      if (INITIALISMS.has(lower)) return lower.toUpperCase();
+      // Only the first word is capitalized. The rest stay lowercase, which is
+      // how a label reads rather than a heading.
+      return index === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
+    })
+    .join(' ');
 }
 
 export type ImageSource =

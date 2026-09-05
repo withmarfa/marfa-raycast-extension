@@ -91,6 +91,9 @@ export function classifyProperty(
     return { kind: 'complex', key, value };
   }
   if (typeof value === 'object') {
+    // An empty object is as empty as an empty array, and both render a row
+    // whose only content is that it has none.
+    if (Object.keys(value).length === 0) return null;
     return { kind: 'complex', key, value };
   }
   return null;

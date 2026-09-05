@@ -98,7 +98,7 @@ Browse, Search and Quick Capture are the three a person runs daily and the only 
 
 ## Action panel
 
-- **All items:** View Detail, Copy Title/ID, Add/Remove Tags, Reply (in-thread edge), Annotate (`references` edge → `core.highlight`), State transitions (Active/Archived/Trash).
+- **All items:** View Detail, Copy Title/ID, Add/Remove Tags, Reply (in-thread edge), Annotate (`references` edge → `core.highlight`), State transitions (Active/Archived/Trash). The detail's Edges view lists the item's outbound edges, grouped by type, with the item on the other end resolved and reachable rather than rendered as a JSON block. Inbound edges are a separate read (`items.backrefs`) and are not shown; an item that only ever appears as a target therefore has no Edges action.
 - **Bookmarks also:** Open in Browser (primary action), Copy URL.
 - **Trashed items:** Restore, Delete Permanently (irreversible purge). When the lifecycle filter is set to **Trash**, an **Empty Trash** action (⌘⇧⌫) is surfaced; it calls `items.bulkAction({ action: 'purge', confirm: 'PURGE', filter: { state: 'trashed' } })` behind a `confirmAlert` gate.
 
