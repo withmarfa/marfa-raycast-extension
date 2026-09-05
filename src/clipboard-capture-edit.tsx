@@ -118,7 +118,7 @@ async function readClipboardSnapshot(): Promise<ClipboardSnapshot> {
 }
 
 function inferDefaultType(snapshot: ClipboardSnapshot, prefDefault?: string): string {
-  // File on clipboard always wins — auto-detected file type beats the
+  // File on clipboard always wins: an auto-detected file type beats the
   // operator's preference for the bookmark / note / task / event family.
   if (snapshot.file) {
     return 'core.file';
@@ -167,7 +167,7 @@ function ClipboardCaptureEditCommand() {
     return <Form isLoading />;
   }
 
-  // First-render default — once the user picks a type via the dropdown,
+  // First-render default. Once the user picks a type via the dropdown,
   // honor their choice for the rest of the session.
   const activeType = type ?? inferDefaultType(snapshot, prefs.defaultCaptureType);
 
@@ -298,7 +298,7 @@ function ClipboardCaptureEditCommand() {
         <>
           <Form.Description
             title="Source file"
-            text={snapshot.file ?? 'No file on clipboard — switch to a non-file type.'}
+            text={snapshot.file ?? 'No file on clipboard. Switch to a non-file type.'}
           />
           <Form.TextField
             id="title"

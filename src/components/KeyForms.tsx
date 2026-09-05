@@ -117,7 +117,7 @@ const CUSTOM_PRESET_ID = 'custom';
 interface QuickSetOption<T extends string> {
   id: string;
   label: string;
-  value: Record<string, T> | null; // null means "Custom — see raw JSON below"
+  value: Record<string, T> | null; // null means "Custom", with the raw JSON below
 }
 
 const TYPE_QUICKSETS: QuickSetOption<'read' | 'write' | 'none'>[] = [
@@ -195,7 +195,7 @@ function parseMap<T extends string>(
 
 export function PlaintextKeyView({ apiKey }: { apiKey: ApiKey & { key: string } }) {
   const { pop } = useNavigation();
-  const markdown = `> Copy this key now — it cannot be retrieved again.
+  const markdown = `> Copy this key now. It cannot be retrieved again.
 
 \`\`\`
 ${apiKey.key}

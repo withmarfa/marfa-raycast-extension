@@ -172,14 +172,14 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
           <Detail.Metadata.Label title="Source" text={item.source} />
           {item.device && <Detail.Metadata.Label title="Device" text={item.device} />}
           {item.source_id && <Detail.Metadata.Label title="Source ID" text={item.source_id} />}
-          {(item.capture_latitude !== undefined || item.capture_longitude !== undefined) && (
+          {/* Both halves or neither. One coordinate is not a location, and the
+              row that used to render for it said so with a dash, which is a
+              row whose only content is that it has none. The inline panel
+              already required both; this is the two agreeing. */}
+          {item.capture_latitude !== undefined && item.capture_longitude !== undefined && (
             <Detail.Metadata.Label
               title="Location"
-              text={
-                item.capture_latitude !== undefined && item.capture_longitude !== undefined
-                  ? `${item.capture_latitude.toFixed(4)}, ${item.capture_longitude.toFixed(4)}`
-                  : '—'
-              }
+              text={`${item.capture_latitude.toFixed(4)}, ${item.capture_longitude.toFixed(4)}`}
             />
           )}
 
@@ -289,11 +289,11 @@ function EdgesDetailView({ itemTitle, edges }: { itemTitle: string; edges: Edge[
     }
   }
 
-  const lines: string[] = [`# Edges — ${itemTitle}`, ''];
+  const lines: string[] = [`# Edges: ${itemTitle}`, ''];
   for (const [edgeType, edgesOfType] of grouped.entries()) {
     lines.push(`## ${edgeType} (${edgesOfType.length})`, '');
     lines.push('```json', JSON.stringify(edgesOfType, null, 2), '```', '');
   }
 
-  return <Detail markdown={lines.join('\n')} navigationTitle={`Edges — ${itemTitle}`} />;
+  return <Detail markdown={lines.join('\n')} navigationTitle={`Edges: ${itemTitle}`} />;
 }
