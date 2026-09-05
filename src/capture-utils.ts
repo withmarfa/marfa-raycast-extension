@@ -1,12 +1,9 @@
-import type { TypeSchema } from '@withmarfa/sdk';
 import { isValidTimeZone } from '@withmarfa/shared';
 import { runAppleScript } from '@raycast/utils';
 import { CAPTURE_TYPES } from './constants';
 import { FIRST_CLASS_SHADOW_KEYS } from './item-metadata';
 
 export type CoreCaptureType = (typeof CAPTURE_TYPES)[number]['value'];
-export type TypeSchemaWithRequired = TypeSchema & { required?: string[] };
-
 export interface CaptureValues {
   title?: string;
   body?: string;
@@ -138,10 +135,14 @@ export function buildCoreCaptureProperties(
 
 export function parseCustomPropertiesJson(
   raw: string | undefined,
-  schema?: TypeSchemaWithRequired,
+  required: ReadonlySet<string>,
 ): { properties: Record<string, unknown> } | { error: ValidationError } {
   const trimmed = raw?.trim() ?? '';
-  if (!trimmed) return { properties: {} };
+  // An empty box is an empty object, not a skipped check. Returning early here
+  // meant a type with required fields was submitted unvalidated whenever the
+  // person cleared the editor or resumed a draft that had stored an empty
+  // string, which is the whole of what this function is for.
+  if (!trimmed) return withRequired({}, required);
 
   let parsed: unknown;
   try {
@@ -154,8 +155,14 @@ export function parseCustomPropertiesJson(
     return { error: { field: 'propertiesJson', message: 'Properties must be a JSON object' } };
   }
 
-  const properties = parsed as Record<string, unknown>;
-  for (const field of schema?.required ?? []) {
+  return withRequired(parsed as Record<string, unknown>, required);
+}
+
+function withRequired(
+  properties: Record<string, unknown>,
+  required: ReadonlySet<string>,
+): { properties: Record<string, unknown> } | { error: ValidationError } {
+  for (const field of required) {
     const value = properties[field];
     const missing =
       value === undefined ||
@@ -167,12 +174,11 @@ export function parseCustomPropertiesJson(
       };
     }
   }
-
   return { properties };
 }
 
 /**
- * Parse a `key: value` block — one per line, optional `#` comments, blank
+ * Parse a `key: value` block: one per line, optional `#` comments, blank
  * lines ignored. Coerces obvious shapes: `true`/`false` → boolean,
  * all-digit values (with optional decimal / sign) → number, anything else
  * stays a string. Rejects collisions with first-class Item field names
@@ -237,9 +243,9 @@ function coerceValue(raw: string): unknown {
 /**
  * Fetch the current device location by invoking a user-installed macOS
  * Shortcut named "Marfa Capture Location" (or the override). The Shortcut is
- * expected to output `lat,lon` on stdout. Returns `null` on any failure —
- * missing shortcut, denied permission, malformed output — so capture flows
- * can proceed without location rather than blocking.
+ * expected to output `lat,lon` on stdout. Returns `null` on any failure,
+ * whether a missing shortcut, a denied permission or malformed output, so
+ * capture flows proceed without location rather than blocking.
  *
  * Best-effort by design. The user owns the Shortcut and grants whatever
  * permissions it needs (typically Find My / location). The extension never

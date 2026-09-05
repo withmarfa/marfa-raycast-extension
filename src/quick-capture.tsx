@@ -29,6 +29,7 @@ import {
   CustomPropertiesFields,
 } from './components/CaptureFields';
 import { buildCaptureTypeOptions, findSchema, schemaSummary } from './type-options';
+import { requiredFieldNames } from './schema-fields';
 import { useTypeRegistry } from './use-type-registry';
 
 interface CapturePreferences {
@@ -99,7 +100,10 @@ function QuickCaptureCommand({ draftValues }: LaunchProps<{ draftValues: FormVal
         setPropertiesError(`Type ${type} is not registered on this server`);
         return;
       }
-      const parsed = parseCustomPropertiesJson(values.propertiesJson, schema);
+      const parsed = parseCustomPropertiesJson(
+        values.propertiesJson,
+        requiredFieldNames(typeSchemas, type),
+      );
       if ('error' in parsed) {
         setPropertiesError(parsed.error.message);
         return;
@@ -190,7 +194,7 @@ function QuickCaptureCommand({ draftValues }: LaunchProps<{ draftValues: FormVal
         </>
       ) : (
         <CustomPropertiesFields
-          schemaText={schemaSummary(findSchema(typeSchemas, type), type)}
+          schemaText={schemaSummary(typeSchemas, type)}
           propertiesError={propertiesError}
           defaultPropertiesJson={draftValues?.propertiesJson}
           onPropertiesChange={() => setPropertiesError(undefined)}
