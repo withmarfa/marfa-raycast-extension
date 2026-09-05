@@ -38,24 +38,21 @@
       "title": "Clipboard Capture",
       "subtitle": "Marfa",
       "description": "Capture clipboard content instantly as a bookmark, image, file, or note",
-      "mode": "no-view",
-      "disabledByDefault": true
+      "mode": "no-view"
     },
     {
       "name": "clipboard-capture-edit",
       "title": "Clipboard Capture (Edit)",
       "subtitle": "Marfa",
       "description": "Capture clipboard content with a form to shape type and properties before submitting",
-      "mode": "view",
-      "disabledByDefault": true
+      "mode": "view"
     },
     {
       "name": "manage-keys",
       "title": "Manage Keys",
       "subtitle": "Marfa",
       "description": "Admin: list, create, edit, and revoke API keys",
-      "mode": "view",
-      "disabledByDefault": true
+      "mode": "view"
     },
     {
       "name": "server-info",
@@ -70,8 +67,7 @@
       "title": "Type Registry",
       "subtitle": "Marfa",
       "description": "Browse every type registered on the instance (core, custom, system)",
-      "mode": "view",
-      "disabledByDefault": true
+      "mode": "view"
     }
   ],
   "preferences": [
