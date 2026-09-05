@@ -64,7 +64,7 @@ const CURATED_APPEARANCE = {
  * platform's own namespace grammar rather than from prefix matching here,
  * so a new tier is a compile error rather than a silent miss.
  */
-const TIER_APPEARANCE: Record<NamespaceTier, TypeAppearance> = {
+export const TIER_APPEARANCE: Record<NamespaceTier, TypeAppearance> = {
   core: { icon: Icon.Circle, color: Color.Blue },
   system: { icon: Icon.Cog, color: Color.SecondaryText },
   app: { icon: Icon.AppWindow, color: Color.SecondaryText },

@@ -15,6 +15,7 @@ import { showFailureToast } from '@raycast/utils';
 import type { ApiKey } from '@withmarfa/sdk';
 import { ForbiddenError } from '@withmarfa/sdk';
 import { getClient } from '../client';
+import { roleColor } from '../constants';
 import { formatRelativeTime } from '../helpers';
 import { EditKeyForm } from './KeyForms';
 
@@ -22,23 +23,43 @@ function permissionMapTags(map: Record<string, string> | undefined): Array<[stri
   return Object.entries(map ?? {});
 }
 
-function permissionMapBlock(label: string, map: Record<string, string> | undefined): string {
-  const entries = Object.entries(map ?? {});
-  if (entries.length === 0) return `**${label}:** none\n`;
-  return `**${label}:**\n\n\`\`\`json\n${JSON.stringify(map, null, 2)}\n\`\`\`\n`;
+/** How many resources a key names across every map, which is the one thing the
+ *  sidebar's tag lists do not say at a glance. */
+function permissionCount(apiKey: ApiKey): number {
+  return [
+    apiKey.type_permissions,
+    apiKey.extension_permissions,
+    apiKey.edge_permissions,
+    apiKey.metadata_permissions,
+  ].reduce((total, map) => total + Object.keys(map ?? {}).length, 0);
 }
 
 export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh: () => void }) {
   const { pop } = useNavigation();
 
+  // The four permission maps used to print here as JSON blocks while the
+  // sidebar rendered the same entries as tags, so the screen said everything
+  // twice and neither copy was readable. The tags are the answer; the raw form
+  // is one action away for anyone who wants to paste it somewhere.
+  const count = permissionCount(apiKey);
   const markdown = [
     `# ${apiKey.label}`,
     '',
-    permissionMapBlock('Type permissions', apiKey.type_permissions),
-    permissionMapBlock('Extension permissions', apiKey.extension_permissions),
-    permissionMapBlock('Edge permissions', apiKey.edge_permissions),
-    permissionMapBlock('Metadata permissions', apiKey.metadata_permissions),
+    count === 0
+      ? 'This key names no permissions, so it can reach nothing.'
+      : `Grants across ${count === 1 ? '1 resource' : `${String(count)} resources`}, listed beside.`,
   ].join('\n');
+
+  const permissionsJson = JSON.stringify(
+    {
+      type_permissions: apiKey.type_permissions,
+      extension_permissions: apiKey.extension_permissions,
+      edge_permissions: apiKey.edge_permissions,
+      metadata_permissions: apiKey.metadata_permissions,
+    },
+    null,
+    2,
+  );
 
   async function handleRevoke() {
     const confirmed = await confirmAlert({
@@ -73,12 +94,11 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
       navigationTitle={apiKey.label}
       metadata={
         <Detail.Metadata>
-          <Detail.Metadata.Label title="Label" text={apiKey.label} />
+          {/* No Label row. It is the heading directly above and the navigation
+              title, and a screen that states an identifier three times is the
+              same defect the list row had. */}
           <Detail.Metadata.TagList title="Role">
-            <Detail.Metadata.TagList.Item
-              text={apiKey.role}
-              color={apiKey.role === 'instance_admin' ? Color.Red : Color.Blue}
-            />
+            <Detail.Metadata.TagList.Item text={apiKey.role} color={roleColor(apiKey.role)} />
           </Detail.Metadata.TagList>
           <Detail.Metadata.Label title="Source" text={apiKey.source} />
           <Detail.Metadata.Separator />
@@ -130,6 +150,11 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
             title="Edit"
             icon={Icon.Pencil}
             target={<EditKeyForm apiKey={apiKey} onSaved={onRefresh} />}
+          />
+          <Action.CopyToClipboard
+            title="Copy Permissions JSON"
+            content={permissionsJson}
+            shortcut={Keyboard.Shortcut.Common.Copy}
           />
           <Action.CopyToClipboard
             title="Copy Key ID"
