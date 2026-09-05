@@ -1,14 +1,15 @@
 import { Action, ActionPanel, Detail, getPreferenceValues, Icon, Keyboard } from '@raycast/api';
-import { showFailureToast, useCachedPromise } from '@raycast/utils';
+import { useCachedPromise } from '@raycast/utils';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
-import { getClient } from './client';
+import { getClient, isStaticKeySession } from './client';
+import { resolveSessionIdentity, type SessionIdentity } from './session-identity';
 
 /**
- * Server Info — read-only operator view. Surfaces instance URL, auth
- * mode, and signed-in identity. Sign-out lives in Raycast's built-in
- * **Logout** preference (auto-surfaced once tokens are stored). Disabled
- * by default in package.json — operators flip it on in Raycast Preferences
- * → Extensions → Marfa when they want it.
+ * Server Info, a read-only operator view. Surfaces instance URL, auth mode and
+ * signed-in identity. Sign-out lives in Raycast's built-in **Logout**
+ * preference, auto-surfaced once tokens are stored. Disabled by default in
+ * package.json, so operators flip it on in Raycast Preferences → Extensions →
+ * Marfa when they want it.
  */
 
 interface Preferences {
@@ -16,37 +17,22 @@ interface Preferences {
   apiKey?: string;
 }
 
-interface ServerInfoData {
-  authMode: 'oauth' | 'apiKey';
-  identity: string;
-}
-
 function ServerInfoCommand() {
   const { apiUrl, apiKey } = getPreferenceValues<Preferences>();
 
-  const { data, isLoading, revalidate } = useCachedPromise(
-    async (): Promise<ServerInfoData> => {
-      if (apiKey?.trim()) {
-        return { authMode: 'apiKey', identity: 'API key' };
-      }
-      const client = getClient();
-      try {
-        const profile = await client.profile.get();
-        const display = profile.username
-          ? `${profile.email} (@${profile.username})`
-          : profile.email;
-        return { authMode: 'oauth', identity: display };
-      } catch {
-        return { authMode: 'apiKey', identity: 'API key' };
-      }
-    },
-    [],
-    {
-      onError: async (err) => {
-        await showFailureToast(err, { title: 'Failed to read profile' });
-      },
-    },
-  );
+  const { data, isLoading, revalidate } = useCachedPromise(async (): Promise<SessionIdentity> => {
+    const staticKey = isStaticKeySession();
+    if (staticKey) return resolveSessionIdentity({ staticKey });
+    try {
+      return resolveSessionIdentity({ staticKey, profile: await getClient().profile.get() });
+    } catch (error) {
+      // Handled rather than thrown, which is also why this hook has no error
+      // handler: a profile this session cannot read is the ordinary case, so
+      // a toast on every launch would be noise on the one screen meant to
+      // explain the session rather than interrupt it. The reason is rendered.
+      return resolveSessionIdentity({ staticKey, error });
+    }
+  }, []);
 
   const lines: string[] = ['# Server Info', ''];
   lines.push('| Field | Value |');
@@ -62,6 +48,10 @@ function ServerInfoCommand() {
     lines.push(`| **API key fingerprint** | \`${apiKey.slice(0, 8)}…${apiKey.slice(-4)}\` |`);
   }
   lines.push('');
+  // Below the table rather than in it. The reason can be a message the server
+  // wrote, and a pipe or a newline in a table cell silently reshapes every row
+  // after it. Out here the worst a stray character does is read oddly.
+  if (data?.note) lines.push(`> ${data.note}`, '');
   lines.push('Sign out via Raycast → Extensions → Marfa → **Logout**.');
 
   return (

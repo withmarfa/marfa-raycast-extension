@@ -24,10 +24,14 @@
  * resolver chose differently, and proves nothing about whether a person would
  * see two different glyphs.
  *
- * Nothing else is doubled. The next module to need `LocalStorage` or a hook
- * brings its own double with it, rather than this growing a runtime nobody
- * loads.
+ * `LocalStorage` is doubled because the scope-grammar module imports it at the
+ * top level, so nothing in that file can be imported without it. Unlike the
+ * enums it is bound to the real namespace's type, so a signature the platform
+ * changes stops the build here rather than surfacing as a test passing against
+ * an API nothing has any more.
  */
+
+import type { LocalStorage as RaycastStorage } from '@raycast/api';
 
 function nameKeyedEnum(): Record<string, string> {
   return new Proxy(
@@ -40,3 +44,28 @@ function nameKeyedEnum(): Record<string, string> {
 
 export const Icon = nameKeyedEnum();
 export const Color = nameKeyedEnum();
+
+/**
+ * In-memory and per-process, honest about not persisting. It has to actually
+ * store rather than no-op: a double returning `undefined` from every read would
+ * make a cache test pass for the wrong reason.
+ */
+const store = new Map<string, RaycastStorage.Value>();
+
+export const LocalStorage: typeof import('@raycast/api').LocalStorage = {
+  async getItem<T extends RaycastStorage.Value>(key: string): Promise<T | undefined> {
+    return store.get(key) as T | undefined;
+  },
+  async setItem(key: string, value: RaycastStorage.Value): Promise<void> {
+    store.set(key, value);
+  },
+  async removeItem(key: string): Promise<void> {
+    store.delete(key);
+  },
+  async clear(): Promise<void> {
+    store.clear();
+  },
+  async allItems<T extends RaycastStorage.Values>(): Promise<T> {
+    return Object.fromEntries(store) as T;
+  },
+};
