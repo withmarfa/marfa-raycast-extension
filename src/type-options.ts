@@ -1,7 +1,7 @@
 import type { TypeSchema } from '@withmarfa/sdk';
 import { ALL_TYPES_OPTION, CAPTURE_TYPES } from './constants';
 import type { TypeRegistry } from './type-display';
-import type { TypeSchemaWithRequired } from './capture-utils';
+import { requiredFieldNames, resolveSchemaFields } from './schema-fields';
 
 export interface TypeOption {
   value: string;
@@ -17,8 +17,8 @@ function addOption(options: TypeOption[], option: TypeOption): void {
 /**
  * Filter options are whatever the instance actually holds, in the
  * registry's own label order. There is no seeded list of core types: the
- * server returns those too, and a second copy could only disagree with it
- * — including on a self-hosted instance that registered something else
+ * server returns those too, and a second copy could only disagree with it,
+ * including on a self-hosted instance that registered something else
  * entirely.
  */
 export function buildTypeFilterOptions(registry: TypeRegistry): TypeOption[] {
@@ -59,17 +59,21 @@ export function buildCaptureTypeOptions(
 export function findSchema(
   schemas: TypeSchema[] | undefined,
   type: string,
-): TypeSchemaWithRequired | undefined {
-  return schemas?.find((schema) => schema.id === type) as TypeSchemaWithRequired | undefined;
+): TypeSchema | undefined {
+  return schemas?.find((schema) => schema.id === type);
 }
 
-export function schemaSummary(schema: TypeSchemaWithRequired | undefined, type: string): string {
+export function schemaSummary(schemas: TypeSchema[] | undefined, type: string): string {
+  const schema = findSchema(schemas, type);
   if (!schema) {
     return `No schema was available for ${type}. Submit a JSON object and Marfa will validate it.`;
   }
 
-  const fields = Object.entries(schema.fields ?? {});
-  const required = schema.required?.length ? schema.required.join(', ') : 'none';
+  // Both resolved through the type's ancestry, so a subtype that inherits its
+  // parent's fields describes them rather than appearing to have none.
+  const fields = Object.entries(resolveSchemaFields(schemas, type));
+  const requiredNames = [...requiredFieldNames(schemas, type)];
+  const required = requiredNames.length ? requiredNames.join(', ') : 'none';
   const fieldList =
     fields.length > 0
       ? fields

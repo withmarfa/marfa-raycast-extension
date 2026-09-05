@@ -32,6 +32,7 @@ import {
   CustomPropertiesFields,
 } from './components/CaptureFields';
 import { buildCaptureTypeOptions, findSchema, schemaSummary } from './type-options';
+import { requiredFieldNames } from './schema-fields';
 import { useTypeRegistry } from './use-type-registry';
 
 /**
@@ -237,7 +238,10 @@ function ClipboardCaptureEditCommand() {
           setPropertiesError(`Type ${activeType} is not registered on this server`);
           return;
         }
-        const parsed = parseCustomPropertiesJson(values.propertiesJson, schema);
+        const parsed = parseCustomPropertiesJson(
+          values.propertiesJson,
+          requiredFieldNames(typeSchemas, activeType),
+        );
         if ('error' in parsed) {
           setPropertiesError(parsed.error.message);
           return;
@@ -327,7 +331,7 @@ function ClipboardCaptureEditCommand() {
         </>
       ) : (
         <CustomPropertiesFields
-          schemaText={schemaSummary(findSchema(typeSchemas, activeType), activeType)}
+          schemaText={schemaSummary(typeSchemas, activeType)}
           propertiesError={propertiesError}
           defaultPropertiesJson={defaultCustomPropertiesJson(snapshot)}
           onPropertiesChange={() => setPropertiesError(undefined)}

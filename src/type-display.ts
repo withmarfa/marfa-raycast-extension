@@ -1,5 +1,5 @@
 import { Color, Icon } from '@raycast/api';
-import { classifyNamespace, isSystemType } from '@withmarfa/shared';
+import { classifyNamespace, isSystemType, MAX_RESOLUTION_DEPTH } from '@withmarfa/shared';
 import type { NamespaceTier, PlatformTypeId } from '@withmarfa/shared';
 import type { Item, TypeSchema } from '@withmarfa/sdk';
 import { fallbackItemSubtitle, fallbackItemTitle, toTitleCase } from './helpers';
@@ -73,8 +73,15 @@ const TIER_APPEARANCE: Record<NamespaceTier, TypeAppearance> = {
   marfa: { icon: Icon.Box, color: Color.Magenta },
 };
 
-/** Guards a malformed registry whose `parent` chain loops back on itself. */
-const MAX_ANCESTRY_DEPTH = 8;
+/**
+ * Ends a `parent` chain that loops back on itself.
+ *
+ * A repeat rather than a count. A small fixed depth silently truncates a legal
+ * chain, so a type nested more deeply than the number someone picked would
+ * resolve against an ancestor it does not have. The platform's own bound is
+ * what stops a pathological one.
+ */
+const MAX_ANCESTRY_DEPTH = MAX_RESOLUTION_DEPTH;
 
 export interface TypeRegistry {
   schema(typeId: string): TypeSchema | undefined;
@@ -107,8 +114,9 @@ export function buildTypeRegistry(schemas: TypeSchema[] | undefined): TypeRegist
   /** Walk a type and its ancestors, nearest first. */
   function* lineage(typeId: string): Generator<TypeSchema> {
     let current = byId.get(typeId);
-    let depth = 0;
-    while (current && depth++ < MAX_ANCESTRY_DEPTH) {
+    const seen = new Set<string>();
+    while (current && !seen.has(current.id) && seen.size < MAX_ANCESTRY_DEPTH) {
+      seen.add(current.id);
       yield current;
       current = current.parent ? byId.get(current.parent) : undefined;
     }

@@ -120,6 +120,7 @@ Resolution order:
 
 Two rules worth keeping:
 
+- **Required-ness is declared two ways and both are read.** The platform's schema validator accepts a top-level `["title"]` array and a per-field `required: true`, normalizing the first into the second, which is why a current server shows only the flags. The extension read only the array, found none, and therefore validated nothing: every type reported requiring nothing and no capture was refused before it reached the network. `requiredFieldNames` unions both, through the type's ancestry.
 - **Walk ancestry across the fetched schema list, never through shared's `getTypeSchema`/`isSubtypeOf`.** Those resolve against the vocabulary compiled into the package and cannot know what a given instance registered. The grammar helpers (`classifyNamespace`, `isSystemType`) are instance-independent and are safe to call directly.
 - **Do not extend `CURATED_APPEARANCE` to cover integration or publisher types.** It exists only where a distinct glyph carries recognition a label cannot, which is true of the core vocabulary and essentially nothing else. Its `satisfies` clause pins those identifiers so a platform rename fails the build; widening it to integration types would buy a build check at the cost of the flexibility the resolver exists to provide.
 

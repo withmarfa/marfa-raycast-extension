@@ -28,9 +28,9 @@ import { defineConfig } from 'vitest/config';
  * Types still come from the real package, so substituting the runtime cannot
  * change what any source file is checked against.
  *
- * `@raycast/utils` has no alias, and the stub doubles only `Icon` and `Color`,
- * because that is everything the current tests import. The next module to need
- * more brings it, rather than this accumulating a runtime nobody loads.
+ * Each stub doubles only what something under test actually loads. The next
+ * module to need more brings it, rather than this accumulating a runtime nobody
+ * calls.
  */
 export default defineConfig({
   test: {
@@ -61,6 +61,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@raycast/api': fileURLToPath(new URL('./test/stubs/raycast-api.ts', import.meta.url)),
+      '@raycast/utils': fileURLToPath(new URL('./test/stubs/raycast-utils.ts', import.meta.url)),
     },
   },
 });
