@@ -9,6 +9,7 @@ npm install
 npm run dev         # development mode in Raycast
 npm run build       # production build
 npm run lint        # lint with Raycast rules (ESLint 9 flat config)
+npm run test        # vitest run
 npm run typecheck   # tsc --noEmit. Faster signal than `ray build` for type errors
 ```
 
@@ -41,6 +42,33 @@ Implicit OAuth on first use, following the canonical Raycast pattern. Every comm
 - **No Sign In or Sign Out command.** Sign-out is the Raycast-built-in **Logout** option that auto-surfaces in extension settings once tokens are stored.
 
 ## Testing
+
+**Automated coverage is deliberately narrow: pure logic only.** Property classification and
+display resolution are covered today. Scope grammar and the capture validators are the two other
+surfaces that belong here and do not have tests yet, so a green suite is not yet evidence about
+either. All four are functions taking values and returning values, which is where every defect
+that has cost real time in this extension has lived. Component rendering is not harnessed and should not be, because the components are a
+mechanical transform over data those functions produce and a render test would assert only that a
+loop exists.
+
+- **Tests live in `test/`, mirroring `src/`, and not beside the source.** `ray lint` runs ESLint
+  over every file in the source directory, so a colocated test is a linted test. `ray build`
+  compiles only the entry points the manifest declares and would never have bundled one, so lint
+  is the whole of the reason.
+- **`@raycast/api` ships no runtime.** Its manifest declares `types` and no `main`, `module` or
+  `exports`, because Raycast injects the runtime when it builds. Anything importing an `Icon`, a
+  `Color` or `LocalStorage` as a value is therefore unimportable under a plain Node runner, which
+  is most of what is worth testing. `vitest.config.mts` aliases the package to `test/stubs/`,
+  which doubles only what something under test actually imports. Types still resolve from the
+  real package, so a stub cannot change what a source file is checked against. The `Icon` and
+  `Color` proxies are the part a stub cannot keep honest: a member the platform renames still
+  resolves through the proxy, and only `typecheck` sees that.
+- **`pretest` runs the version guard**, for the same reason `pretypecheck` does. A test asserting
+  agreement with `@withmarfa/shared` against a tree that drifted from the lockfile asserts
+  nothing.
+
+Manual verification against a real instance is still the thing that decides whether a change
+works, and no suite here replaces it:
 
 - Point the extension at a staging Marfa server during development.
 - First run of any command triggers OAuth consent: Better Auth sign-in, then approve.

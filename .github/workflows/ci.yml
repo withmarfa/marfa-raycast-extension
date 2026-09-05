@@ -32,4 +32,7 @@ jobs:
 
       - run: npm run lint
 
+      # Ahead of the build because it fails faster and says more when it does.
+      - run: npm test
+
       - run: npm run build
