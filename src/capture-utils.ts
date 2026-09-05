@@ -1,23 +1,6 @@
 import { isValidTimeZone } from '@withmarfa/shared';
 import { runAppleScript } from '@raycast/utils';
-import { CAPTURE_TYPES } from './constants';
 import { FIRST_CLASS_SHADOW_KEYS } from './item-metadata';
-
-export type CoreCaptureType = (typeof CAPTURE_TYPES)[number]['value'];
-export interface CaptureValues {
-  title?: string;
-  body?: string;
-  url?: string;
-  description?: string;
-  due_at?: Date | null;
-  starts_at?: Date | null;
-  ends_at?: Date | null;
-  all_day?: boolean;
-  timezone?: string;
-  end_timezone?: string;
-  priority?: string;
-  place?: string;
-}
 
 /**
  * The zone this machine is in, used as the default an event carries.
@@ -33,15 +16,13 @@ export function deviceTimeZone(): string {
   return zone && isValidTimeZone(zone) ? zone : 'UTC';
 }
 
+/**
+ * A failure in the free-form properties block, which is the one input here
+ * that has no schema field to name. Errors about schema fields are keyed by
+ * field name in `capture-values`.
+ */
 export interface ValidationError {
-  field: 'body' | 'title' | 'url' | 'ends_at' | 'timezone' | 'propertiesJson' | 'extraProperties';
   message: string;
-}
-
-const CORE_CAPTURE_TYPE_IDS = new Set<string>(CAPTURE_TYPES.map((t) => t.value));
-
-export function isCoreCaptureType(type: string): type is CoreCaptureType {
-  return CORE_CAPTURE_TYPE_IDS.has(type);
 }
 
 export function normalizeTypeId(type: string | undefined): string {
@@ -67,116 +48,6 @@ export function mergeTags(...values: Array<string | undefined>): string[] | unde
   return tags.length > 0 ? tags : undefined;
 }
 
-export function validateCoreCapture(type: string, values: CaptureValues): ValidationError | null {
-  if (type === 'core.note' && !values.body?.trim()) {
-    return { field: 'body', message: 'Body is required' };
-  }
-  if (type === 'core.bookmark' && !values.url?.trim()) {
-    return { field: 'url', message: 'URL is required' };
-  }
-  if ((type === 'core.task' || type === 'core.event') && !values.title?.trim()) {
-    return { field: 'title', message: 'Title is required' };
-  }
-  if (type === 'core.event') {
-    for (const zone of [values.timezone, values.end_timezone]) {
-      if (zone?.trim() && !isValidTimeZone(zone.trim())) {
-        return { field: 'timezone', message: `${zone} is not a recognized time zone` };
-      }
-    }
-    if (values.starts_at && values.ends_at && values.ends_at < values.starts_at) {
-      return { field: 'ends_at', message: 'The end is before the start' };
-    }
-  }
-  return null;
-}
-
-export function buildCoreCaptureProperties(
-  type: CoreCaptureType,
-  values: CaptureValues,
-  options?: { html?: string; sourceText?: string },
-): Record<string, unknown> {
-  const properties: Record<string, unknown> = {};
-  switch (type) {
-    case 'core.note':
-      if (values.title?.trim()) properties.title = values.title.trim();
-      if (values.body?.trim()) properties.body = values.body.trim();
-      if (options?.html && options.html !== options.sourceText) properties.html = options.html;
-      break;
-    case 'core.bookmark':
-      if (values.url?.trim()) properties.url = values.url.trim();
-      if (values.title?.trim()) properties.title = values.title.trim();
-      if (values.description?.trim()) properties.description = values.description.trim();
-      break;
-    case 'core.task':
-      if (values.title?.trim()) properties.title = values.title.trim();
-      if (values.description?.trim()) properties.description = values.description.trim();
-      if (values.due_at) properties.due_at = values.due_at.toISOString();
-      if (values.priority) properties.priority = values.priority;
-      break;
-    case 'core.event':
-      if (values.title?.trim()) properties.title = values.title.trim();
-      if (values.starts_at) properties.starts_at = values.starts_at.toISOString();
-      if (values.ends_at) properties.ends_at = values.ends_at.toISOString();
-      if (values.all_day) properties.all_day = true;
-      // The zone travels with the event. Omitted only when the form somehow
-      // has none, in which case the server's own default is a better answer
-      // than a guess made here.
-      if (values.timezone?.trim()) properties.timezone = values.timezone.trim();
-      // An end zone is stored only when it genuinely differs; a flight
-      // lands somewhere else, an ordinary meeting does not.
-      if (values.end_timezone?.trim() && values.end_timezone.trim() !== values.timezone?.trim()) {
-        properties.end_timezone = values.end_timezone.trim();
-      }
-      if (values.place?.trim()) properties.place = values.place.trim();
-      break;
-  }
-  return properties;
-}
-
-export function parseCustomPropertiesJson(
-  raw: string | undefined,
-  required: ReadonlySet<string>,
-): { properties: Record<string, unknown> } | { error: ValidationError } {
-  const trimmed = raw?.trim() ?? '';
-  // An empty box is an empty object, not a skipped check. Returning early here
-  // meant a type with required fields was submitted unvalidated whenever the
-  // person cleared the editor or resumed a draft that had stored an empty
-  // string, which is the whole of what this function is for.
-  if (!trimmed) return withRequired({}, required);
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    return { error: { field: 'propertiesJson', message: 'Properties must be valid JSON' } };
-  }
-
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return { error: { field: 'propertiesJson', message: 'Properties must be a JSON object' } };
-  }
-
-  return withRequired(parsed as Record<string, unknown>, required);
-}
-
-function withRequired(
-  properties: Record<string, unknown>,
-  required: ReadonlySet<string>,
-): { properties: Record<string, unknown> } | { error: ValidationError } {
-  for (const field of required) {
-    const value = properties[field];
-    const missing =
-      value === undefined ||
-      value === null ||
-      (typeof value === 'string' && value.trim().length === 0);
-    if (missing) {
-      return {
-        error: { field: 'propertiesJson', message: `Missing required property: ${field}` },
-      };
-    }
-  }
-  return { properties };
-}
-
 /**
  * Parse a `key: value` block: one per line, optional `#` comments, blank
  * lines ignored. Coerces obvious shapes: `true`/`false` → boolean,
@@ -199,7 +70,6 @@ export function parseAdditionalProperties(
     if (colonAt < 0) {
       return {
         error: {
-          field: 'extraProperties',
           message: `Line ${index + 1}: expected "key: value"`,
         },
       };
@@ -207,19 +77,18 @@ export function parseAdditionalProperties(
     const key = trimmed.slice(0, colonAt).trim();
     const valueRaw = trimmed.slice(colonAt + 1).trim();
     if (!key) {
-      return { error: { field: 'extraProperties', message: `Line ${index + 1}: empty key` } };
+      return { error: { message: `Line ${index + 1}: empty key` } };
     }
     if (FIRST_CLASS_SHADOW_KEYS.has(key)) {
       return {
         error: {
-          field: 'extraProperties',
           message: `Line ${index + 1}: "${key}" shadows a first-class Item field`,
         },
       };
     }
     if (key in properties) {
       return {
-        error: { field: 'extraProperties', message: `Line ${index + 1}: duplicate key "${key}"` },
+        error: { message: `Line ${index + 1}: duplicate key "${key}"` },
       };
     }
     if (!valueRaw) continue;

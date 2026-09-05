@@ -2,11 +2,12 @@
 import { Clipboard, getPreferenceValues, showHUD, showToast, Toast } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
 import { readFile } from 'node:fs/promises';
-import { basename, extname } from 'node:path';
+import { basename } from 'node:path';
 import type { CreateItemInput } from '@withmarfa/sdk';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 import { fetchCaptureLocation, parseTags } from './capture-utils';
+import { bufferToUint8Array, isUrl, mimeForFile } from './clipboard-source';
 
 interface CapturePreferences {
   defaultTier?: 'library' | 'feed';
@@ -19,53 +20,6 @@ async function locationFor(prefs: CapturePreferences): Promise<Partial<CreateIte
   const loc = await fetchCaptureLocation();
   if (!loc) return {};
   return { capture_latitude: loc.lat, capture_longitude: loc.lon };
-}
-
-function isUrl(text: string): boolean {
-  try {
-    const url = new URL(text);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-const MIME_BY_EXT: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.heic': 'image/heic',
-  '.bmp': 'image/bmp',
-  '.svg': 'image/svg+xml',
-  '.tiff': 'image/tiff',
-  '.pdf': 'application/pdf',
-  '.txt': 'text/plain',
-  '.md': 'text/markdown',
-  '.json': 'application/json',
-  '.csv': 'text/csv',
-  '.html': 'text/html',
-  '.mp3': 'audio/mpeg',
-  '.wav': 'audio/wav',
-  '.m4a': 'audio/mp4',
-  '.mp4': 'video/mp4',
-  '.mov': 'video/quicktime',
-  '.zip': 'application/zip',
-};
-
-function mimeForFile(path: string): string {
-  return MIME_BY_EXT[extname(path).toLowerCase()] ?? 'application/octet-stream';
-}
-
-/**
- * Convert a Node Buffer to a fresh Uint8Array with no shared offset / pool
- * underlying. Avoids the byteOffset-mismatch crash class when handing a
- * Buffer to consumers that expect `new Uint8Array(input)` to give the full
- * payload. `slice()` allocates a clean range.
- */
-function bufferToUint8Array(buf: Buffer): Uint8Array {
-  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength).slice();
 }
 
 async function captureClipboard(): Promise<void> {
