@@ -19,6 +19,14 @@ export function fallbackItemTitle(item: Item): string | undefined {
   return undefined;
 }
 
+/**
+ * The subtitle counterpart, and it does not agree with the title resolver about
+ * an empty string. This one tests `title` for its type, so a present-but-blank
+ * title admits the body here, while `fallbackItemTitle` skips a blank title and
+ * falls through to the body as well. Both then return it, and the row renders
+ * the same text twice. Known, pinned by a test, and left alone because making
+ * them agree changes what a list looks like rather than correcting an error.
+ */
 export function fallbackItemSubtitle(item: Item): string | undefined {
   const p = item.properties;
   if (typeof p.description === 'string' && p.description) return p.description.slice(0, 100);
