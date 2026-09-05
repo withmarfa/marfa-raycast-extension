@@ -82,13 +82,17 @@ works, and no suite here replaces it:
 
 ## Commands
 
-Browse, Search and Quick Capture are the three a person runs daily and the only three on the root launcher. Everything else ships `disabledByDefault` and is switched on in Raycast's extension settings when it is actually wanted — which keeps the launcher uncluttered and stops an unfamiliar user walking into an admin surface.
+Only Server Info ships `disabledByDefault`. Everything else is on the root launcher.
+
+This reverses a wider default that took five commands off it. The reasoning then was that an unfamiliar user should not walk into an admin surface, and it was right about Manage Keys and got applied more broadly than it needed to be. The two clipboard captures are ordinary capture commands; the Type Registry is a reference view over what an instance holds and mutates nothing; and Manage Keys already refuses a non-admin principal with a clear empty state, which is what the flag was standing in for.
+
+The cost of hiding them was not neutral. Three commands nobody launched accumulated the presentation defects that a later pass had to go and find: one glyph for every type, a schema as a JSON block, an operator screen built as a markdown table, and a key stating its own identifier twice.
 
 - **Browse:** list items with date grouping, type icons, metadata. A row's icon is always its type's glyph; a favicon rides as an accessory when the item carries a URL, so a mixed list stays legible by type. Paginated with auto-loading. Native Raycast filtering, which narrows the items already loaded and says so in its placeholder rather than reading as a search; `cmd+shift+F` hands the typed text to the Search command, which is the one that queries the server. Tier filter in the search accessory; type and lifecycle filters in the action panel. Custom types discovered from the server registry where available. `⌘D` toggles the inline detail panel (per-command, persisted via `useCachedState`).
 - **Search:** opens on the most recent items and switches to full-text search once something is typed, under the same filters either way, so a launch is useful before a query exists. Shows snippets on results and metadata on both. Shares tier, type, and lifecycle filtering with Browse. Same `⌘D` detail toggle.
 - **Quick Capture:** create core notes, bookmarks, tasks, or events with native type-specific fields and validation. Free-form "Additional properties" field accepts `key: value` lines for ad-hoc properties (booleans/numbers coerced; shadow keys rejected). Other registered types use a generic properties JSON editor with schema context. Honors capture preference defaults.
 
-### Disabled by default (enable in Raycast Preferences → Extensions → Marfa)
+### Auxiliary commands
 
 - **Manage Keys:** admin-only CRUD over `/keys`. List / detail / create (one-shot plaintext key view) / edit (label, default tier, four permission maps; `source` and `role` are immutable) / revoke (confirm-gated soft delete). Supports `metadata_permissions` and `space_admin`. Non-admin principals see an "admin credentials required" empty state.
 - **Clipboard Capture:** no-view command. Reads clipboard, routes by content: URL → bookmark; file → `core.file`; HTML-rich text → note (with `html` preserved); plain text → note. Uploads blobs via `client.blobs.upload`. Disabled while the redo bakes; flip on once verified.
