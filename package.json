@@ -16,14 +16,7 @@
       "name": "browse",
       "title": "Browse",
       "subtitle": "Marfa",
-      "description": "Browse your Marfa items in reverse chronological order",
-      "mode": "view"
-    },
-    {
-      "name": "search",
-      "title": "Search",
-      "subtitle": "Marfa",
-      "description": "Search across your Marfa items",
+      "description": "Browse and search your Marfa items",
       "mode": "view"
     },
     {

@@ -177,17 +177,3 @@ export function getImageSource(item: Item): ImageSource | null {
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return Buffer.from(buffer).toString('base64');
 }
-
-export function groupItemsByDate(items: Item[]): Map<string, Item[]> {
-  const groups = new Map<string, Item[]>();
-  for (const item of items) {
-    const key = formatDate(item.timestamp);
-    const group = groups.get(key);
-    if (group) {
-      group.push(item);
-    } else {
-      groups.set(key, [item]);
-    }
-  }
-  return groups;
-}

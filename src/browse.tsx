@@ -1,10 +1,11 @@
-import { Action, ActionPanel, Icon, launchCommand, LaunchType, List, Keyboard } from '@raycast/api';
+import { Action, ActionPanel, Icon, List, Keyboard } from '@raycast/api';
 import { showFailureToast, useCachedPromise, useCachedState } from '@raycast/utils';
-import { useRef, useState } from 'react';
-import type { Item, ItemState, Metadata } from '@withmarfa/sdk';
+import { useState } from 'react';
+import type { ItemState } from '@withmarfa/sdk';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
-import { formatDate } from './helpers';
+import { formatDate, stripHtmlTags } from './helpers';
+import { groupByDate, mergeEntries, type Entry } from './result-merge';
 import { ItemListItem } from './components/ItemListItem';
 import { TierFilterDropdown, type TierFilter } from './components/TierFilterDropdown';
 import { buildTypeFilterOptions } from './type-options';
@@ -12,10 +13,18 @@ import { useTypeRegistry } from './use-type-registry';
 import { useTypeGrant } from './use-type-grant';
 import { EmptyTrashAction } from './components/EmptyTrashAction';
 
-interface ItemWithMetadata {
-  item: Item;
-  metadata: Metadata;
-}
+/**
+ * One list over everything, which browses and searches on the same bar.
+ *
+ * These were two commands. The split was never a design: a Raycast `List`
+ * either lets Raycast filter what is loaded or hands the typed text to you, and
+ * one command appeared to have to choose. It does not. Setting `filtering`
+ * explicitly keeps the native filter while still delivering the text, so the
+ * bar can do both at once, and it should, because neither is sufficient alone.
+ * The filter is instant and blind past the loaded pages; the search sees
+ * everything and costs a round trip. Running both means typing narrows what is
+ * on screen immediately and anything deeper arrives a moment later.
+ */
 
 const TIER_LABEL: Record<TierFilter, string> = {
   all: 'All items',
@@ -32,28 +41,8 @@ const STATE_FILTERS: Array<{ value: StateFilter; label: string }> = [
   { value: 'all', label: 'All States' },
 ];
 
-function groupByDate(entries: ItemWithMetadata[]): Map<string, ItemWithMetadata[]> {
-  const groups = new Map<string, ItemWithMetadata[]>();
-  for (const entry of entries) {
-    const key = formatDate(entry.item.timestamp);
-    const group = groups.get(key);
-    if (group) {
-      group.push(entry);
-    } else {
-      groups.set(key, [entry]);
-    }
-  }
-  return groups;
-}
-
 function BrowseCommand() {
-  // A ref, not state. The text is read at one moment, when the hand-off action
-  // fires, and holding it in state re-rendered the whole command on every
-  // keystroke: regrouping every loaded item by date and rebuilding every row,
-  // detail panel and action panel, for a bar Raycast filters natively and which
-  // cost zero renders before. On a list several pages deep that is the
-  // difference between typing and waiting.
-  const searchText = useRef('');
+  const [query, setQuery] = useState('');
   const [tier, setTier] = useState<TierFilter>('all');
   const [state, setState] = useState<StateFilter>('active');
   const [type, setType] = useState('');
@@ -64,11 +53,17 @@ function BrowseCommand() {
   const { registry } = useTypeRegistry();
   const isGranted = useTypeGrant();
 
-  const { data, isLoading, revalidate, pagination } = useCachedPromise(
+  // The spine. Deliberately not keyed on the query: typing must not throw away
+  // the pages already walked and start the cursor again.
+  const {
+    data: loaded,
+    isLoading,
+    revalidate,
+    pagination,
+  } = useCachedPromise(
     (typeFilter: string, tierFilter: TierFilter, stateFilter: StateFilter) =>
       async (options: { page: number; cursor?: string }) => {
-        const client = getClient();
-        const response = await client.items.listWithMetadata({
+        const response = await getClient().items.listWithMetadata({
           type: typeFilter || undefined,
           state: stateFilter === 'all' ? undefined : stateFilter,
           tier: tierFilter,
@@ -77,11 +72,7 @@ function BrowseCommand() {
           limit: 50,
           cursor: options.cursor,
         });
-        return {
-          data: response.data,
-          hasMore: response.has_more,
-          cursor: response.cursor,
-        };
+        return { data: response.data, hasMore: response.has_more, cursor: response.cursor };
       },
     [type, tier, state],
     {
@@ -91,7 +82,37 @@ function BrowseCommand() {
     },
   );
 
-  const groups = groupByDate(data ?? []);
+  // The reach. Full text against the whole instance, so a match past the loaded
+  // pages is findable rather than silently absent.
+  const { data: hits, isLoading: isSearching } = useCachedPromise(
+    async (
+      q: string,
+      typeFilter: string,
+      tierFilter: TierFilter,
+      stateFilter: StateFilter,
+    ): Promise<Entry[]> => {
+      if (!q) return [];
+      return getClient().search(q, {
+        type: typeFilter || undefined,
+        state: stateFilter === 'all' ? undefined : stateFilter,
+        tier: tierFilter,
+        limit: 20,
+      });
+    },
+    [query, type, tier, state],
+    {
+      keepPreviousData: true,
+      onError: async (err) => {
+        await showFailureToast(err, { title: 'Search failed' });
+      },
+    },
+  );
+
+  const searchHits = query ? (hits ?? []) : [];
+  const groups = groupByDate(mergeEntries(loaded ?? [], searchHits), formatDate);
+  const hitIds = new Set(searchHits.map((entry) => entry.item.id));
+  const isEmpty = !isLoading && !isSearching && groups.size === 0;
+
   const typeOptions = buildTypeFilterOptions(registry);
   const typeLabel = type ? (typeOptions.find((t) => t.value === type)?.label ?? null) : null;
   const stateLabel = STATE_FILTERS.find((filter) => filter.value === state)?.label ?? state;
@@ -131,74 +152,43 @@ function BrowseCommand() {
       ))}
     </ActionPanel.Submenu>
   );
-  /**
-   * This bar narrows what is already on screen, and pagination means that is
-   * rarely everything. A term matching an item three pages down simply found
-   * nothing, with no way to tell that from the item not existing, which is the
-   * same shape as the permissions failures and compounded diagnosing them.
-   *
-   * The filter stays, because narrowing a visible list is genuinely what a
-   * launcher is for and Raycast users expect it. What changes is that the
-   * placeholder says so, and that the full-text search is one keystroke away
-   * carrying whatever was typed.
-   */
-  const searchEverythingAction = (
-    <Action
-      title="Search All Items"
-      icon={Icon.MagnifyingGlass}
-      shortcut={{ modifiers: ['cmd', 'shift'], key: 'f' }}
-      onAction={async () => {
-        try {
-          await launchCommand({
-            name: 'search',
-            type: LaunchType.UserInitiated,
-            fallbackText: searchText.current,
-          });
-        } catch (error) {
-          // Raycast throws when the target command is disabled, which is a
-          // toggle in ordinary use here. Unhandled, the action did nothing at
-          // all and said nothing about why.
-          await showFailureToast(error, { title: 'Could not open Search' });
-        }
-      }}
-    />
-  );
-
   const filterActions = (
     <>
-      {searchEverythingAction}
       {typeSubmenu}
       {stateSubmenu}
     </>
   );
 
   const emptyTrashAction =
-    state === 'trashed' && (data?.length ?? 0) > 0 ? (
-      <EmptyTrashAction count={data?.length ?? 0} onComplete={revalidate} />
+    state === 'trashed' && !isEmpty ? (
+      <EmptyTrashAction count={loaded?.length ?? 0} onComplete={revalidate} />
     ) : null;
 
   return (
     <List
-      isLoading={isLoading}
+      isLoading={isLoading || isSearching}
       // Explicit, because supplying `onSearchTextChange` otherwise turns
-      // Raycast's own filtering off, and narrowing what is on screen is the
-      // thing this bar is for.
+      // Raycast's own filtering off, and the instant narrowing is half of what
+      // this bar does.
       filtering={true}
-      onSearchTextChange={(text) => (searchText.current = text)}
-      searchBarPlaceholder="Filter the items loaded here..."
+      throttle
+      onSearchTextChange={(text) => setQuery(text.trim())}
+      searchBarPlaceholder="Search your items..."
       pagination={pagination}
       isShowingDetail={isShowingDetail}
       navigationTitle={navigationTitle}
       searchBarAccessory={<TierFilterDropdown onChange={setTier} />}
     >
-      {!isLoading && data?.length === 0 ? (
+      {isEmpty ? (
         <List.EmptyView
           icon={type && !isGranted(type) ? Icon.Lock : undefined}
           title={type && !isGranted(type) ? 'Not shared with Raycast' : 'No items'}
           description={
             type && !isGranted(type)
               ? `Your sign-in did not grant access to ${typeLabel ?? type}.`
-              : 'Nothing here yet'
+              : query
+                ? `Nothing matching "${query}"`
+                : 'Nothing here yet'
           }
           actions={
             <ActionPanel>
@@ -213,14 +203,19 @@ function BrowseCommand() {
           }
         />
       ) : (
-        Array.from(groups.entries()).map(([date, entries]) => (
+        [...groups.entries()].map(([date, entries]) => (
           <List.Section key={date} title={date}>
-            {entries.map(({ item, metadata }) => (
+            {entries.map(({ item, metadata, snippet_html }) => (
               <ItemListItem
                 key={item.id}
                 item={item}
                 metadata={metadata}
                 registry={registry}
+                snippet={snippet_html ? stripHtmlTags(snippet_html) : undefined}
+                // A server hit matched on text the native filter cannot see,
+                // such as an item's body, so without the query itself as a
+                // keyword Raycast would fetch the row and then hide it.
+                keywords={hitIds.has(item.id) ? [query] : undefined}
                 onRefresh={revalidate}
                 topActions={
                   <>

@@ -94,8 +94,7 @@ This reverses a wider default that took five commands off it. The reasoning then
 
 The cost of hiding them was not neutral. Three commands nobody launched accumulated the presentation defects that a later pass had to go and find: one glyph for every type, a schema as a JSON block, an operator screen built as a markdown table, and a key stating its own identifier twice.
 
-- **Browse:** list items with date grouping, type icons, metadata. A row's icon is always its type's glyph; a favicon rides as an accessory when the item carries a URL, so a mixed list stays legible by type. Paginated with auto-loading. Native Raycast filtering, which narrows the items already loaded and says so in its placeholder rather than reading as a search; `cmd+shift+F` hands the typed text to the Search command, which is the one that queries the server. Tier filter in the search accessory; type and lifecycle filters in the action panel. Custom types discovered from the server registry where available. `⌘D` toggles the inline detail panel (per-command, persisted via `useCachedState`).
-- **Search:** opens on the most recent items and switches to full-text search once something is typed, under the same filters either way, so a launch is useful before a query exists. Shows snippets on results and metadata on both. Shares tier, type, and lifecycle filtering with Browse. Same `⌘D` detail toggle.
+- **Browse:** the one list over your items, and the only one. Date grouping, type icons, metadata; a row's icon is always its type's glyph, with a favicon as an accessory when the item carries a URL, so a mixed list stays legible by type. Paginated with auto-loading. **The search bar does two things at once**, which is what let this absorb the separate Search command: Raycast's native filter narrows the loaded rows instantly, and the same typed text goes to the server as full text, so a match past the loaded pages arrives instead of reading as absent. Both halves merge into one date order, and a server hit carries its snippet plus the query as a keyword, without which the native filter would hide a row fetched precisely because it matched. Tier filter in the search accessory; type and lifecycle filters in the action panel. Custom types discovered from the server registry where available. `⌘D` toggles the inline detail panel (per-command, persisted via `useCachedState`).
 - **Quick Capture:** create an item of any registered type, with the form built from that type's schema. Every scalar and enum gets a real control, an enum's values come from the schema, and a required field is validated before a request is made. Free-form "Additional properties" accepts `key: value` lines for anything the type does not declare (booleans/numbers coerced; shadow keys rejected). Honors capture preference defaults.
 
 ### Auxiliary commands
@@ -168,7 +167,7 @@ Two rules worth keeping:
 ## Server contract notes
 
 - **Lifecycle:** `active | archived | trashed | revoked`. core/custom items use the active/archived/trashed graph; system.* items use active/revoked. The extension only operates on user-facing items, so it surfaces the three-state subset.
-- **Tier:** items carry `tier: 'library' | 'feed'`. Quick Capture, Clipboard Capture, Reply, and Annotate stamp `tier: 'library'` to mirror user-captured intent. Browse and Search pass an explicit `tier` filter (`library` | `feed` | `all`). `system.*` items have no tier, and the detail view omits the row rather than rendering a placeholder: a row whose only content is that it has none is a row that should not exist.
+- **Tier:** items carry `tier: 'library' | 'feed'`. Quick Capture, Clipboard Capture, Reply, and Annotate stamp `tier: 'library'` to mirror user-captured intent. Browse passes an explicit `tier` filter (`library` | `feed` | `all`). `system.*` items have no tier, and the detail view omits the row rather than rendering a placeholder: a row whose only content is that it has none is a row that should not exist.
 - **Typed edges:** the Item shape carries no `parent_id`, `thread_id`, or `metadata.about`. Relationships are first-class typed edges: Reply creates an `in-thread` edge, Annotate creates a `references` edge. Atomic edge writes go through the `edges` field on `client.items.create`.
 - **Source is server-stamped** from the credential, never set by the client.
 
@@ -199,7 +198,7 @@ Standard Raycast extension idiom: the extension lives in your Raycast app, not i
 
 1. **First time after cloning:** `npm install && npm run dev` in this repo. Wait for the "Built extension" message, which means Raycast has registered it.
 2. Hit `Ctrl+C` to stop dev mode.
-3. The extension stays installed and usable in Raycast. Search for any of its commands (Browse, Search, Quick Capture, Manage Keys) from the Raycast root. The clipboard / server-info / type-registry commands ship `disabledByDefault`; enable them in Raycast Preferences → Extensions → Marfa.
+3. The extension stays installed and usable in Raycast. Search for any of its commands (Browse, Quick Capture, Manage Keys) from the Raycast root. The clipboard / server-info / type-registry commands ship `disabledByDefault`; enable them in Raycast Preferences → Extensions → Marfa.
 
 Stopping dev mode loses hot reload (file edits don't propagate) and console-log streaming. The extension itself stays fully functional.
 
