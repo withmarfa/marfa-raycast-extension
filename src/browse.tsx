@@ -12,6 +12,7 @@ import { buildTypeFilterOptions } from './type-options';
 import { useTypeRegistry } from './use-type-registry';
 import { useTypeGrant } from './use-type-grant';
 import { EmptyTrashAction } from './components/EmptyTrashAction';
+import { ReauthorizeAction } from './components/ReauthorizeAction';
 
 /**
  * One list over everything, which browses and searches on the same bar.
@@ -192,6 +193,10 @@ function BrowseCommand() {
           }
           actions={
             <ActionPanel>
+              {/* First, because on this empty state it is the only thing that
+                  changes the answer: the type is not missing, it was not
+                  granted, and nothing else here can grant it. */}
+              {type && !isGranted(type) && <ReauthorizeAction />}
               {filterActions}
               <Action
                 title={isShowingDetail ? 'Hide Details' : 'Show Details'}
