@@ -28,8 +28,6 @@ declare type Preferences = ExtensionPreferences
 declare namespace Preferences {
   /** Preferences accessible in the `browse` command */
   export type Browse = ExtensionPreferences & {}
-  /** Preferences accessible in the `search` command */
-  export type Search = ExtensionPreferences & {}
   /** Preferences accessible in the `quick-capture` command */
   export type QuickCapture = ExtensionPreferences & {}
   /** Preferences accessible in the `clipboard-capture` command */
@@ -47,8 +45,6 @@ declare namespace Preferences {
 declare namespace Arguments {
   /** Arguments passed to the `browse` command */
   export type Browse = {}
-  /** Arguments passed to the `search` command */
-  export type Search = {}
   /** Arguments passed to the `quick-capture` command */
   export type QuickCapture = {}
   /** Arguments passed to the `clipboard-capture` command */

@@ -14,6 +14,10 @@ interface ItemListItemProps {
   metadata?: Metadata;
   registry: TypeRegistry;
   snippet?: string;
+  /** Appended to the row's own keywords. A caller that knows why a row is here,
+   *  such as the query a server hit matched, adds it so Raycast's native filter
+   *  cannot hide a row that was fetched precisely because it matched. */
+  keywords?: string[];
   onRefresh: () => void;
   topActions?: ReactNode;
   /** When true, render the inline `<List.Item.Detail>` panel and drop
@@ -31,6 +35,7 @@ export function ItemListItem({
   metadata,
   registry,
   snippet,
+  keywords,
   onRefresh,
   topActions,
   showInlineDetail,
@@ -65,7 +70,7 @@ export function ItemListItem({
         id={item.id}
         title={registry.titleOf(item)}
         icon={icon}
-        keywords={[typeLabel, item.type, ...(metadata?.tags ?? [])]}
+        keywords={[typeLabel, item.type, ...(metadata?.tags ?? []), ...(keywords ?? [])]}
         detail={
           <ItemInlineDetail item={item} metadata={metadata} snippet={snippet} registry={registry} />
         }
@@ -124,7 +129,7 @@ export function ItemListItem({
       subtitle={snippet}
       icon={icon}
       accessories={accessories}
-      keywords={[typeLabel, item.type, ...(metadata?.tags ?? [])]}
+      keywords={[typeLabel, item.type, ...(metadata?.tags ?? []), ...(keywords ?? [])]}
       actions={
         <ActionPanel>
           <ActionPanel.Section>
