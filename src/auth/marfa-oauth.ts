@@ -24,6 +24,7 @@ import {
   scopesGranted,
 } from './discovery';
 import type { GrantRecord } from './discovery';
+import { buildAuthorizeUrl } from './authorize-url';
 
 const PROVIDER_NAME = 'Marfa';
 const PROVIDER_ID = 'marfa';
@@ -169,7 +170,10 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
   ]);
 }
 
-async function runFullAuthFlow(issuer: string): Promise<string> {
+async function runFullAuthFlow(
+  issuer: string,
+  options: { forceConsent?: boolean } = {},
+): Promise<string> {
   const stripped = stripTrailingSlash(issuer);
   // Always re-read on a full sign-in, so consent is asked against what the
   // server offers now rather than a cached copy of what it offered before.
@@ -195,17 +199,16 @@ async function runFullAuthFlow(issuer: string): Promise<string> {
 
   const clientId = await ensureClientId(stripped, config.registrationEndpoint, request.redirectURI);
 
-  const authorizeUrl = new URL(config.authorizationEndpoint);
-  authorizeUrl.searchParams.set('response_type', 'code');
-  authorizeUrl.searchParams.set('client_id', clientId);
-  authorizeUrl.searchParams.set('redirect_uri', request.redirectURI);
-  authorizeUrl.searchParams.set('scope', scope);
-  authorizeUrl.searchParams.set('code_challenge', request.codeChallenge);
-  authorizeUrl.searchParams.set('code_challenge_method', 'S256');
-  authorizeUrl.searchParams.set('state', request.state);
-
   const { authorizationCode } = await pkceClient.authorize({
-    url: authorizeUrl.toString(),
+    url: buildAuthorizeUrl({
+      endpoint: config.authorizationEndpoint,
+      clientId,
+      redirectUri: request.redirectURI,
+      scope,
+      codeChallenge: request.codeChallenge,
+      state: request.state,
+      forceConsent: options.forceConsent,
+    }),
   });
 
   // A token exchange that hangs (proxy, captive portal, dead server) would
@@ -446,6 +449,25 @@ async function reconsentIfServerOffersMore(
   });
   await pkceClient.removeTokens();
   return runFullAuthFlow(issuer);
+}
+
+/**
+ * Ask for consent again, on a session the server would otherwise wave through.
+ *
+ * **`prompt=consent`, and deliberately not a revoke.** Revoking looked like the
+ * answer and is not: the plugin's revoke marks the refresh token and deletes
+ * the access tokens beside it, and touches the consent row not at all. Both
+ * consent gates read only that row, so a revoke signs the person out and the
+ * next authorization is waved through on exactly the grant it was supposed to
+ * clear. The one route that does cascade is a browser-session route this client
+ * cannot reach.
+ *
+ * OIDC has a word for this and the server honours it ahead of the lookup, so
+ * nothing is destroyed to get a question asked. A cancelled consent leaves the
+ * session exactly as it was.
+ */
+export async function reauthorize(): Promise<string> {
+  return runFullAuthFlow(getIssuer(), { forceConsent: true });
 }
 
 /**

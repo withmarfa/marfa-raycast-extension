@@ -12,6 +12,7 @@ import { useCachedPromise } from '@raycast/utils';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getGrantShortfall } from './auth/marfa-oauth';
 import { getClient, isStaticKeySession } from './client';
+import { ReauthorizeAction } from './components/ReauthorizeAction';
 import { flattenScopes, groupScopes } from './scope-groups';
 import { resolveSessionIdentity, type SessionIdentity } from './session-identity';
 
@@ -167,6 +168,7 @@ function ServerInfoCommand() {
             shortcut={Keyboard.Shortcut.Common.Refresh}
             onAction={revalidate}
           />
+          {data?.authMode === 'oauth' && <ReauthorizeAction />}
         </ActionPanel>
       }
     />
