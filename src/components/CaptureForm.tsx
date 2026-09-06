@@ -73,6 +73,12 @@ function renderField(
   if (ZONE_FIELDS.has(field.name) && field.rawType === 'string') {
     const zones = timeZoneOptions();
     const isEnd = field.name === 'end_timezone';
+    // A start zone always defaults to the device's, whatever the type. That is
+    // not the same question `captureDefaults` answers and must not be routed
+    // through it: a dropdown has to carry a selection that is one of its own
+    // options, so a type outside that table would get an empty default matching
+    // nothing. The table is for a caller with no control, where writing the
+    // zone and writing nothing are both available and the type decides.
     return (
       <Form.Dropdown
         {...shared}

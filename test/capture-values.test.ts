@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { planCaptureForm } from '../src/capture-plan';
-import { buildCaptureProperties, TYPES_WITH_RULES } from '../src/capture-values';
+import {
+  buildCaptureProperties,
+  captureDefaults,
+  TYPES_WITH_RULES,
+  valuesFromText,
+} from '../src/capture-values';
 import { toTitleCase } from '../src/helpers';
 import { schema } from './fixtures';
 
@@ -201,10 +206,22 @@ describe('the rules a schema states in prose and cannot express', () => {
     ).toEqual({ errors: { ends_at: expect.stringContaining('before') } });
   });
 
+  it('fills in the zone from the device, for the one type that needs it', () => {
+    // Both capture paths read this. The form used to take the first entry of
+    // its own zone list, which agreed by coincidence of how that list is
+    // ordered rather than by anything saying it should, and a tool supplied
+    // nothing at all, so an event captured by asking advanced in UTC.
+    expect(captureDefaults('core.event', 'Europe/London')).toEqual({ timezone: 'Europe/London' });
+    expect(captureDefaults('core.note', 'Europe/London')).toEqual({});
+    expect(captureDefaults('acme.never-seen', 'Europe/London')).toEqual({});
+  });
+
   it('knows about exactly one type', () => {
     // Not to freeze it, but so growing it is a deliberate act with a name on
     // the diff. These are decorations over a form that works without them, not
-    // the gate the list they replace was.
+    // the gate the list they replace was. Every per-type table feeds this,
+    // including the device defaults: a fourth table added beside the others and
+    // left out of this list would be a per-type rule nothing here can see.
     expect(TYPES_WITH_RULES).toEqual(['core.event']);
   });
 });
@@ -269,6 +286,64 @@ describe('a list entry that does not parse', () => {
     });
     expect(buildCaptureProperties(plan, 'acme.flags', { fs: 'true\nfalse' })).toEqual({
       properties: { fs: [true, false] },
+    });
+  });
+});
+
+describe('values that arrive as text', () => {
+  // An AI tool supplies strings where a form supplies whatever its control
+  // emits. One validator answers for both, so this is where the two meet.
+  const pairs = (o: Record<string, string>) =>
+    Object.entries(o).map(([name, value]) => ({ name, value }));
+
+  it('shapes each kind the way its control would have', () => {
+    const values = valuesFromText(sink, pairs({ name: 'x', when: '2026-03-15T12:00:00.000Z', flag: 'true' }));
+    expect(values.when).toBeInstanceOf(Date);
+    expect(values.flag).toBe(true);
+    expect(values.name).toBe('x');
+  });
+
+  it('refuses an unreadable date rather than dropping it', () => {
+    // It used to be dropped, silently: the capture reported success and the
+    // date was simply gone. A person told a task has no due date can set one;
+    // a person told nothing cannot.
+    const values = valuesFromText(sink, pairs({ when: 'next tuesday' }));
+    expect(values.when).toBe('next tuesday');
+    expect(buildCaptureProperties(sink, 'acme.everything', { name: 'x', ...values })).toEqual({
+      errors: { when: expect.stringContaining('not a date') },
+    });
+  });
+
+  it('reads a date-only value as that calendar day, not as UTC midnight', () => {
+    // `new Date('2026-03-15')` is midnight UTC, which is the 14th in the zone
+    // this suite pins, and taking the local day of it then sent the wrong one.
+    // The form never hit this because a picker hands over a Date already.
+    const values = valuesFromText(sink, pairs({ name: 'x', day: '2026-03-15' }));
+    expect(buildCaptureProperties(sink, 'acme.everything', values)).toEqual({
+      properties: { name: 'x', day: '2026-03-15' },
+    });
+  });
+
+  it('refuses an enum value the schema does not list', () => {
+    // A dropdown constrains a person. Nothing constrains a caller sending text,
+    // so this is the only place the values are checked before the server sees
+    // them and answers with less context.
+    const values = valuesFromText(sink, pairs({ name: 'x', pick: 'c' }));
+    expect(buildCaptureProperties(sink, 'acme.everything', values)).toEqual({
+      errors: { pick: expect.stringContaining('a, b') },
+    });
+  });
+
+  it('refuses a field the type does not declare rather than dropping it', () => {
+    // A model inventing a field should hear about it. Silently discarding it
+    // means the capture looks like it worked and the value is simply gone.
+    expect(() => valuesFromText(sink, pairs({ name: 'x', invented: 'y' }))).toThrow(/invented/);
+  });
+
+  it('reaches the same refusal a person would get for a missing required field', () => {
+    const values = valuesFromText(sink, pairs({ body: 'no name given' }));
+    expect(buildCaptureProperties(sink, 'acme.everything', values)).toEqual({
+      errors: { name: expect.stringContaining('required') },
     });
   });
 });

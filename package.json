@@ -70,6 +70,28 @@
       "mode": "view"
     }
   ],
+  "tools": [
+    {
+      "name": "search-items",
+      "title": "Search Items",
+      "description": "Full-text search across everything in the person's Marfa space."
+    },
+    {
+      "name": "list-items",
+      "title": "List Items",
+      "description": "The person's most recent items, newest first, optionally filtered by type."
+    },
+    {
+      "name": "list-types",
+      "title": "List Types",
+      "description": "What types this Marfa instance holds, and what fields a given one declares."
+    },
+    {
+      "name": "capture-item",
+      "title": "Capture Item",
+      "description": "Create a new item of any registered type."
+    }
+  ],
   "preferences": [
     {
       "name": "apiUrl",

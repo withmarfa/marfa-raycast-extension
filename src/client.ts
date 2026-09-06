@@ -13,12 +13,12 @@ let cached: { client: MarfaClient; key: string } | null = null;
 /**
  * Build a `MarfaClient` from the current credential. Two paths:
  *
- *  1. Wrapped command (default) — invoked inside `withMarfaAccessToken(...)`,
+ *  1. Wrapped command (default), invoked inside `withMarfaAccessToken(...)`,
  *     so `getAccessToken()` returns the live token. The MarfaClient's
  *     `tokenProvider.getAccessToken` calls `authorize()` directly on each
  *     SDK call, ensuring transparent refresh-on-expiry without the SDK
  *     needing to know about our PKCE store.
- *  2. `apiKey` preference fallback — for dev / self-hosting cases where the
+ *  2. `apiKey` preference fallback, for dev and self-hosting cases where the
  *     operator pastes a static key into Preferences. The wrapper passes this
  *     through Raycast's personal-access-token path so OAuth is not forced.
  *
@@ -33,7 +33,7 @@ export function getClient(): MarfaClient {
   // call throw "Failed to parse URL" after a seemingly successful sign-in.
   const baseUrl = normalizeServerUrl(apiUrl);
 
-  // Static-key escape hatch wins when explicitly set — useful for
+  // Static-key escape hatch wins when explicitly set, which is useful for
   // smoke-testing without OAuth.
   if (apiKey?.trim()) {
     const key = `${baseUrl}:key:${apiKey}`;
@@ -43,29 +43,29 @@ export function getClient(): MarfaClient {
     return client;
   }
 
-  // OAuth path. `withAccessToken` ensures a token exists before any
-  // command body runs, so the very first `getAccessToken()` call here
-  // succeeds. Subsequent SDK calls re-resolve via `authorize()` so
-  // refresh-on-expiry is transparent.
+  // OAuth path, used from two places that differ. Inside a command,
+  // `withAccessToken` has already put a token in a global before the body runs.
+  // Inside an AI tool nothing has, and the Raycast documentation does not say
+  // whether that wrapper applies to a tool entry point at all, so this resolves
+  // without depending on one either way.
   const key = `${baseUrl}:oauth`;
   if (cached?.key === key) return cached.client;
   const client = new MarfaClient({
     url: baseUrl,
     tokenProvider: {
       async getAccessToken() {
-        // Fast path: read the token already in the `withAccessToken` global.
+        // Fast path: the token the wrapper already resolved. A freshness check
+        // here would need an async read of the PKCE store on every call, so
+        // expiry is handled by the wrapper on mount instead.
         try {
           const { token } = getAccessToken();
-          // Cheap freshness check via the PKCE store would require an
-          // async call; instead delegate to `authorize()` if the SDK
-          // hits a 401 — but proactively, every call uses the latest
-          // global token. `authorize()` is called by the HOC on mount
-          // and on stale-token detection.
           return token;
         } catch {
-          // getAccessToken throws outside a withAccessToken wrapper —
-          // shouldn't happen in real flows, but the fallback is a fresh
-          // `authorize()` run.
+          // No wrapper resolved a token, so resolve one here. Called per
+          // request, deliberately: `authorize()` is also the refresh path, so
+          // caching what it returns would hand out an expired token for the
+          // life of the process. It short-circuits on a token that is still
+          // valid, which is what makes repeating it cheap enough.
           return authorize();
         }
       },

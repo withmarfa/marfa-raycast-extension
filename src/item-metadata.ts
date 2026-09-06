@@ -12,11 +12,11 @@ import type { Item } from '@withmarfa/sdk';
  * Conventional keys the two detail surfaces render as markdown above the
  * sidebar, so the property walker must not repeat them as rows.
  *
- * The registry may name others through `display_hints` — a captured email
- * puts its body in `text_body`, a podcast episode in `content_encoded` —
- * so callers pass those in alongside this set rather than the walker
- * guessing. Keeping the conventional names here covers every type the
- * registry has no hint for.
+ * The registry may name others through `display_hints`. A captured email puts
+ * its body in `text_body` and a podcast episode in `content_encoded`, so
+ * callers pass those in alongside this set rather than the walker guessing.
+ * Keeping the conventional names here covers every type the registry has no
+ * hint for.
  */
 export const BODY_PROPERTY_KEYS = new Set([
   'title',

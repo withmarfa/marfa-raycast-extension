@@ -16,7 +16,13 @@
  * server that does not serve one.
  */
 import { getPreferenceValues, LocalStorage, OAuth, showToast, Toast } from '@raycast/api';
-import { decideReconsent, resolveAuthConfig, scopesGranted } from './discovery';
+import {
+  decideReconsent,
+  isContentReadScope,
+  missingScopes,
+  resolveAuthConfig,
+  scopesGranted,
+} from './discovery';
 import type { GrantRecord } from './discovery';
 
 const PROVIDER_NAME = 'Marfa';
@@ -314,6 +320,33 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
  * not worth a second code path, but it does mean this is a read that can arm a
  * consent prompt.
  */
+/**
+ * Content this session was offered and not given, from the stored record.
+ *
+ * **Deliberately not `getGrantShortfall`.** That one resolves the auth config,
+ * which reads the discovery document and caches it when the copy has aged out,
+ * so calling it installs a newer advertisement that the next launch acts on.
+ * That is a fair trade on an operator screen someone opened on purpose. On the
+ * read path of an AI tool it means asking what was captured today can arm a
+ * consent prompt that appears later with nothing connecting it to anything the
+ * person did. This reads LocalStorage and stops.
+ *
+ * It also asks a narrower question. The shortfall is a scope list carrying
+ * `offline_access` and every write scope, and none of those are content.
+ */
+export async function getUnreadableContent(): Promise<string[]> {
+  try {
+    const record = await readGrantRecord(getIssuer());
+    // No record is not evidence of a narrow grant, and neither is a grant the
+    // server never reported. Both are the unknown case, and the whole point of
+    // this file is that unknown does not mean missing.
+    if (!record || record.granted.length === 0) return [];
+    return missingScopes(record.granted.join(' '), record.advertised.filter(isContentReadScope));
+  } catch {
+    return [];
+  }
+}
+
 export async function getGrantShortfall(): Promise<string[]> {
   try {
     const issuer = getIssuer();
