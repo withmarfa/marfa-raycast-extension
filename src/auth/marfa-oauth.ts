@@ -25,6 +25,7 @@ import {
 } from './discovery';
 import type { GrantRecord } from './discovery';
 import { buildAuthorizeUrl } from './authorize-url';
+import { buildRegistrationBody } from './registration-body';
 
 const PROVIDER_NAME = 'Marfa';
 const PROVIDER_ID = 'marfa';
@@ -70,17 +71,28 @@ interface TokenResponseBody {
  * Raycast `LocalStorage` so subsequent sign-ins (or token refreshes after a
  * Raycast restart) skip DCR. The `redirect_uris` passed at registration
  * time must include the exact URI Raycast uses on `authorize`.
+ *
+ * **`scope` is not optional here, and omitting it fails silently.** The server
+ * stores a scope ceiling against the client at registration and never updates
+ * it; a registration naming nothing receives the default bundle expansion,
+ * which by design never carries a capability scope. The authorize surface then
+ * *narrows* rather than refuses — it drops a scope outside the ceiling from the
+ * request and completes — so `capability.keys` would vanish between asking and
+ * consenting, the consent screen would never show it, and the grant would come
+ * back without it and without a word. Declaring it is what puts it in the row
+ * the consent screen is built from.
  */
-async function dcrRegister(registrationEndpoint: string, redirectUri: string): Promise<string> {
+async function dcrRegister(
+  registrationEndpoint: string,
+  redirectUri: string,
+  scope: string,
+): Promise<string> {
   const res = await fetch(registrationEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_name: 'Marfa for Raycast',
-      redirect_uris: [redirectUri],
-      grant_types: ['authorization_code', 'refresh_token'],
-      token_endpoint_auth_method: 'none',
-    }),
+    body: JSON.stringify(
+      buildRegistrationBody({ clientName: 'Marfa for Raycast', redirectUri, scope }),
+    ),
   });
   if (!res.ok) {
     throw new Error(`Client registration failed (HTTP ${res.status}): ${await res.text()}`);
@@ -92,14 +104,25 @@ async function dcrRegister(registrationEndpoint: string, redirectUri: string): P
   return body.client_id;
 }
 
+/**
+ * The client id for this issuer, registering one if there is none.
+ *
+ * `renew` discards a stored id and registers again. A ceiling is frozen at
+ * registration, so a client stored before a scope was asked for can never
+ * obtain it — and because the authorize surface narrows silently rather than
+ * refusing, there is no error to notice. The only signal is the grant coming
+ * back short, which is exactly when the callers below pass `renew`.
+ */
 async function ensureClientId(
   issuer: string,
   registrationEndpoint: string,
   redirectUri: string,
+  scope: string,
+  renew = false,
 ): Promise<string> {
   const stored = await LocalStorage.getItem<string>(clientIdStorageKey(issuer));
-  if (stored) return stored;
-  const id = await dcrRegister(registrationEndpoint, redirectUri);
+  if (stored && !renew) return stored;
+  const id = await dcrRegister(registrationEndpoint, redirectUri, scope);
   await LocalStorage.setItem(clientIdStorageKey(issuer), id);
   return id;
 }
@@ -172,7 +195,7 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
 
 async function runFullAuthFlow(
   issuer: string,
-  options: { forceConsent?: boolean } = {},
+  options: { forceConsent?: boolean; renewClient?: boolean } = {},
 ): Promise<string> {
   const stripped = stripTrailingSlash(issuer);
   // Always re-read on a full sign-in, so consent is asked against what the
@@ -197,7 +220,16 @@ async function runFullAuthFlow(
     scope,
   });
 
-  const clientId = await ensureClientId(stripped, config.registrationEndpoint, request.redirectURI);
+  // `renewClient` is set by the two paths that run because a grant came back
+  // short. Registering again is the only way to move a ceiling, and doing it
+  // anywhere else would abandon a client row on every ordinary sign-in.
+  const clientId = await ensureClientId(
+    stripped,
+    config.registrationEndpoint,
+    request.redirectURI,
+    scope,
+    options.renewClient,
+  );
 
   const { authorizationCode } = await pkceClient.authorize({
     url: buildAuthorizeUrl({
@@ -448,7 +480,13 @@ async function reconsentIfServerOffersMore(
     message: `This server offers ${String(decision.missing.length)} permissions your last sign-in did not grant.`,
   });
   await pkceClient.removeTokens();
-  return runFullAuthFlow(issuer);
+  // The shortfall may be the stored ceiling rather than the person's answer,
+  // and the two are indistinguishable from here: a scope outside the ceiling
+  // is dropped before the consent screen is drawn, so it reads exactly like a
+  // permission that was offered and declined. Registering again costs one row
+  // on a path that already runs at most once per shortfall, and without it
+  // this asks a question whose answer cannot change anything.
+  return runFullAuthFlow(issuer, { renewClient: true });
 }
 
 /**
@@ -467,7 +505,7 @@ async function reconsentIfServerOffersMore(
  * session exactly as it was.
  */
 export async function reauthorize(): Promise<string> {
-  return runFullAuthFlow(getIssuer(), { forceConsent: true });
+  return runFullAuthFlow(getIssuer(), { forceConsent: true, renewClient: true });
 }
 
 /**
