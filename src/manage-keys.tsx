@@ -14,24 +14,22 @@ import { showFailureToast, useCachedPromise } from '@raycast/utils';
 import type { ApiKey } from '@withmarfa/sdk';
 import { ForbiddenError } from '@withmarfa/sdk';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
-import { getClient, isStaticKeySession } from './client';
+import { getClient } from './client';
+import { KEY_MANAGEMENT_NOT_GRANTED, keyRefusal } from './key-refusal';
+import { showRefusal } from './show-refusal';
+import { useKeyGrant } from './use-key-grant';
+import {
+  REVIEW_WHAT_MARFA_SHARES,
+  ReauthorizeAction,
+  reviewWhatMarfaShares,
+} from './components/ReauthorizeAction';
 import { roleColor } from './constants';
 import { formatRelativeTime } from './helpers';
 import { CreateKeyForm, EditKeyForm } from './components/KeyForms';
 import { KeyDetailView } from './components/KeyDetailView';
 
-/**
- * Why key minting is unavailable on a browser sign-in.
- *
- * The reason rather than the refusal, because the boundary is deliberate and
- * a person told only "forbidden" reasonably concludes the extension is
- * broken. A key minted from an OAuth token would carry permissions the grant
- * never had, and would keep working after the app was revoked.
- */
-const KEY_MINTING_NEEDS_A_KEY =
-  'A key would outlive the app you signed in with, so it has to be created somewhere that already holds one. Paste an admin API key into Preferences, or create the key in the web console.';
-
 function ManageKeysCommand() {
+  const mayManageKeys = useKeyGrant();
   const {
     data: keys,
     isLoading,
@@ -65,31 +63,44 @@ function ManageKeysCommand() {
       await mutate();
     } catch (err) {
       if (err instanceof ForbiddenError) {
-        await showFailureToast(err, { title: 'Admin credentials required' });
+        await showRefusal(err);
       } else {
         await showFailureToast(err, { title: 'Failed to revoke key' });
       }
     }
   }
 
+  // **Two refusals wear one status code, and the server says which.** A
+  // refusal naming a capability is a permission nobody ticked, and the way out
+  // is the consent screen. One naming none is role, and the consent screen
+  // does nothing for it. Reading the server's own answer rather than inferring
+  // from the local grant also keeps this right when the two disagree, which
+  // they do whenever a stored grant is stale.
   if (error instanceof ForbiddenError) {
+    const refusal = keyRefusal(error);
     return (
       <List isLoading={isLoading}>
         <List.EmptyView
           icon={{ source: Icon.Lock, tintColor: Color.Yellow }}
-          title="Admin credentials required"
-          description="This account doesn't have admin role. Sign in with an admin account, or paste an admin API key in Preferences."
+          title={refusal.title}
+          description={refusal.description}
+          actions={
+            refusal.reconsentHelps ? (
+              <ActionPanel>
+                <ReauthorizeAction />
+              </ActionPanel>
+            ) : undefined
+          }
         />
       </List>
     );
   }
 
-  // Minting a key is refused on a browser sign-in, so the command says why
-  // instead of offering an action that cannot succeed. Offering it anyway
-  // reads as a broken extension rather than a deliberate boundary, and the
-  // refusal arrives as a bare permission error that names no reason.
-  const canCreate = isStaticKeySession();
-  const createAction = canCreate ? (
+  // Whether to offer creation at all, asked before any request. A static key
+  // or a grant carrying the capability may; anything else is offered the way
+  // to grant it instead of an action certain to be refused, which reads as a
+  // broken extension rather than a permission nobody gave.
+  const createAction = mayManageKeys ? (
     <Action.Push
       title="Create New Key"
       icon={Icon.Plus}
@@ -106,8 +117,12 @@ function ManageKeysCommand() {
       onAction={() =>
         showToast({
           style: Toast.Style.Failure,
-          title: 'Keys cannot be created from a browser sign-in',
-          message: KEY_MINTING_NEEDS_A_KEY,
+          title: 'Permission to manage keys was not granted',
+          message: KEY_MANAGEMENT_NOT_GRANTED,
+          primaryAction: {
+            title: REVIEW_WHAT_MARFA_SHARES,
+            onAction: () => void reviewWhatMarfaShares(),
+          },
         })
       }
     />
@@ -118,8 +133,15 @@ function ManageKeysCommand() {
       <List.EmptyView
         icon={Icon.Key}
         title="No keys"
-        description={canCreate ? 'Create your first key with cmd+N.' : KEY_MINTING_NEEDS_A_KEY}
-        actions={<ActionPanel>{createAction}</ActionPanel>}
+        description={
+          mayManageKeys ? 'Create your first key with cmd+N.' : KEY_MANAGEMENT_NOT_GRANTED
+        }
+        actions={
+          <ActionPanel>
+            {createAction}
+            {!mayManageKeys && <ReauthorizeAction />}
+          </ActionPanel>
+        }
       />
       {(keys ?? []).map((key) => (
         <List.Item
@@ -162,7 +184,14 @@ function ManageKeysCommand() {
                 content={key.source}
                 shortcut={Keyboard.Shortcut.Common.Duplicate}
               />
-              <ActionPanel.Section>{createAction}</ActionPanel.Section>
+              <ActionPanel.Section>
+                {createAction}
+                {/* A row can be on screen while the grant says this session may not
+                    manage keys — a stored grant read before a refresh is narrower
+                    than the token actually carries. Edit and Revoke are right here,
+                    so the way to grant the permission has to be too. */}
+                {!mayManageKeys && <ReauthorizeAction />}
+              </ActionPanel.Section>
               <ActionPanel.Section title="Danger">
                 <Action
                   title="Revoke"

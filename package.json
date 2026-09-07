@@ -44,7 +44,7 @@
       "name": "manage-keys",
       "title": "Manage Keys",
       "subtitle": "Marfa",
-      "description": "Admin: list, create, edit, and revoke API keys",
+      "description": "List, create, edit, and revoke API keys. Needs admin role and permission to manage keys",
       "mode": "view"
     },
     {
