@@ -26,6 +26,7 @@ import {
 import type { GrantRecord } from './discovery';
 import { buildAuthorizeUrl } from './authorize-url';
 import { buildRegistrationBody } from './registration-body';
+import { claimCovers, needsClientRenewal } from './client-renewal';
 
 const PROVIDER_NAME = 'Marfa';
 const PROVIDER_ID = 'marfa';
@@ -41,6 +42,13 @@ function stripTrailingSlash(s: string): string {
 
 function clientIdStorageKey(issuer: string): string {
   return `marfa.client_id:${stripTrailingSlash(issuer)}`;
+}
+
+/** The scope the stored client was registered claiming. Kept because a
+ *  ceiling is invisible from here — nothing reads it back — so this is the
+ *  only way to know whether registering again would change anything. */
+function clientScopeStorageKey(issuer: string): string {
+  return `marfa.client_scope:${stripTrailingSlash(issuer)}`;
 }
 
 /** Singleton PKCEClient, keeping token storage consistent across command
@@ -107,11 +115,13 @@ async function dcrRegister(
 /**
  * The client id for this issuer, registering one if there is none.
  *
- * `renew` discards a stored id and registers again. A ceiling is frozen at
- * registration, so a client stored before a scope was asked for can never
- * obtain it — and because the authorize surface narrows silently rather than
- * refusing, there is no error to notice. The only signal is the grant coming
- * back short, which is exactly when the callers below pass `renew`.
+ * `renew` asks for a fresh registration, because a capability scope can only
+ * reach a ceiling that way — the server's own catch-up excludes that family,
+ * and the authorize surface then narrows silently rather than refusing, so
+ * there is no error to key off. It is honoured only when it would change
+ * something: a client already claiming everything being asked for is returned
+ * as it stands, which is what stops a cancelled sign-in from minting and
+ * abandoning a client on every retry.
  */
 async function ensureClientId(
   issuer: string,
@@ -121,9 +131,14 @@ async function ensureClientId(
   renew = false,
 ): Promise<string> {
   const stored = await LocalStorage.getItem<string>(clientIdStorageKey(issuer));
-  if (stored && !renew) return stored;
+  if (stored) {
+    if (!renew) return stored;
+    const claimed = await LocalStorage.getItem<string>(clientScopeStorageKey(issuer));
+    if (claimCovers(claimed, scope)) return stored;
+  }
   const id = await dcrRegister(registrationEndpoint, redirectUri, scope);
   await LocalStorage.setItem(clientIdStorageKey(issuer), id);
+  await LocalStorage.setItem(clientScopeStorageKey(issuer), scope);
   return id;
 }
 
@@ -188,6 +203,7 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
     LocalStorage.removeItem(ISSUER_STORAGE_KEY),
     LocalStorage.removeItem(CLIENT_ID_STORAGE_KEY),
     LocalStorage.removeItem(clientIdStorageKey(storedIssuer)),
+    LocalStorage.removeItem(clientScopeStorageKey(storedIssuer)),
     LocalStorage.removeItem(grantRecordKey(storedIssuer)),
     LocalStorage.removeItem(legacyRequestedScopesKey(storedIssuer)),
   ]);
@@ -480,13 +496,11 @@ async function reconsentIfServerOffersMore(
     message: `This server offers ${String(decision.missing.length)} permissions your last sign-in did not grant.`,
   });
   await pkceClient.removeTokens();
-  // The shortfall may be the stored ceiling rather than the person's answer,
-  // and the two are indistinguishable from here: a scope outside the ceiling
-  // is dropped before the consent screen is drawn, so it reads exactly like a
-  // permission that was offered and declined. Registering again costs one row
-  // on a path that already runs at most once per shortfall, and without it
-  // this asks a question whose answer cannot change anything.
-  return runFullAuthFlow(issuer, { renewClient: true });
+  // Only a capability shortfall needs a new registration. Every other missing
+  // scope is repaired by the server's own ceiling catch-up during the very
+  // next authorize, so renewing for those would abandon a client row each time
+  // an operator adds a type — which is most of the reason this path runs.
+  return runFullAuthFlow(issuer, { renewClient: needsClientRenewal(decision.missing) });
 }
 
 /**

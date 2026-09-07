@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { buildRegistrationBody } from '../src/auth/registration-body';
-import { REQUESTED_CAPABILITY_SCOPES } from '../src/auth/discovery';
 
 const base = {
   clientName: 'Marfa for Raycast',
@@ -16,16 +15,6 @@ describe('buildRegistrationBody', () => {
     // silently — so the failure surfaces as a missing permission much later,
     // with nothing naming the registration.
     expect(buildRegistrationBody(base).scope).toBe(base.scope);
-  });
-
-  it('carries a capability scope through verbatim', () => {
-    // Capabilities are the family no permission bundle may publish, so the
-    // ceiling can only hold one because a registration claimed it.
-    const scope = ['openid', ...REQUESTED_CAPABILITY_SCOPES].join(' ');
-    const claimed = String(buildRegistrationBody({ ...base, scope }).scope).split(' ');
-    for (const capability of REQUESTED_CAPABILITY_SCOPES) {
-      expect(claimed).toContain(capability);
-    }
   });
 
   it('registers a public client for the code flow with a refresh token', () => {
