@@ -1,6 +1,6 @@
 import { LocalStorage } from '@raycast/api';
-import { expandBundlesToScopes, grantCoversScope } from '@withmarfa/shared';
-import type { PermissionBundle } from '@withmarfa/shared';
+import { expandBundlesToScopes, grantCoversScope, isCapabilityScope } from '@withmarfa/shared';
+import type { CapabilityScope, PermissionBundle } from '@withmarfa/shared';
 
 /**
  * The server's own account of where its OAuth endpoints are and what an
@@ -53,6 +53,7 @@ export interface MarfaAuthConfig {
  * a separate family naming administrative surfaces such as key management,
  * and which are granted only by being named individually. Nothing granted
  * unconditionally belongs in that family, so nothing from it belongs here.
+ * {@link REQUESTED_CAPABILITY_SCOPES} is where those go.
  */
 const ALWAYS_REQUESTED_SCOPES = [
   'offline_access',
@@ -62,6 +63,27 @@ const ALWAYS_REQUESTED_SCOPES = [
   'metadata:write',
   'metadata.types:read',
 ] as const;
+
+/**
+ * The administrative capabilities this extension asks for, which is exactly
+ * the ones its own surfaces use.
+ *
+ * **Its own constant rather than a member of the list above, and the split is
+ * the rule rather than tidiness.** That list is defined by being asked for
+ * always and unconditionally; a capability is granted by a person deciding to
+ * tick it, and arriving inside an unconditional list is the one thing it must
+ * never do. Both properties are true of the request that goes out — the two
+ * sets are unioned a few lines below — so what the separation preserves is the
+ * reason, which is the half that survives someone adding the next entry.
+ *
+ * **One member, and it stays one until a surface needs another.** Manage Keys
+ * is the whole of this extension's administrative reach: `keys.list`,
+ * `keys.create`, `keys.update` and `keys.revoke`. Type registration is fenced
+ * by `metadata.types:write` above and is not a capability, and listing types
+ * is open to any authenticated caller. Asking for more would put permissions
+ * on a consent screen that nothing here would ever spend.
+ */
+export const REQUESTED_CAPABILITY_SCOPES = ['capability.keys'] as const;
 
 /**
  * Used only when the discovery document cannot be read, whether from an
@@ -74,6 +96,7 @@ const FALLBACK_SCOPES = [
   'core.*:read',
   'core.*:write',
   ...ALWAYS_REQUESTED_SCOPES,
+  ...REQUESTED_CAPABILITY_SCOPES,
 ] as const;
 
 /**
@@ -154,9 +177,21 @@ export async function resolveAuthConfig(
     ? ((await fetchDocument(issuer)) ?? (await readCache(issuer)))
     : ((await readCache(issuer)) ?? (await fetchDocument(issuer)));
 
+  // The capabilities are unioned in rather than left to the bundles, because a
+  // bundle will never carry one: the server withholds a capability from every
+  // bundle deliberately, so that granting one is always a person ticking a row
+  // rather than a side effect of accepting a group. An extension that waited
+  // for a bundle to offer `capability.keys` would wait forever and lose its
+  // key surface the day the gate switched on.
   const bundles = doc?.marfa_permission_bundles ?? [];
   const scopes = bundles.length
-    ? [...new Set([...expandBundlesToScopes(bundles), ...ALWAYS_REQUESTED_SCOPES])].sort()
+    ? [
+        ...new Set([
+          ...expandBundlesToScopes(bundles),
+          ...ALWAYS_REQUESTED_SCOPES,
+          ...REQUESTED_CAPABILITY_SCOPES,
+        ]),
+      ].sort()
     : [...FALLBACK_SCOPES];
 
   return {
@@ -245,6 +280,56 @@ export function typeReadableBySession(
   if (session.staticKey) return true;
   if (!session.granted) return true;
   return isTypeGranted(session.granted, typeId);
+}
+
+/**
+ * Whether this session may be offered key management.
+ *
+ * **The same three-answer shape as {@link typeReadableBySession}, and for the
+ * same reason.** A pasted static key is not an OAuth grant and the tokens from
+ * an earlier browser sign-in survive in storage beside it; an unknown grant is
+ * not evidence of a missing capability. Both are "make no claim", and claiming
+ * otherwise hides the extension's one administrative command from somebody who
+ * holds the permission for it.
+ *
+ * **Optimism here is safe in a way it would not be on a write path**, which is
+ * worth stating because the instinct is to fail closed. Nothing is decided by
+ * this that the server does not decide again: a session that does not hold the
+ * capability is refused at the route, and the refusal names the literal, so the
+ * cost of being wrong is a clear message rather than a silent escalation. The
+ * cost of the opposite error is a command that vanishes with no way to ask why.
+ */
+export function sessionMayManageKeys(session: {
+  staticKey: boolean;
+  granted: string | undefined;
+}): boolean {
+  if (session.staticKey) return true;
+  if (!session.granted) return true;
+  return missingScopes(session.granted, ['capability.keys']).length === 0;
+}
+
+/**
+ * The capability a refusal was asking for, when it was asking for one.
+ *
+ * **Two refusals wear one status code and need two different answers**, which
+ * is the whole reason this reads the server's own words instead of guessing
+ * from local state. A member who is not a space admin has to ask an admin; a
+ * session that was never granted the capability has to re-consent, and the
+ * consent screen would do nothing at all for the first person. Sending them
+ * there anyway is a loop with no exit, because the thing they lack is not on
+ * that screen.
+ *
+ * Validated against the shared set rather than trusted as a string, so a
+ * malformed or unexpected `required_scope` reads as "no capability named" and
+ * the surface falls back to the role explanation rather than putting an
+ * arbitrary literal in front of somebody.
+ */
+export function capabilityRefusedBy(error: unknown): CapabilityScope | undefined {
+  const details = (error as { details?: unknown } | null | undefined)?.details;
+  if (!details || typeof details !== 'object') return undefined;
+  const required = (details as Record<string, unknown>).required_scope;
+  if (typeof required !== 'string' || !isCapabilityScope(required)) return undefined;
+  return required;
 }
 
 /**
