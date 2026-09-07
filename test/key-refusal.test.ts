@@ -30,6 +30,18 @@ describe('keyRefusal', () => {
     expect(refusal.description).toMatch(/admin/i);
   });
 
+  it('does not offer re-consent for a capability this extension never asks for', () => {
+    // The subtler dead end, and the one that reads as a fix. Re-consent
+    // requests `REQUESTED_CAPABILITY_SCOPES` and nothing else, so it can only
+    // ever obtain `capability.keys`. Offering it for some other capability
+    // sends a person round the consent screen to arrive at the same refusal —
+    // the failure this split exists to remove, reached through a different
+    // door. Names the literal instead, so whoever reads it can act.
+    const refusal = keyRefusal({ details: { required_scope: 'capability.audit_read' } });
+    expect(refusal.reconsentHelps).toBe(false);
+    expect(refusal.description).toContain('capability.audit_read');
+  });
+
   it('falls back to the role answer for anything it cannot read', () => {
     // Failing towards role is the safe direction: it tells someone to ask an
     // admin, which is never a loop, whereas guessing "not granted" sends a

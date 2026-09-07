@@ -87,12 +87,16 @@ export function invalidateClientCache(): void {
  * the question without reaching for preferences itself and drifting from the
  * client's answer.
  *
- * It decides what a command may offer, not what it may do. The server refuses
- * key minting on an OAuth token deliberately: an app granted narrow
- * permissions could otherwise mint an unrestricted key, and the key would
- * outlive the grant that produced it, so revoking the app would not revoke
- * the key. That refusal stays. This only stops the extension advertising an
- * action that is certain to be refused.
+ * It answers which credential is in use, and nothing about what that
+ * credential may do. It used to answer both, because minting a key was refused
+ * on any OAuth token and a pasted key was therefore the whole of the question.
+ * That is no longer the rule: a sign-in holding `capability.keys` may mint one,
+ * clamped to the reach the sign-in itself holds, so the key cannot outlive its
+ * grant in authority even though it outlives it in time.
+ *
+ * **So do not reach for this to decide whether a key surface is available.**
+ * `sessionMayManageKeys` is that question and consults the grant as well; this
+ * one is still right for what it says, and wrong for what it used to imply.
  */
 export function isStaticKeySession(): boolean {
   const { apiKey } = getPreferenceValues<Preferences>();

@@ -13,7 +13,7 @@ import { useState } from 'react';
 import type { ApiKey, UpdateKeyInput } from '@withmarfa/sdk';
 import { ForbiddenError, MarfaError } from '@withmarfa/sdk';
 import { getClient } from '../client';
-import { keyRefusal } from '../key-refusal';
+import { showRefusal } from '../show-refusal';
 
 /**
  * Permission shapes:
@@ -365,7 +365,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
       if (error instanceof MarfaError && error.status === 409) {
         setSourceError(error.message);
       } else if (error instanceof ForbiddenError) {
-        await showFailureToast(error, { title: keyRefusal(error).title });
+        await showRefusal(error);
       } else {
         await showFailureToast(error, { title: 'Failed to create key' });
       }
@@ -688,7 +688,7 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
       ) {
         await showFailureToast(error, { title: error.message });
       } else if (error instanceof ForbiddenError) {
-        await showFailureToast(error, { title: keyRefusal(error).title });
+        await showRefusal(error);
       } else {
         await showFailureToast(error, { title: 'Failed to update key' });
       }

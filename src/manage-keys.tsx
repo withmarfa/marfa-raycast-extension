@@ -16,8 +16,13 @@ import { ForbiddenError } from '@withmarfa/sdk';
 import { withMarfaAccessToken } from './auth/with-marfa-access-token';
 import { getClient } from './client';
 import { KEY_MANAGEMENT_NOT_GRANTED, keyRefusal } from './key-refusal';
+import { showRefusal } from './show-refusal';
 import { useKeyGrant } from './use-key-grant';
-import { ReauthorizeAction } from './components/ReauthorizeAction';
+import {
+  REVIEW_WHAT_MARFA_SHARES,
+  ReauthorizeAction,
+  reviewWhatMarfaShares,
+} from './components/ReauthorizeAction';
 import { roleColor } from './constants';
 import { formatRelativeTime } from './helpers';
 import { CreateKeyForm, EditKeyForm } from './components/KeyForms';
@@ -58,7 +63,7 @@ function ManageKeysCommand() {
       await mutate();
     } catch (err) {
       if (err instanceof ForbiddenError) {
-        await showFailureToast(err, { title: keyRefusal(err).title });
+        await showRefusal(err);
       } else {
         await showFailureToast(err, { title: 'Failed to revoke key' });
       }
@@ -114,6 +119,10 @@ function ManageKeysCommand() {
           style: Toast.Style.Failure,
           title: 'Permission to manage keys was not granted',
           message: KEY_MANAGEMENT_NOT_GRANTED,
+          primaryAction: {
+            title: REVIEW_WHAT_MARFA_SHARES,
+            onAction: () => void reviewWhatMarfaShares(),
+          },
         })
       }
     />
@@ -175,7 +184,14 @@ function ManageKeysCommand() {
                 content={key.source}
                 shortcut={Keyboard.Shortcut.Common.Duplicate}
               />
-              <ActionPanel.Section>{createAction}</ActionPanel.Section>
+              <ActionPanel.Section>
+                {createAction}
+                {/* A row can be on screen while the grant says this session may not
+                    manage keys — a stored grant read before a refresh is narrower
+                    than the token actually carries. Edit and Revoke are right here,
+                    so the way to grant the permission has to be too. */}
+                {!mayManageKeys && <ReauthorizeAction />}
+              </ActionPanel.Section>
               <ActionPanel.Section title="Danger">
                 <Action
                   title="Revoke"

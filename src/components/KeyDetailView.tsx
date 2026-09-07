@@ -18,7 +18,7 @@ import { getClient } from '../client';
 import { roleColor } from '../constants';
 import { formatRelativeTime } from '../helpers';
 import { EditKeyForm } from './KeyForms';
-import { keyRefusal } from '../key-refusal';
+import { showRefusal } from '../show-refusal';
 
 function permissionMapTags(map: Record<string, string> | undefined): Array<[string, string]> {
   return Object.entries(map ?? {});
@@ -77,7 +77,7 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
       pop();
     } catch (error) {
       if (error instanceof ForbiddenError) {
-        await showFailureToast(error, { title: keyRefusal(error).title });
+        await showRefusal(error);
       } else {
         await showFailureToast(error, { title: 'Failed to revoke key' });
       }

@@ -36,17 +36,34 @@ export interface KeyRefusal {
  * Which of the two refusals this is, read from the server's own words rather
  * than inferred from local state — a stored grant can be stale, and only the
  * server knows about role.
+ *
+ * **`reconsentHelps` asks whether re-consent would actually help, which is
+ * narrower than whether a capability was named.** Re-consent requests exactly
+ * `REQUESTED_CAPABILITY_SCOPES`, so it can only ever obtain `capability.keys`.
+ * A refusal naming any other capability is one this extension cannot satisfy
+ * by asking again, and promising otherwise rebuilds the dead end this whole
+ * split exists to remove — the same failure as sending a member to a consent
+ * screen for a role, reached through a different door.
  */
 export function keyRefusal(error: unknown): KeyRefusal {
-  return capabilityRefusedBy(error)
-    ? {
-        title: 'Permission to manage keys was not granted',
-        description: KEY_MANAGEMENT_NOT_GRANTED,
-        reconsentHelps: true,
-      }
-    : {
-        title: 'Admin role required',
-        description: KEY_MANAGEMENT_NEEDS_ADMIN,
-        reconsentHelps: false,
-      };
+  const required = capabilityRefusedBy(error);
+  if (required === 'capability.keys') {
+    return {
+      title: 'Permission to manage keys was not granted',
+      description: KEY_MANAGEMENT_NOT_GRANTED,
+      reconsentHelps: true,
+    };
+  }
+  if (required) {
+    return {
+      title: 'This sign-in is missing a permission',
+      description: `The server refused this because the sign-in does not carry ${required}, which Raycast does not ask for. An admin of this space can make the change instead.`,
+      reconsentHelps: false,
+    };
+  }
+  return {
+    title: 'Admin role required',
+    description: KEY_MANAGEMENT_NEEDS_ADMIN,
+    reconsentHelps: false,
+  };
 }
