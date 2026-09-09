@@ -15,7 +15,7 @@ import { showFailureToast } from '@raycast/utils';
 import type { ApiKey } from '@withmarfa/sdk';
 import { ForbiddenError } from '@withmarfa/sdk';
 import { getClient } from '../client';
-import { roleColor } from '../constants';
+import { spacePermissionSummary } from '../constants';
 import { formatRelativeTime } from '../helpers';
 import { EditKeyForm } from './KeyForms';
 import { showRefusal } from '../show-refusal';
@@ -98,8 +98,21 @@ export function KeyDetailView({ apiKey, onRefresh }: { apiKey: ApiKey; onRefresh
           {/* No Label row. It is the heading directly above and the navigation
               title, and a screen that states an identifier three times is the
               same defect the list row had. */}
-          <Detail.Metadata.TagList title="Role">
-            <Detail.Metadata.TagList.Item text={apiKey.role} color={roleColor(apiKey.role)} />
+          <Detail.Metadata.TagList title="Space permissions">
+            {(apiKey.space_permissions ?? []).length === 0 ? (
+              <Detail.Metadata.TagList.Item
+                text={spacePermissionSummary([]).label}
+                color={spacePermissionSummary([]).color}
+              />
+            ) : (
+              (apiKey.space_permissions ?? []).map((permission) => (
+                <Detail.Metadata.TagList.Item
+                  key={permission}
+                  text={permission}
+                  color={spacePermissionSummary([permission]).color}
+                />
+              ))
+            )}
           </Detail.Metadata.TagList>
           <Detail.Metadata.Label title="Source" text={apiKey.source} />
           <Detail.Metadata.Separator />

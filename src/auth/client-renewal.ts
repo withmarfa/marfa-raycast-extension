@@ -10,7 +10,7 @@
  * side, for free.
  *
  * Capabilities are the one family excluded from that catch-up, deliberately:
- * admitting one would let an unauthenticated request write a capability into a
+ * admitting one would let an unauthenticated request write a space permission into a
  * stored registration. So they are the only scopes a client has to re-register
  * to obtain, and the only ones this should answer true for.
  *
@@ -18,10 +18,10 @@
  * operator adds a type, per user, forever — with no route this extension can
  * call to clean one up. A refused sign-in is loud; an orphaned client is not.
  */
-import { isCapabilityScope } from '@withmarfa/shared';
+import { isSpacePermission } from '@withmarfa/shared';
 
 export function needsClientRenewal(missing: readonly string[]): boolean {
-  return missing.some((scope) => isCapabilityScope(scope));
+  return missing.some((scope) => isSpacePermission(scope));
 }
 
 /**

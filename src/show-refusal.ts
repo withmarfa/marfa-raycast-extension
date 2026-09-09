@@ -12,8 +12,8 @@ import { REVIEW_WHAT_MARFA_SHARES, reviewWhatMarfaShares } from './components/Re
  * a screen with nothing on it that could grant one — the dead end `keyRefusal`
  * exists to remove, reached from the three doors that are not the empty state.
  *
- * The way out rides on the toast only when it genuinely is one, so a role
- * refusal still offers nothing to press.
+ * The way out rides on the toast only when it genuinely is one, so a refusal
+ * re-consent cannot fix still offers nothing to press.
  *
  * **Its own module because `key-refusal.ts` has to stay pure.** Reaching the
  * consent flow means reaching `marfa-oauth`, which builds an `OAuth.PKCEClient`

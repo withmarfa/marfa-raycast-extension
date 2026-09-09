@@ -23,7 +23,7 @@ import {
   ReauthorizeAction,
   reviewWhatMarfaShares,
 } from './components/ReauthorizeAction';
-import { roleColor } from './constants';
+import { spacePermissionSummary } from './constants';
 import { formatRelativeTime } from './helpers';
 import { CreateKeyForm, EditKeyForm } from './components/KeyForms';
 import { KeyDetailView } from './components/KeyDetailView';
@@ -71,8 +71,9 @@ function ManageKeysCommand() {
   }
 
   // **Two refusals wear one status code, and the server says which.** A
-  // refusal naming a capability is a permission nobody ticked, and the way out
-  // is the consent screen. One naming none is role, and the consent screen
+  // refusal naming `space.keys` is a permission nobody ticked, and the way out
+  // is the consent screen. One naming none is the credential itself, and the
+  // consent screen
   // does nothing for it. Reading the server's own answer rather than inferring
   // from the local grant also keeps this right when the two disagree, which
   // they do whenever a stored grant is stale.
@@ -97,7 +98,7 @@ function ManageKeysCommand() {
   }
 
   // Whether to offer creation at all, asked before any request. A static key
-  // or a grant carrying the capability may; anything else is offered the way
+  // or a grant carrying the permission may; anything else is offered the way
   // to grant it instead of an action certain to be refused, which reads as a
   // broken extension rather than a permission nobody gave.
   const createAction = mayManageKeys ? (
@@ -129,7 +130,7 @@ function ManageKeysCommand() {
   );
 
   return (
-    <List isLoading={isLoading} searchBarPlaceholder="Filter keys by label, source, or role...">
+    <List isLoading={isLoading} searchBarPlaceholder="Filter keys by label or source...">
       <List.EmptyView
         icon={Icon.Key}
         title="No keys"
@@ -146,16 +147,24 @@ function ManageKeysCommand() {
       {(keys ?? []).map((key) => (
         <List.Item
           key={key.id}
-          icon={{ source: Icon.Key, tintColor: roleColor(key.role) }}
+          icon={{
+            source: Icon.Key,
+            tintColor: spacePermissionSummary(key.space_permissions ?? []).color,
+          }}
           title={key.label}
-          keywords={[key.source, key.role, key.label]}
+          keywords={[key.source, key.label]}
           accessories={[
             // The source is deliberately absent. The server derives a runtime
             // key's label from it, so the two render as the same string with
             // one character between them, and a row showing an identifier twice
             // makes a person doubt the rest of the screen. It is on the detail,
             // where it is the only place it appears.
-            { tag: { value: key.role, color: roleColor(key.role) } },
+            {
+              tag: {
+                value: spacePermissionSummary(key.space_permissions ?? []).label,
+                color: spacePermissionSummary(key.space_permissions ?? []).color,
+              },
+            },
             {
               date: new Date(key.created_at),
               tooltip: `Created ${formatRelativeTime(key.created_at)}`,

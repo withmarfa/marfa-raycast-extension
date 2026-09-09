@@ -4,7 +4,7 @@ import { buildRegistrationBody } from '../src/auth/registration-body';
 const base = {
   clientName: 'Marfa for Raycast',
   redirectUri: 'https://raycast.com/redirect?packageName=Extension',
-  scope: 'openid offline_access core.*:read capability.keys',
+  scope: 'openid offline_access core.*:read space.keys',
 };
 
 describe('buildRegistrationBody', () => {

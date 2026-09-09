@@ -1,4 +1,4 @@
-import { capabilityRefusedBy } from './auth/discovery';
+import { spacePermissionRefusedBy } from './auth/discovery';
 
 /**
  * What to say when the server refuses a key operation.
@@ -6,22 +6,26 @@ import { capabilityRefusedBy } from './auth/discovery';
  * **One home because four surfaces ask** — the list, the detail's revoke, the
  * create form and the edit form — and a refusal explained one way on the screen
  * that lists keys and another on the form that makes one is worse than a bare
- * status code. All four previously said "Admin credentials required", which was
- * the only answer available when role was the only fence.
+ * status code. All four once said "Admin credentials required", which was the
+ * only answer available while a rank was the only fence.
  *
- * It is now two answers, and telling them apart is the point. A refusal naming
- * a capability is a permission nobody ticked, and the consent screen fixes it.
- * One naming none is role, and the consent screen offers nothing for it —
- * sending somebody there for a role they lack is a loop with no exit.
+ * **Three answers now, and telling them apart is the point.** A refusal naming
+ * `space.keys` is a permission nobody ticked, and the consent screen fixes it.
+ * One naming a different permission is real and this extension cannot ask for
+ * it, so promising re-consent would rebuild the dead end this split exists to
+ * remove. One naming nothing is a credential that simply does not hold the
+ * permission — an API key pasted into Preferences, most often — and no consent
+ * screen reaches a key.
  */
 
 /** The permission was never granted, and the consent screen is the way out. */
 export const KEY_MANAGEMENT_NOT_GRANTED =
   'This sign-in was not given permission to manage API keys. Review what Marfa shares to grant it — the permission is a row you tick on the consent screen, and a key made from a sign-in can only reach what that sign-in already can.';
 
-/** The credential is not admin-shaped, which no consent screen can change. */
-export const KEY_MANAGEMENT_NEEDS_ADMIN =
-  "This account doesn't have admin role. Ask an admin of this space, sign in with an admin account, or paste an admin API key in Preferences.";
+/** The credential holds no permission to manage keys, and no consent screen
+ *  reaches a credential. */
+export const KEY_MANAGEMENT_NEEDS_PERMISSION =
+  'This credential cannot manage API keys. Paste one that holds `space.keys` in Preferences, or sign in instead — a sign-in can be granted the permission on the consent screen.';
 
 export interface KeyRefusal {
   /** Toast or empty-state title. */
@@ -33,21 +37,20 @@ export interface KeyRefusal {
 }
 
 /**
- * Which of the two refusals this is, read from the server's own words rather
- * than inferred from local state — a stored grant can be stale, and only the
- * server knows about role.
+ * Which of the three refusals this is, read from the server's own words rather
+ * than inferred from local state: a stored grant can be stale, and the server
+ * is the only thing that knows what the credential in hand actually holds.
  *
  * **`reconsentHelps` asks whether re-consent would actually help, which is
- * narrower than whether a capability was named.** Re-consent requests exactly
- * `REQUESTED_CAPABILITY_SCOPES`, so it can only ever obtain `capability.keys`.
- * A refusal naming any other capability is one this extension cannot satisfy
- * by asking again, and promising otherwise rebuilds the dead end this whole
- * split exists to remove — the same failure as sending a member to a consent
- * screen for a role, reached through a different door.
+ * narrower than whether a permission was named.** Re-consent requests exactly
+ * `REQUESTED_SPACE_PERMISSIONS`, so it can only ever obtain `space.keys`. A
+ * refusal naming any other permission is one this extension cannot satisfy by
+ * asking again, and promising otherwise rebuilds the dead end this whole split
+ * exists to remove.
  */
 export function keyRefusal(error: unknown): KeyRefusal {
-  const required = capabilityRefusedBy(error);
-  if (required === 'capability.keys') {
+  const required = spacePermissionRefusedBy(error);
+  if (required === 'space.keys') {
     return {
       title: 'Permission to manage keys was not granted',
       description: KEY_MANAGEMENT_NOT_GRANTED,
@@ -57,13 +60,13 @@ export function keyRefusal(error: unknown): KeyRefusal {
   if (required) {
     return {
       title: 'This sign-in is missing a permission',
-      description: `The server refused this because the sign-in does not carry ${required}, which Raycast does not ask for. An admin of this space can make the change instead.`,
+      description: `The server refused this because the sign-in does not carry ${required}, which Raycast never asks for. Somebody whose credential holds it can make the change instead.`,
       reconsentHelps: false,
     };
   }
   return {
-    title: 'Admin role required',
-    description: KEY_MANAGEMENT_NEEDS_ADMIN,
+    title: 'This credential cannot manage keys',
+    description: KEY_MANAGEMENT_NEEDS_PERMISSION,
     reconsentHelps: false,
   };
 }

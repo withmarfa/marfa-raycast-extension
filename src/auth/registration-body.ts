@@ -8,10 +8,10 @@
  * request rather than refusing it — a scope outside the ceiling is dropped
  * before the consent screen is drawn. So a registration that omits `scope`
  * does not fail; it silently caps every future sign-in at the server's default
- * bundle expansion, which by design carries no capability scope at all.
+ * bundle expansion, which by design carries no space permission at all.
  *
- * A capability is the case that bites, because it is the one family no bundle
- * may publish. Asking for `capability.keys` from a client registered without
+ * A space permission is the case that bites, because it is the one family no bundle
+ * may publish. Asking for `space.keys` from a client registered without
  * it produces a consent screen that never mentions it, a grant that comes back
  * without it, and a refusal much later at a door, with nothing along the way
  * naming the registration as the cause.

@@ -11,6 +11,8 @@ import {
 import { showFailureToast } from '@raycast/utils';
 import { useState } from 'react';
 import type { ApiKey, UpdateKeyInput } from '@withmarfa/sdk';
+import type { SpacePermission } from '@withmarfa/shared';
+import { SPACE_PERMISSIONS } from '@withmarfa/shared';
 import { ForbiddenError, MarfaError } from '@withmarfa/sdk';
 import { getClient } from '../client';
 import { showRefusal } from '../show-refusal';
@@ -25,7 +27,6 @@ import { showRefusal } from '../show-refusal';
 
 type TypeMap = Record<string, 'read' | 'write' | 'none'>;
 type RwMap = Record<string, 'read' | 'write'>;
-type KeyRole = 'instance_admin' | 'space_admin' | 'member';
 
 interface PermissionBundle {
   type_permissions: TypeMap;
@@ -37,16 +38,34 @@ interface PermissionBundle {
 interface CreatePreset {
   id: string;
   label: string;
-  role: KeyRole;
+  /**
+   * The administrative surfaces the key holds, named one by one.
+   *
+   * Empty is the ordinary case and is not a lesser version of the first
+   * preset: a key that writes every type still holds no authority over the
+   * space itself, which is the distinction one permission model exists to
+   * make. Naming it empty is also different from omitting it — the server
+   * reads an absent list as the creator's whole set.
+   */
+  space_permissions: SpacePermission[];
   default_tier: 'library' | 'feed';
   permissions: PermissionBundle;
 }
 
+/**
+ * Three presets, matching the ones the server's own keys form offers.
+ *
+ * The five that were here carried a role each, and two of them differed in
+ * nothing else — `full-admin` and `space-admin` had identical permission maps
+ * and were told apart only by a rank the model no longer has. What is left is
+ * the distinction that survives: everything, the content of a space, or a
+ * read of it.
+ */
 const CREATE_PRESETS: CreatePreset[] = [
   {
-    id: 'full-admin',
-    label: 'Full admin (write everything)',
-    role: 'instance_admin',
+    id: 'everything',
+    label: 'Everything (the whole space, administration included)',
+    space_permissions: [...SPACE_PERMISSIONS],
     default_tier: 'library',
     permissions: {
       type_permissions: { '*': 'write' },
@@ -56,9 +75,9 @@ const CREATE_PRESETS: CreatePreset[] = [
     },
   },
   {
-    id: 'space-admin',
-    label: 'Space admin',
-    role: 'space_admin',
+    id: 'content-only',
+    label: 'Content only (write everything, administer nothing)',
+    space_permissions: [],
     default_tier: 'library',
     permissions: {
       type_permissions: { '*': 'write' },
@@ -68,47 +87,15 @@ const CREATE_PRESETS: CreatePreset[] = [
     },
   },
   {
-    id: 'read-only-browser',
-    label: 'Read-only browser',
-    role: 'member',
+    id: 'read-only',
+    label: 'Read only',
+    space_permissions: [],
     default_tier: 'library',
     permissions: {
       type_permissions: { '*': 'read' },
       extension_permissions: { '*': 'read' },
       edge_permissions: { '*': 'read' },
       metadata_permissions: { types: 'read' },
-    },
-  },
-  {
-    id: 'capture',
-    label: 'Capture client',
-    role: 'member',
-    default_tier: 'library',
-    permissions: {
-      type_permissions: {
-        'core.note': 'write',
-        'core.bookmark': 'write',
-        'core.task': 'write',
-        'core.event': 'write',
-        'core.file': 'write',
-        'core.highlight': 'write',
-        '*': 'read',
-      },
-      extension_permissions: {},
-      edge_permissions: { 'in-thread': 'write', references: 'write', '*': 'read' },
-      metadata_permissions: {},
-    },
-  },
-  {
-    id: 'custom-type-author',
-    label: 'Custom type author',
-    role: 'member',
-    default_tier: 'library',
-    permissions: {
-      type_permissions: { '*': 'read' },
-      extension_permissions: {},
-      edge_permissions: { '*': 'read' },
-      metadata_permissions: { types: 'write' },
     },
   },
 ];
@@ -208,7 +195,11 @@ ${apiKey.key}
 
 **Source:** ${apiKey.source}
 
-**Role:** ${apiKey.role}`;
+**Space permissions:** ${
+    (apiKey.space_permissions ?? []).length > 0
+      ? (apiKey.space_permissions ?? []).join(', ')
+      : 'none'
+  }`;
 
   return (
     <Detail
@@ -233,7 +224,6 @@ interface CreateValues {
   preset: string;
   label: string;
   source: string;
-  role: string;
   default_tier: string;
   type_quickset: string;
   type_custom_json: string;
@@ -343,7 +333,12 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
     }
     if (invalid) return;
 
-    const role = (activePreset?.role ?? (values.role as KeyRole)) as KeyRole;
+    // **A custom key holds no administrative reach.** The form offers no way
+    // to tick one, and naming the empty array rather than omitting it is the
+    // difference between a key that administers nothing and a key that
+    // inherits everything its creator holds. Somebody wanting more reaches
+    // for a preset, or the server's own keys page, which offers the eleven.
+    const spacePermissions = activePreset?.space_permissions ?? [];
     const defaultTier = (activePreset?.default_tier ??
       (values.default_tier as 'library' | 'feed')) as 'library' | 'feed';
 
@@ -352,7 +347,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
       const created = await client.keys.create({
         label: values.label.trim(),
         source: values.source.trim(),
-        role,
+        space_permissions: spacePermissions,
         default_tier: defaultTier,
         type_permissions: permissions.type_permissions,
         extension_permissions: permissions.extension_permissions,
@@ -413,11 +408,6 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
 
       {!usingPreset && (
         <>
-          <Form.Dropdown id="role" title="Role" defaultValue="member">
-            <Form.Dropdown.Item value="member" title="Member" />
-            <Form.Dropdown.Item value="space_admin" title="Space Admin" />
-            <Form.Dropdown.Item value="instance_admin" title="Instance Admin" />
-          </Form.Dropdown>
           <Form.Dropdown id="default_tier" title="Default Tier" defaultValue="library">
             <Form.Dropdown.Item value="library" title="Library" />
             <Form.Dropdown.Item value="feed" title="Feed" />
@@ -532,7 +522,11 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         <Form.Description
           title="Permissions"
           text={[
-            `Role: ${activePreset.role}`,
+            `Space permissions: ${
+              activePreset.space_permissions.length > 0
+                ? activePreset.space_permissions.join(', ')
+                : 'none'
+            }`,
             `Default tier: ${activePreset.default_tier}`,
             `Types: ${stringifyMap(activePreset.permissions.type_permissions)}`,
             `Extensions: ${stringifyMap(activePreset.permissions.extension_permissions)}`,
@@ -712,7 +706,14 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
         onChange={() => setLabelError(undefined)}
       />
       <Form.Description title="Source" text={`${apiKey.source} (immutable)`} />
-      <Form.Description title="Role" text={`${apiKey.role} (immutable)`} />
+      <Form.Description
+        title="Space permissions"
+        text={`${
+          (apiKey.space_permissions ?? []).length > 0
+            ? (apiKey.space_permissions ?? []).join(', ')
+            : 'none'
+        } (narrow only, never widen)`}
+      />
       <Form.Dropdown id="default_tier" title="Default Tier" defaultValue={apiKey.default_tier}>
         <Form.Dropdown.Item value="library" title="Library" />
         <Form.Dropdown.Item value="feed" title="Feed" />

@@ -12,7 +12,10 @@ describe('resolveSessionIdentity', () => {
 
   it('names the person when it can read them', () => {
     expect(
-      resolveSessionIdentity({ staticKey: false, profile: { email: 'a@b.com', username: 'olive' } }),
+      resolveSessionIdentity({
+        staticKey: false,
+        profile: { email: 'a@b.com', username: 'olive' },
+      }),
     ).toEqual({ authMode: 'oauth', identity: 'a@b.com (@olive)' });
 
     expect(resolveSessionIdentity({ staticKey: false, profile: { email: 'a@b.com' } })).toEqual({
@@ -69,9 +72,9 @@ describe('resolveSessionIdentity', () => {
 
     // An unexpected failure carries its own message rather than being flattened
     // into the same sentence as a permissions refusal.
-    expect(resolveSessionIdentity({ staticKey: false, error: new Error('socket hang up') }).note).toBe(
-      'socket hang up',
-    );
+    expect(
+      resolveSessionIdentity({ staticKey: false, error: new Error('socket hang up') }).note,
+    ).toBe('socket hang up');
   });
 
   it('always has something to say, whatever it was handed', () => {

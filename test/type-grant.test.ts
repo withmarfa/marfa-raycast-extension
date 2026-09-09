@@ -40,9 +40,9 @@ describe('typeReadableBySession', () => {
   });
 
   it('treats a write grant as covering the read', () => {
-    expect(typeReadableBySession({ staticKey: false, granted: 'core.note:write' }, 'core.note')).toBe(
-      true,
-    );
+    expect(
+      typeReadableBySession({ staticKey: false, granted: 'core.note:write' }, 'core.note'),
+    ).toBe(true);
   });
 
   it('puts the static-key rule ahead of the grant, not beside it', () => {
@@ -52,8 +52,8 @@ describe('typeReadableBySession', () => {
     expect(typeReadableBySession({ staticKey: true, granted: 'core.note:read' }, 'core.task')).toBe(
       true,
     );
-    expect(typeReadableBySession({ staticKey: false, granted: 'core.note:read' }, 'core.task')).toBe(
-      false,
-    );
+    expect(
+      typeReadableBySession({ staticKey: false, granted: 'core.note:read' }, 'core.task'),
+    ).toBe(false);
   });
 });

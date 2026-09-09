@@ -217,7 +217,6 @@ describe('fallbackItemSubtitle', () => {
     expect(fallbackItemSubtitle(item({ properties: { title: 'T', body: 'B' } }))).toBe('B');
     expect(fallbackItemSubtitle(item({ properties: { body: 'B' } }))).toBeUndefined();
   });
-
 });
 
 describe('the title and subtitle fallbacks, on an empty title', () => {

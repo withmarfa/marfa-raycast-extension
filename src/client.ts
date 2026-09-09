@@ -90,7 +90,7 @@ export function invalidateClientCache(): void {
  * It answers which credential is in use, and nothing about what that
  * credential may do. It used to answer both, because minting a key was refused
  * on any OAuth token and a pasted key was therefore the whole of the question.
- * That is no longer the rule: a sign-in holding `capability.keys` may mint one,
+ * That is no longer the rule: a sign-in holding `space.keys` may mint one,
  * clamped to the reach the sign-in itself holds, so the key cannot outlive its
  * grant in authority even though it outlives it in time.
  *
