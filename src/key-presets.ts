@@ -55,6 +55,7 @@ export type PresetPermissionFields = Pick<
   | 'extension_permissions'
   | 'edge_permissions'
   | 'metadata_permissions'
+  | 'profile_permissions'
 >;
 
 /**
@@ -64,19 +65,49 @@ export type PresetPermissionFields = Pick<
  * the difference.** The server reads an absent `space_permissions` as the
  * creator's whole set and an empty one as none at all, so a content key has to
  * name the empty list while "Everything you hold" has to name nothing. The
- * same rule governs the four content maps, which is why the first preset omits
- * the default tier too: a request that names nothing names nothing.
+ * same rule governs the content maps, which is why the first preset omits the
+ * default tier too: a request that names nothing names nothing.
+ *
+ * **The credential decides one family, and it decides nothing for the first
+ * preset.** Asking for nothing is already the question "what does this
+ * credential hold", asked of the only thing that can answer it, so the answer
+ * is the same whoever is asking.
  */
-export function presetPermissionFields(id: PresetId): PresetPermissionFields {
+export function presetPermissionFields(
+  id: PresetId,
+  credential: CredentialReach,
+): PresetPermissionFields {
   if (id === EVERYTHING_PRESET_ID) return {};
   const access = id === CONTENT_WRITE_PRESET_ID ? 'write' : 'read';
   return {
     space_permissions: [],
     default_tier: 'library',
     type_permissions: { '*': access },
-    extension_permissions: { '*': access },
+    // **A sign-in sends no extension map at all, and this is the same defect
+    // as the eleven, reached through a different family.** No scope names an
+    // extension namespace, so the server has nothing to measure a session's
+    // request against and refuses any non-empty map outright — ahead of every
+    // other axis, so both content presets were refused on every OAuth sign-in
+    // before anything else was even looked at. A key carries namespaces on its
+    // own row, so the ceiling compares map against map and the family is
+    // checked rather than refused; dropping it for a pasted key too would
+    // narrow a key that credential is entitled to make.
+    ...(credential.staticKey ? { extension_permissions: { '*': access } } : {}),
     edge_permissions: { '*': access },
     metadata_permissions: { types: access },
+    // **Named because naming any family derives the rest empty.** The server
+    // reads "names no reach" as all five families or none, so a request naming
+    // types gets `{}` on every family it stayed silent about, and a content key
+    // could not read the profile rows even when its creator held them.
+    //
+    // **Read on both presets rather than the preset's own level.**
+    // `profile:write` is administrative authority over the account and the
+    // server keeps it in no shipped bundle, opt-in by name, so a sign-in never
+    // holds it and naming it would refuse the mint for exactly the reason this
+    // preset table was rewritten. The profile is the account rather than
+    // content, which is the line the `content` scope category already draws:
+    // "everything you save, and nothing about your account".
+    profile_permissions: { '*': 'read' },
   };
 }
 
@@ -107,7 +138,7 @@ const CLAMP_NOTE =
  * held.
  */
 export function presetSummary(id: PresetId, credential: CredentialReach): string {
-  if (id !== EVERYTHING_PRESET_ID) return namedPresetSummary(id);
+  if (id !== EVERYTHING_PRESET_ID) return namedPresetSummary(id, credential);
   return everythingSummary(credential);
 }
 
@@ -133,7 +164,12 @@ function everythingSummary(credential: CredentialReach): string {
       'What that set is cannot be listed here. A pasted key is stored as a hash, so nothing matches it back to its row.',
     ].join('\n\n');
   }
-  if (!credential.granted) {
+  // **`=== undefined`, not falsiness, and the doc comment on `granted` is the
+  // rule.** `undefined` means the server reported no scopes; a string is what
+  // it reported, and the empty one is a reported grant of nothing. Collapsing
+  // the two says "the server did not report this sign-in's scopes" about the
+  // one credential the server described exactly.
+  if (credential.granted === undefined) {
     return [
       COPIES_THE_CREDENTIAL,
       "What that set is cannot be listed here, because the server did not report this sign-in's scopes.",
@@ -162,8 +198,15 @@ function everythingSummary(credential: CredentialReach): string {
   ].join('\n\n');
 }
 
-function namedPresetSummary(id: PresetId): string {
-  const fields = presetPermissionFields(id);
+/**
+ * **Read from the request rather than restated beside it**, so a family the
+ * body stopped asking for cannot keep being promised here. The extension line
+ * is why: what it says now depends on which credential is signing, and a
+ * second literal would have gone on saying `*: write` to a sign-in that sends
+ * no extension map at all.
+ */
+function namedPresetSummary(id: PresetId, credential: CredentialReach): string {
+  const fields = presetPermissionFields(id, credential);
   return [
     // Named rather than derived, so the empty list reads as the decision it is
     // rather than as a set nobody filled in.
@@ -173,6 +216,7 @@ function namedPresetSummary(id: PresetId): string {
     `Extensions: ${describePermissionMap(fields.extension_permissions)}`,
     `Edges: ${describePermissionMap(fields.edge_permissions)}`,
     `Metadata: ${describePermissionMap(fields.metadata_permissions)}`,
+    `Profile: ${describePermissionMap(fields.profile_permissions)}`,
     CLAMP_NOTE,
   ].join('\n');
 }

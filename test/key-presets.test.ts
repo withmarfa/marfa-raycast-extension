@@ -9,6 +9,7 @@ import {
   presetPermissionFields,
   presetSummary,
 } from '../src/key-presets';
+import type { CredentialReach } from '../src/key-presets';
 
 /**
  * What a preset puts on the wire, and what the form says it will do.
@@ -27,27 +28,49 @@ const PERMISSION_FIELDS = [
   'extension_permissions',
   'edge_permissions',
   'metadata_permissions',
+  'profile_permissions',
 ] as const;
+
+/**
+ * The two credentials a create form can be holding, because half of what a
+ * preset sends is now a question about which one it is.
+ */
+const SIGNED_IN: CredentialReach = {
+  staticKey: false,
+  granted: 'openid core.note:read core.note:write space.keys',
+};
+const PASTED_KEY: CredentialReach = { staticKey: true, granted: undefined };
+
+const CONTENT_PRESETS = [CONTENT_WRITE_PRESET_ID, CONTENT_READ_PRESET_ID] as const;
 
 describe('presetPermissionFields', () => {
   it('names no permission at all for Everything', () => {
     // The whole defect in one assertion. Every field here is one the server
     // reads as "this is what the key gets", and any of them present turns a
     // copy of the creator's set into a request measured against it.
-    const fields = presetPermissionFields(EVERYTHING_PRESET_ID);
+    const fields = presetPermissionFields(EVERYTHING_PRESET_ID, SIGNED_IN);
     for (const field of PERMISSION_FIELDS) {
       expect(fields[field]).toBeUndefined();
     }
+    // Absent, not present-and-undefined. `JSON.stringify` drops the second on
+    // its way to the wire, so the two agree today and would stop agreeing the
+    // moment anything between here and the request reads the keys instead of
+    // the values.
+    expect(Object.keys(fields)).toEqual([]);
+    // The credential decides what the other two presets send and decides
+    // nothing here, because asking for nothing is already the question "what
+    // does this credential hold" asked of the only thing that can answer it.
+    expect(presetPermissionFields(EVERYTHING_PRESET_ID, PASTED_KEY)).toEqual(fields);
   });
 
   it('names no default tier for Everything either', () => {
     // Not a permission, but the same rule reads better applied to the whole
     // request: the preset says nothing, so nothing it did not choose is sent.
-    expect(presetPermissionFields(EVERYTHING_PRESET_ID).default_tier).toBeUndefined();
+    expect(presetPermissionFields(EVERYTHING_PRESET_ID, SIGNED_IN).default_tier).toBeUndefined();
   });
 
   it('sends the full content maps and no space permission for Content, read and write', () => {
-    const fields = presetPermissionFields(CONTENT_WRITE_PRESET_ID);
+    const fields = presetPermissionFields(CONTENT_WRITE_PRESET_ID, PASTED_KEY);
     // Empty rather than absent, and the difference is the whole preset: an
     // absent list takes the creator's space permissions, which is the one thing
     // a content-only key must not do.
@@ -59,12 +82,60 @@ describe('presetPermissionFields', () => {
   });
 
   it('sends read maps and no space permission for Content, read only', () => {
-    const fields = presetPermissionFields(CONTENT_READ_PRESET_ID);
+    const fields = presetPermissionFields(CONTENT_READ_PRESET_ID, PASTED_KEY);
     expect(fields.space_permissions).toEqual([]);
     expect(fields.type_permissions).toEqual({ '*': 'read' });
     expect(fields.extension_permissions).toEqual({ '*': 'read' });
     expect(fields.edge_permissions).toEqual({ '*': 'read' });
     expect(fields.metadata_permissions).toEqual({ types: 'read' });
+  });
+
+  it('sends no extension map from a sign-in, which can hold no namespace', () => {
+    // The same defect as the eleven space permissions, reached through a
+    // different family. No scope names an extension namespace, so the server
+    // has nothing to measure a session's request against and refuses any
+    // non-empty map outright — ahead of every other axis, so both content
+    // presets were refused on every OAuth sign-in before anything else was
+    // even looked at.
+    for (const id of CONTENT_PRESETS) {
+      const fields = presetPermissionFields(id, SIGNED_IN);
+      expect(fields.extension_permissions).toBeUndefined();
+      // Absent rather than present-and-undefined, for the same reason the
+      // Everything preset is asserted that way.
+      expect(Object.keys(fields)).not.toContain('extension_permissions');
+    }
+  });
+
+  it('still sends one from a pasted key, which can hold namespaces', () => {
+    // A key carries extension namespaces on its own row, so the creator
+    // ceiling compares map against map and the family is checked rather than
+    // refused. Dropping it for every credential would narrow a key a static
+    // credential is entitled to make.
+    expect(presetPermissionFields(CONTENT_WRITE_PRESET_ID, PASTED_KEY).extension_permissions).toEqual(
+      { '*': 'write' },
+    );
+    expect(presetPermissionFields(CONTENT_READ_PRESET_ID, PASTED_KEY).extension_permissions).toEqual({
+      '*': 'read',
+    });
+  });
+
+  it('names the profile map, because naming any family derives the rest empty', () => {
+    // The server reads "names no reach" as all five families or none, so a
+    // request naming types gets `{}` on every family it stayed silent about.
+    // A content key that said nothing about the profile therefore could not
+    // read the profile rows even when its creator held them.
+    //
+    // Read on both presets rather than the preset's own level. `profile:write`
+    // is in no shipped bundle — the server keeps the write half opt-in by name
+    // — so a sign-in never holds it, and naming it would refuse the mint for
+    // exactly the reason this whole preset table was rewritten. The profile is
+    // the account rather than content, which is the same line the `content`
+    // scope category already draws.
+    for (const id of CONTENT_PRESETS) {
+      for (const credential of [SIGNED_IN, PASTED_KEY]) {
+        expect(presetPermissionFields(id, credential).profile_permissions).toEqual({ '*': 'read' });
+      }
+    }
   });
 });
 
@@ -156,6 +227,34 @@ describe('presetSummary', () => {
     // A named set is still clamped to the creator's, and a summary that did
     // not say so would promise reach the server may refuse.
     expect(summary).toMatch(/clamped|no more than/i);
+  });
+
+  it('names the profile beside the other families', () => {
+    // The created-key screen lists it, and two screens describing one key
+    // differing on a family is how somebody concludes the mint did something
+    // other than what the form said it would.
+    for (const id of CONTENT_PRESETS) {
+      expect(presetSummary(id, SIGNED_IN)).toMatch(/^Profile: /m);
+    }
+  });
+
+  it('separates a grant reported as empty from one never reported', () => {
+    // `CredentialReach.granted` documents `undefined` as "the server reported
+    // none" and a string as what it reported, so an empty string is a reported
+    // grant of nothing. A truthiness check collapses the two and says "cannot
+    // be listed" about the one credential the server described exactly.
+    const summary = presetSummary(EVERYTHING_PRESET_ID, { staticKey: false, granted: '' });
+    expect(summary).toMatch(/space permissions: none/i);
+    expect(summary).not.toMatch(/did not report/i);
+  });
+
+  it('reports what a sign-in gets on the extension family, matching what it sends', () => {
+    // The summary is derived from the request rather than restated, so the
+    // screen cannot promise namespaces the body no longer asks for.
+    expect(presetSummary(CONTENT_WRITE_PRESET_ID, SIGNED_IN)).toMatch(/^Extensions: none$/m);
+    expect(presetSummary(CONTENT_WRITE_PRESET_ID, PASTED_KEY)).toMatch(
+      /^Extensions: \*: write$/m,
+    );
   });
 });
 

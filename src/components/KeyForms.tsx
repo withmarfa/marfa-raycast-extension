@@ -32,6 +32,14 @@ import { useCredentialReach } from '../use-credential-reach';
  *   extension_permissions → Record<namespace, 'read' | 'write'>
  *   edge_permissions      → Record<edge_type, 'read' | 'write'>
  *   metadata_permissions  → Record<sub_resource, 'read' | 'write'>
+ *   profile_permissions   → Record<row, 'read' | 'write'>, `*` for the whole
+ *                           category
+ *
+ * The custom editor below offers the first four and not the fifth. The presets
+ * name the profile so a content key can read the rows; a custom key takes the
+ * empty map the server derives for any family the request stayed silent about,
+ * which is the narrower answer and the safe one to leave standing until the
+ * editor has somewhere honest to put a levelled category.
  */
 
 type TypeMap = Record<string, 'read' | 'write' | 'none'>;
@@ -149,7 +157,9 @@ ${apiKey.key}
 
 **Edges:** ${describePermissionMap(apiKey.edge_permissions)}
 
-**Metadata:** ${describePermissionMap(apiKey.metadata_permissions)}`;
+**Metadata:** ${describePermissionMap(apiKey.metadata_permissions)}
+
+**Profile:** ${describePermissionMap(apiKey.profile_permissions)}`;
 
   return (
     <Detail
@@ -301,7 +311,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
       label: values.label.trim(),
       source: values.source.trim(),
       ...(preset
-        ? presetPermissionFields(preset)
+        ? presetPermissionFields(preset, credential)
         : {
             space_permissions: [],
             default_tier: values.default_tier as 'library' | 'feed',
