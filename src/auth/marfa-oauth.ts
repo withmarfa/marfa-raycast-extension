@@ -25,8 +25,8 @@ import {
 } from './discovery';
 import type { GrantRecord } from './discovery';
 import { buildAuthorizeUrl } from './authorize-url';
-import { buildRegistrationBody } from './registration-body';
-import { claimCovers, needsClientRenewal } from './client-renewal';
+import { clientIdStorageKey, clientScopeStorageKey, ensureClientId } from './client-registration';
+import { normalizeServerUrl, stripTrailingSlash } from './issuer';
 
 const PROVIDER_NAME = 'Marfa';
 const PROVIDER_ID = 'marfa';
@@ -34,21 +34,6 @@ const PROVIDER_ICON = 'icon.png';
 
 interface Preferences {
   apiUrl?: string;
-}
-
-function stripTrailingSlash(s: string): string {
-  return s.replace(/\/+$/, '');
-}
-
-function clientIdStorageKey(issuer: string): string {
-  return `marfa.client_id:${stripTrailingSlash(issuer)}`;
-}
-
-/** The scope the stored client was registered claiming. Kept because a
- *  ceiling is invisible from here — nothing reads it back — so this is the
- *  only way to know whether registering again would change anything. */
-function clientScopeStorageKey(issuer: string): string {
-  return `marfa.client_scope:${stripTrailingSlash(issuer)}`;
 }
 
 /** Singleton PKCEClient, keeping token storage consistent across command
@@ -61,10 +46,6 @@ export const pkceClient = new OAuth.PKCEClient({
   description: 'Sign in to your Marfa account.',
 });
 
-interface DcrResponse {
-  client_id?: string;
-}
-
 interface TokenResponseBody {
   access_token?: string;
   refresh_token?: string;
@@ -72,74 +53,6 @@ interface TokenResponseBody {
   scope?: string;
   error?: string;
   error_description?: string;
-}
-
-/**
- * Dynamic-client-registration. Persists the issued `client_id` per issuer in
- * Raycast `LocalStorage` so subsequent sign-ins (or token refreshes after a
- * Raycast restart) skip DCR. The `redirect_uris` passed at registration
- * time must include the exact URI Raycast uses on `authorize`.
- *
- * **`scope` is not optional here, and omitting it fails silently.** The server
- * stores a scope ceiling against the client at registration and never updates
- * it; a registration naming nothing receives the default bundle expansion,
- * which by design never carries a space permission. The authorize surface then
- * *narrows* rather than refuses — it drops a scope outside the ceiling from the
- * request and completes — so `space.keys` would vanish between asking and
- * consenting, the consent screen would never show it, and the grant would come
- * back without it and without a word. Declaring it is what puts it in the row
- * the consent screen is built from.
- */
-async function dcrRegister(
-  registrationEndpoint: string,
-  redirectUri: string,
-  scope: string,
-): Promise<string> {
-  const res = await fetch(registrationEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      buildRegistrationBody({ clientName: 'Marfa for Raycast', redirectUri, scope }),
-    ),
-  });
-  if (!res.ok) {
-    throw new Error(`Client registration failed (HTTP ${res.status}): ${await res.text()}`);
-  }
-  const body = (await res.json()) as DcrResponse;
-  if (!body.client_id) {
-    throw new Error('Client registration response missing client_id');
-  }
-  return body.client_id;
-}
-
-/**
- * The client id for this issuer, registering one if there is none.
- *
- * `renew` asks for a fresh registration, because a space permission can only
- * reach a ceiling that way — the server's own catch-up excludes that family,
- * and the authorize surface then narrows silently rather than refusing, so
- * there is no error to key off. It is honoured only when it would change
- * something: a client already claiming everything being asked for is returned
- * as it stands, which is what stops a cancelled sign-in from minting and
- * abandoning a client on every retry.
- */
-async function ensureClientId(
-  issuer: string,
-  registrationEndpoint: string,
-  redirectUri: string,
-  scope: string,
-  renew = false,
-): Promise<string> {
-  const stored = await LocalStorage.getItem<string>(clientIdStorageKey(issuer));
-  if (stored) {
-    if (!renew) return stored;
-    const claimed = await LocalStorage.getItem<string>(clientScopeStorageKey(issuer));
-    if (claimCovers(claimed, scope)) return stored;
-  }
-  const id = await dcrRegister(registrationEndpoint, redirectUri, scope);
-  await LocalStorage.setItem(clientIdStorageKey(issuer), id);
-  await LocalStorage.setItem(clientScopeStorageKey(issuer), scope);
-  return id;
 }
 
 /**
@@ -185,6 +98,21 @@ async function writeGrantRecord(issuer: string, record: GrantRecord): Promise<vo
   ]);
 }
 
+/**
+ * A consent screen owed to this issuer on the next sign-in, written by a
+ * surface and spent by {@link authorize}. The separation is what keeps the
+ * browser round trip inside a command entry point rather than an action
+ * handler; {@link requestConsentOnNextLaunch} carries the reasoning.
+ *
+ * Per issuer, so pointing the extension at a different server does not inherit
+ * a question asked about another one. Spent only once an exchange actually
+ * completes, because a person who backs out of the consent screen has still
+ * not seen the thing they asked for.
+ */
+function forceConsentStorageKey(issuer: string): string {
+  return `marfa.force_consent:${stripTrailingSlash(issuer)}`;
+}
+
 /** Persist the issuer alongside tokens so refresh knows where to call. */
 const ISSUER_STORAGE_KEY = 'marfa.token_issuer';
 const CLIENT_ID_STORAGE_KEY = 'marfa.token_client_id';
@@ -206,12 +134,13 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
     LocalStorage.removeItem(clientScopeStorageKey(storedIssuer)),
     LocalStorage.removeItem(grantRecordKey(storedIssuer)),
     LocalStorage.removeItem(legacyRequestedScopesKey(storedIssuer)),
+    LocalStorage.removeItem(forceConsentStorageKey(storedIssuer)),
   ]);
 }
 
 async function runFullAuthFlow(
   issuer: string,
-  options: { forceConsent?: boolean; renewClient?: boolean } = {},
+  options: { forceConsent?: boolean } = {},
 ): Promise<string> {
   const stripped = stripTrailingSlash(issuer);
   // Always re-read on a full sign-in, so consent is asked against what the
@@ -236,15 +165,16 @@ async function runFullAuthFlow(
     scope,
   });
 
-  // `renewClient` is set by the two paths that run because a grant came back
-  // short. Registering again is the only way to move a ceiling, and doing it
-  // anywhere else would abandon a client row on every ordinary sign-in.
+  // Registering again is the only way to move a stored ceiling, and whether it
+  // is needed is answered by comparing what the stored client claimed against
+  // what this request asks for. No caller decides it: a sign-in that knew it
+  // was short was exactly the one path this used to be reachable from, and the
+  // ordinary sign-in that had no idea was the one that kept a frozen ceiling.
   const clientId = await ensureClientId(
     stripped,
     config.registrationEndpoint,
     request.redirectURI,
     scope,
-    options.renewClient,
   );
 
   const { authorizationCode } = await pkceClient.authorize({
@@ -427,18 +357,6 @@ export async function getGrantedScopes(): Promise<string | undefined> {
   return tokens?.scope;
 }
 
-/** Accept a host typed without a scheme (e.g. "api.marfa.so"). Node's
- *  fetch/URL parser rejects scheme-less URLs with "Failed to parse URL",
- *  which the browser silently tolerates, so the sign-in page would open and
- *  consent succeed, yet every fetch() this extension makes (DCR, token
- *  exchange, refresh, SDK data calls) would throw. Default a scheme-less
- *  value to https and strip any trailing slash. */
-export function normalizeServerUrl(value: string): string {
-  const trimmed = value.trim();
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  return stripTrailingSlash(withScheme);
-}
-
 /** Resolve the configured Marfa issuer from preferences. Throws a clear
  *  error if unset. The user is prompted to set it on first run by
  *  Raycast's required-preference UX. */
@@ -496,15 +414,25 @@ async function reconsentIfServerOffersMore(
     message: `This server offers ${String(decision.missing.length)} permissions your last sign-in did not grant.`,
   });
   await pkceClient.removeTokens();
-  // Only a space permission shortfall needs a new registration. Every other missing
-  // scope is repaired by the server's own ceiling catch-up during the very
-  // next authorize, so renewing for those would abandon a client row each time
-  // an operator adds a type — which is most of the reason this path runs.
-  return runFullAuthFlow(issuer, { renewClient: needsClientRenewal(decision.missing) });
+  return runFullAuthFlow(issuer);
 }
 
 /**
- * Ask for consent again, on a session the server would otherwise wave through.
+ * Ask for the consent screen again, on a session the server would otherwise
+ * wave through.
+ *
+ * **It arms a question rather than asking one, and that is the fix rather than
+ * a limitation.** The sign-in it arms opens the browser and waits for a
+ * redirect, and Raycast resolves that redirect back into the extension worker
+ * that is waiting for it. A worker belongs to a command, so awaiting the flow
+ * inside an action handler leaves it in something the person is about to
+ * dismiss and Raycast is entitled to unload — a view command is unloaded once
+ * it is popped, and in development mode a reload replaces it outright. What
+ * arrived back from four consecutive consent screens on a real install was not
+ * an authorization code but a failure to reach the worker at all. Handing the
+ * round trip to the next command launch puts it back inside
+ * `withAccessToken`'s `authorize`, which is where the same flow already
+ * completes.
  *
  * **`prompt=consent`, and deliberately not a revoke.** Revoking looked like the
  * answer and is not: the plugin's revoke marks the refresh token and deletes
@@ -514,12 +442,13 @@ async function reconsentIfServerOffersMore(
  * clear. The one route that does cascade is a browser-session route this client
  * cannot reach.
  *
- * OIDC has a word for this and the server honours it ahead of the lookup, so
- * nothing is destroyed to get a question asked. A cancelled consent leaves the
- * session exactly as it was.
+ * The tokens go because a valid one short-circuits the sign-in before it can
+ * spend the flag, so leaving them would arm a question nothing would ever ask.
  */
-export async function reauthorize(): Promise<string> {
-  return runFullAuthFlow(getIssuer(), { forceConsent: true, renewClient: true });
+export async function requestConsentOnNextLaunch(): Promise<void> {
+  const issuer = getIssuer();
+  await LocalStorage.setItem(forceConsentStorageKey(issuer), true);
+  await pkceClient.removeTokens();
 }
 
 /**
@@ -533,6 +462,16 @@ export async function reauthorize(): Promise<string> {
 export async function authorize(): Promise<string> {
   const issuer = getIssuer();
   await discardTokensForDifferentIssuer(issuer);
+
+  // Owed a consent screen, so nothing stored can satisfy this launch. Cleared
+  // only once an exchange has completed, so a consent the person backs out of
+  // is still owed on the launch after that.
+  if (await LocalStorage.getItem<boolean>(forceConsentStorageKey(issuer))) {
+    const token = await runFullAuthFlow(issuer, { forceConsent: true });
+    await LocalStorage.removeItem(forceConsentStorageKey(issuer));
+    return token;
+  }
+
   const existing = await pkceClient.getTokens();
 
   if (existing?.accessToken && !existing.isExpired()) {
