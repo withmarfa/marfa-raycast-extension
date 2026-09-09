@@ -1,6 +1,8 @@
 import { Action, confirmAlert, Icon, popToRoot, showToast, Toast } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
 import { requestConsentOnNextLaunch } from '../auth/marfa-oauth';
+import { isStaticKeySession } from '../client';
+import { KEY_MANAGEMENT_NEEDS_PERMISSION } from '../key-refusal';
 
 /**
  * The way back to the consent screen.
@@ -33,8 +35,24 @@ export const REVIEW_WHAT_MARFA_SHARES = 'Review What Marfa Shares';
  * Popping to root is not cosmetic either. `withAccessToken` resolves the token
  * once per process and hands the same one to every request afterwards, so a
  * command left open would keep using the session that was just discarded.
+ *
+ * **A pasted API key is refused rather than walked through this.** Everything
+ * below acts on the OAuth session, and a static key never reaches one: nothing
+ * would be signed out, no launch would open a consent screen, and the person
+ * would be told the permission was on its way from a screen that cannot grant
+ * it. The refusal names the credential instead, which is the one thing that can
+ * change the answer.
  */
 export async function reviewWhatMarfaShares(): Promise<void> {
+  if (isStaticKeySession()) {
+    await showToast({
+      style: Toast.Style.Failure,
+      title: 'Marfa is using an API key',
+      message: KEY_MANAGEMENT_NEEDS_PERMISSION,
+    });
+    return;
+  }
+
   const confirmed = await confirmAlert({
     title: REVIEW_WHAT_MARFA_SHARES,
     message:
