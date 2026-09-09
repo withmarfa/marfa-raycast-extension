@@ -88,20 +88,38 @@ type ContentReach = Pick<
 >;
 
 /**
+ * The scope families a content permission map can carry, named rather than
+ * derived by elimination.
+ *
+ * **Positive identification, the way the platform's own projections do it.** A
+ * scope is admitted because the parser named its family, never because it
+ * failed to be one of the families this build happens to know about. Listing
+ * what to skip reads the same on today's union and behaves in the opposite
+ * direction on tomorrow's: a family nobody added to the list falls through to
+ * "must be content" and has its pattern matched against the real registry.
+ */
+const MEASURABLE_KINDS: ReadonlySet<string> = new Set([
+  'type',
+  'content',
+  'edge',
+  'metadata',
+  'profile',
+]);
+
+/**
  * One granted scope narrowed to read, or null when it names no reach a
  * permission map can carry.
  *
  * `openid`, `email` and `offline_access` say who signed in and for how long;
  * a space permission names an administrative surface the content presets
- * deliberately hand over none of. All of them parse to an operation of
- * `none`, so the filter is the platform's classification rather than a list
- * of prefixes to skip — a family this build has never heard of is dropped
- * rather than projected into a content map by accident.
+ * deliberately hand over none of. None of the four is a family a content map
+ * has a column for, so all four are dropped rather than narrowed. Every kind
+ * that survives carries a verb, which is what makes the suffix swap below
+ * safe.
  */
 function narrowedToRead(scope: string): string | null {
   const parsed = parseScope(scope);
-  if (parsed === null || parsed.operation === 'none') return null;
-  if (parsed.kind === 'oidc' || parsed.kind === 'space') return null;
+  if (parsed === null || !MEASURABLE_KINDS.has(parsed.kind)) return null;
   return `${scope.slice(0, scope.lastIndexOf(':'))}:read`;
 }
 
@@ -145,14 +163,27 @@ function reachFromGrant(granted: string, level: 'read' | 'write'): ContentReach 
 }
 
 /**
- * Read across everything, for a credential whose own reach cannot be read.
+ * The widest read a request can name, for a credential whose own reach cannot
+ * be read.
  *
  * **The global wildcard is right here and wrong for a sign-in, and the
  * difference is which comparison the server runs.** A pasted key is measured
- * map against map, so a key holding `{"*": "write"}` covers this and a
- * narrower one is refused by name. A session is measured literal by literal
- * against its granted scopes, and no bundle confers `*:read`, so the same
- * request from a sign-in is refused whatever that sign-in holds.
+ * map against map, so a key holding `{"*": "write"}` covers this. A session is
+ * measured literal by literal against its granted scopes, and no bundle
+ * confers `*:read`, so the same request from a sign-in is refused whatever
+ * that sign-in holds.
+ *
+ * **A key narrower than this is refused rather than narrowed, and that is the
+ * whole cost of not being able to read one.** An exact entry is resolved
+ * against the creator's own map, so a creator holding concrete types — every
+ * key this extension mints from a sign-in, since no bundle confers a type
+ * wildcard — does not cover `*` and the mint is refused by name. The summary
+ * says so rather than implying a clamp, because the person choosing this has
+ * no other way to find out.
+ *
+ * Metadata names the sub-resource rather than the wildcard, deliberately: it
+ * is the one this extension uses, and the narrower ask is covered by a creator
+ * the wildcard would be refused against.
  */
 const WILDCARD_READ: ContentReach = {
   type_permissions: { '*': 'read' },
@@ -336,7 +367,7 @@ function unknownReachNote(credential: CredentialReach): string[] {
   if (credential.loading) return ['Reading what this credential holds...'];
   if (credential.staticKey) {
     return [
-      "What this credential holds cannot be listed here — a pasted key is stored as a hash, so nothing matches it back to its row. The set above is the widest read there is, resolved by the server against this key's own permissions.",
+      'What this credential holds cannot be listed here — a pasted key is stored as a hash, so nothing matches it back to its row. The set above is the widest read there is, so a key holding less than that is refused rather than narrowed, and the refusal names what was missing.',
     ];
   }
   if (credential.granted === undefined) {

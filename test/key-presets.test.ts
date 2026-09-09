@@ -426,10 +426,38 @@ describe('Content, read and write', () => {
     }
   });
 
-  it('is covered on every axis the server checks', () => {
-    expect(
-      firstUncovered(MAXIMAL_SIGN_IN, presetPermissionFields(CONTENT_WRITE_PRESET_ID, MAXIMAL)),
-    ).toBe(null);
+  it('leaves the coverage check nothing to measure, which is the point of it', () => {
+    // **Not a coverage result, and naming it one would be the vacuous test.**
+    // The check walks the families the body names and this body names none, so
+    // `null` here is the absence of a question rather than an answer to it.
+    // What it does state is the consequence worth stating: this preset cannot
+    // be refused on reach, whatever the credential holds, because it asks for
+    // none.
+    const fields = presetPermissionFields(CONTENT_WRITE_PRESET_ID, MAXIMAL);
+    expect(Object.keys(fields).sort()).toEqual(['default_tier', 'space_permissions']);
+    expect(firstUncovered(MAXIMAL_SIGN_IN, fields)).toBe(null);
+  });
+
+  it('shows a set the credential holds, since the screen names what the body will not', () => {
+    // The body says nothing, so the summary is the only place the derived set
+    // appears — and a summary naming reach the grant does not cover would be
+    // the same defect this ticket fixed, moved from the wire to the screen.
+    const summary = presetSummary(CONTENT_WRITE_PRESET_ID, MAXIMAL);
+    const types = /^Types: (.+)$/m.exec(summary);
+    const entries = (types?.[1] ?? '')
+      .split(', ')
+      .map((entry) => entry.split(': '))
+      .filter(([, access]) => access !== 'none');
+    // Named before the loop, so a summary whose Types line stopped parsing
+    // fails here rather than passing with nothing to iterate.
+    expect(entries.length).toBeGreaterThan(10);
+    const held = MAXIMAL_SIGN_IN.split(' ');
+    for (const [pattern, access] of entries) {
+      expect({ pattern, covered: grantCoversScope(held, `${pattern}:${access}`) }).toEqual({
+        pattern,
+        covered: true,
+      });
+    }
   });
 });
 
