@@ -26,6 +26,7 @@ import {
 import type { GrantRecord } from './discovery';
 import { buildAuthorizeUrl } from './authorize-url';
 import { clientIdStorageKey, clientScopeStorageKey, ensureClientId } from './client-registration';
+import { armConsentOnNextLaunch, consentIsOwed, spendOnCompletedExchange } from './force-consent';
 import { normalizeServerUrl, stripTrailingSlash } from './issuer';
 
 const PROVIDER_NAME = 'Marfa';
@@ -98,21 +99,6 @@ async function writeGrantRecord(issuer: string, record: GrantRecord): Promise<vo
   ]);
 }
 
-/**
- * A consent screen owed to this issuer on the next sign-in, written by a
- * surface and spent by {@link authorize}. The separation is what keeps the
- * browser round trip inside a command entry point rather than an action
- * handler; {@link requestConsentOnNextLaunch} carries the reasoning.
- *
- * Per issuer, so pointing the extension at a different server does not inherit
- * a question asked about another one. Spent only once an exchange actually
- * completes, because a person who backs out of the consent screen has still
- * not seen the thing they asked for.
- */
-function forceConsentStorageKey(issuer: string): string {
-  return `marfa.force_consent:${stripTrailingSlash(issuer)}`;
-}
-
 /** Persist the issuer alongside tokens so refresh knows where to call. */
 const ISSUER_STORAGE_KEY = 'marfa.token_issuer';
 const CLIENT_ID_STORAGE_KEY = 'marfa.token_client_id';
@@ -121,6 +107,13 @@ const CLIENT_ID_STORAGE_KEY = 'marfa.token_client_id';
  * Raycast stores one token set per PKCE client, while the extension can point
  * at many Marfa instances. Never let a token minted by one issuer be sent to
  * another when the Server URL preference changes.
+ *
+ * **An armed consent screen is deliberately not in the list.** Everything here
+ * is discarded because it describes a credential or a client belonging to the
+ * old issuer and would be wrong against the new one. A pending consent question
+ * is neither: it is keyed by issuer, so it is already about the server it was
+ * asked of, and pointing somewhere else and back would otherwise silently drop
+ * a question somebody asked.
  */
 async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
   const storedIssuer = await LocalStorage.getItem<string>(ISSUER_STORAGE_KEY);
@@ -134,7 +127,6 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
     LocalStorage.removeItem(clientScopeStorageKey(storedIssuer)),
     LocalStorage.removeItem(grantRecordKey(storedIssuer)),
     LocalStorage.removeItem(legacyRequestedScopesKey(storedIssuer)),
-    LocalStorage.removeItem(forceConsentStorageKey(storedIssuer)),
   ]);
 }
 
@@ -165,17 +157,24 @@ async function runFullAuthFlow(
     scope,
   });
 
-  // Registering again is the only way to move a stored ceiling, and whether it
-  // is needed is answered by comparing what the stored client claimed against
-  // what this request asks for. No caller decides it: a sign-in that knew it
-  // was short was exactly the one path this used to be reachable from, and the
-  // ordinary sign-in that had no idea was the one that kept a frozen ceiling.
-  const clientId = await ensureClientId(
-    stripped,
-    config.registrationEndpoint,
-    request.redirectURI,
+  // Compared on every sign-in rather than when a caller suspects a shortfall:
+  // the sign-in that knew it was short was exactly the one path this used to be
+  // reachable from, and the ordinary sign-in that had no idea was the one that
+  // kept a frozen ceiling. Whether a comparison that comes up short is worth a
+  // registration is `ensureClientId`'s question, not this one's — most gaps the
+  // server closes itself during this very authorize.
+  //
+  // `fromServer` rides along because a fallback scope set is not evidence about
+  // a ceiling. It neither covers nor is covered by what a real instance
+  // advertises, so a flapping discovery endpoint would otherwise re-register on
+  // every sign-in, in both directions.
+  const clientId = await ensureClientId({
+    issuer: stripped,
+    registrationEndpoint: config.registrationEndpoint,
+    redirectUri: request.redirectURI,
     scope,
-  );
+    scopeFromServer: config.fromServer,
+  });
 
   const { authorizationCode } = await pkceClient.authorize({
     url: buildAuthorizeUrl({
@@ -284,24 +283,6 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
 }
 
 /**
- * Which advertised scopes this session's grant does not cover.
- *
- * The shortfall exists whether or not anything can be done about it, and a
- * person told their content is not shared needs somewhere to read what else
- * is not. It runs the same decision the re-consent check runs, so the two
- * cannot drift into disagreeing about what is missing.
- *
- * Empty when there is nothing missing, and also when there is no basis to say:
- * no server document, no grant reported, no configured issuer.
- *
- * Not free of side effects, despite reading like it. Resolving the config on a
- * cold or expired cache fetches the discovery document and stores it, so
- * opening this screen can install a newer advertisement that the next command
- * launch then acts on. That is the same caching every other caller gets and is
- * not worth a second code path, but it does mean this is a read that can arm a
- * consent prompt.
- */
-/**
  * Content this session was offered and not given, from the stored record.
  *
  * **Deliberately not `getGrantShortfall`.** That one resolves the auth config,
@@ -328,6 +309,24 @@ export async function getUnreadableContent(): Promise<string[]> {
   }
 }
 
+/**
+ * Which advertised scopes this session's grant does not cover.
+ *
+ * The shortfall exists whether or not anything can be done about it, and a
+ * person told their content is not shared needs somewhere to read what else
+ * is not. It runs the same decision the re-consent check runs, so the two
+ * cannot drift into disagreeing about what is missing.
+ *
+ * Empty when there is nothing missing, and also when there is no basis to say:
+ * no server document, no grant reported, no configured issuer.
+ *
+ * Not free of side effects, despite reading like it. Resolving the config on a
+ * cold or expired cache fetches the discovery document and stores it, so
+ * opening this screen can install a newer advertisement that the next command
+ * launch then acts on. That is the same caching every other caller gets and is
+ * not worth a second code path, but it does mean this is a read that can arm a
+ * consent prompt.
+ */
 export async function getGrantShortfall(): Promise<string[]> {
   try {
     const issuer = getIssuer();
@@ -379,7 +378,7 @@ function getIssuer(): string {
  * widens whenever types are added, so a session minted last month can be
  * missing a whole bundle while remaining perfectly valid. Left alone, the
  * missing content simply does not appear, which is indistinguishable from
- * an empty library and is exactly the failure this wave exists to fix.
+ * an empty library, and is the failure this check exists to catch.
  *
  * Two things keep it from becoming a nuisance. Coverage rather than set
  * difference means a broader older grant is never treated as short, and the
@@ -422,17 +421,11 @@ async function reconsentIfServerOffersMore(
  * wave through.
  *
  * **It arms a question rather than asking one, and that is the fix rather than
- * a limitation.** The sign-in it arms opens the browser and waits for a
- * redirect, and Raycast resolves that redirect back into the extension worker
- * that is waiting for it. A worker belongs to a command, so awaiting the flow
- * inside an action handler leaves it in something the person is about to
- * dismiss and Raycast is entitled to unload — a view command is unloaded once
- * it is popped, and in development mode a reload replaces it outright. What
- * arrived back from four consecutive consent screens on a real install was not
- * an authorization code but a failure to reach the worker at all. Handing the
- * round trip to the next command launch puts it back inside
- * `withAccessToken`'s `authorize`, which is where the same flow already
- * completes.
+ * a limitation.** `./force-consent` carries the full account of why the browser
+ * round trip cannot happen in an action handler; the short version is that the
+ * redirect resolves back into a worker the handler's own command is about to
+ * take with it. Arming puts the round trip back inside `withAccessToken`'s
+ * `authorize`, which is where the same flow already completes.
  *
  * **`prompt=consent`, and deliberately not a revoke.** Revoking looked like the
  * answer and is not: the plugin's revoke marks the refresh token and deletes
@@ -447,7 +440,7 @@ async function reconsentIfServerOffersMore(
  */
 export async function requestConsentOnNextLaunch(): Promise<void> {
   const issuer = getIssuer();
-  await LocalStorage.setItem(forceConsentStorageKey(issuer), true);
+  await armConsentOnNextLaunch(issuer);
   await pkceClient.removeTokens();
 }
 
@@ -463,13 +456,11 @@ export async function authorize(): Promise<string> {
   const issuer = getIssuer();
   await discardTokensForDifferentIssuer(issuer);
 
-  // Owed a consent screen, so nothing stored can satisfy this launch. Cleared
-  // only once an exchange has completed, so a consent the person backs out of
-  // is still owed on the launch after that.
-  if (await LocalStorage.getItem<boolean>(forceConsentStorageKey(issuer))) {
-    const token = await runFullAuthFlow(issuer, { forceConsent: true });
-    await LocalStorage.removeItem(forceConsentStorageKey(issuer));
-    return token;
+  // Owed a consent screen, so nothing stored can satisfy this launch. The
+  // ordering is the helper's: a consent the person backs out of is still owed
+  // on the launch after that.
+  if (await consentIsOwed(issuer)) {
+    return spendOnCompletedExchange(issuer, () => runFullAuthFlow(issuer, { forceConsent: true }));
   }
 
   const existing = await pkceClient.getTokens();
