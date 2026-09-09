@@ -315,23 +315,68 @@ export function sessionMayManageKeys(session: {
  *
  * **Two refusals wear one status code and need two different answers**, which
  * is the whole reason this reads the server's own words instead of guessing
- * from local state. A member who is not a space admin has to ask an admin; a
- * session that was never granted the space permission has to re-consent, and the
- * consent screen would do nothing at all for the first person. Sending them
- * there anyway is a loop with no exit, because the thing they lack is not on
- * that screen.
+ * from local state. A credential that simply does not hold the permission has
+ * to be replaced with one that does; a session that was never granted it has to
+ * re-consent, and the consent screen would do nothing at all for the first of
+ * those. Sending it there anyway is a loop with no exit, because the thing it
+ * lacks is not on that screen.
  *
  * Validated against the shared set rather than trusted as a string, so a
  * malformed or unexpected `required_scope` reads as "no space permission named" and
- * the surface falls back to the role explanation rather than putting an
+ * the surface falls back to explaining the credential rather than putting an
  * arbitrary literal in front of somebody.
  */
 export function spacePermissionRefusedBy(error: unknown): SpacePermission | undefined {
+  const required = scopeRefusedBy(error);
+  if (required === undefined || !isSpacePermission(required)) return undefined;
+  return required;
+}
+
+/**
+ * The scope a refusal named, whatever family it belongs to.
+ *
+ * **Broader than {@link spacePermissionRefusedBy} because the creator ceiling
+ * is.** A door refuses on a space permission, so validating against the shared
+ * set is right there: an unexpected literal reads as "no permission named" and
+ * the surface falls back to explaining the credential rather than putting an
+ * arbitrary string in front of somebody. A mint refused for asking above its
+ * creator names whatever the request reached for, which is a content scope as
+ * often as a space one, and validating that away turns the one refusal that
+ * says what to change into the one that says nothing.
+ */
+export function scopeRefusedBy(error: unknown): string | undefined {
   const details = (error as { details?: unknown } | null | undefined)?.details;
   if (!details || typeof details !== 'object') return undefined;
   const required = (details as Record<string, unknown>).required_scope;
-  if (typeof required !== 'string' || !isSpacePermission(required)) return undefined;
+  if (typeof required !== 'string' || required.trim() === '') return undefined;
   return required;
+}
+
+/**
+ * The server's own sentence, when a refusal was a 403 and carried one.
+ *
+ * **Not every refusal names a scope, and one family never can.** A door
+ * refuses on a space permission and always attaches it; a mint refused for
+ * asking above its creator names whatever the request reached for. The
+ * exception is `extension_permissions`, where no literal exists to name: the
+ * server refuses the family outright for a session and compares it directly
+ * for a key, and both of those throw with no `details` at all. A surface that
+ * reads only {@link scopeRefusedBy} therefore has nothing to say about the one
+ * refusal that already explains itself, and falls back to an answer about the
+ * credential that is false — the credential passed the door to get here.
+ *
+ * **Read structurally rather than by class, matching every sibling here.** The
+ * gate is the status and the code together, so a transport failure, which
+ * carries a message and neither of those, cannot be rendered as though the
+ * server had explained something. An empty message is declined for the same
+ * reason a blank refusal is worse than none: it reads as a bug in the form.
+ */
+export function forbiddenMessage(error: unknown): string | undefined {
+  const refusal = error as
+    { status?: unknown; code?: unknown; message?: unknown } | null | undefined;
+  if (refusal?.status !== 403 && refusal?.code !== 'forbidden') return undefined;
+  const message = typeof refusal.message === 'string' ? refusal.message.trim() : '';
+  return message === '' ? undefined : message;
 }
 
 /**

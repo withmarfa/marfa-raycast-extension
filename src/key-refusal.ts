@@ -1,4 +1,4 @@
-import { spacePermissionRefusedBy } from './auth/discovery';
+import { forbiddenMessage, scopeRefusedBy, spacePermissionRefusedBy } from './auth/discovery';
 
 /**
  * What to say when the server refuses a key operation.
@@ -69,4 +69,38 @@ export function keyRefusal(error: unknown): KeyRefusal {
     description: KEY_MANAGEMENT_NEEDS_PERMISSION,
     reconsentHelps: false,
   };
+}
+
+/**
+ * What to say when the server refused a key because the request named more
+ * than the credential in hand holds.
+ *
+ * **A different question from {@link keyRefusal}, and only the two forms can
+ * ask it.** Reaching this refusal means the credential already passed the
+ * key-management door, so nothing about its authority is in doubt: what is
+ * wrong is the request. Sending it through the other answer told somebody
+ * their credential could not manage keys on a screen it had just opened by
+ * managing keys, and pointed them at a consent screen that would not have
+ * helped.
+ *
+ * `space.keys` is excluded deliberately. This form asks for no space
+ * permission at all, so a refusal naming that one is the door rather than the
+ * ceiling, and the door has its own answer with a way out on it.
+ *
+ * **A refusal from this door that names nothing is still this door, and it
+ * used to fall through to the answer that contradicts the screen.** The
+ * extension refusals carry no `details` — no literal names a namespace, so
+ * there is none to attach — and answering `undefined` for them sent the form
+ * to "this credential cannot manage API keys, paste one that holds
+ * `space.keys`", on a form the credential had opened by managing keys. The
+ * server's own sentence is the only thing that says which family was refused,
+ * so it is what goes on the form. Safe because `requireSpacePermission`
+ * attaches `required_scope` unconditionally: a refusal from the create or
+ * update door carrying none is never the door.
+ */
+export function creatorCeilingRefusal(error: unknown): string | undefined {
+  const required = scopeRefusedBy(error);
+  if (required === 'space.keys') return undefined;
+  if (required === undefined) return forbiddenMessage(error);
+  return `This credential does not hold ${required}, and a key cannot be given a permission its creator does not hold. Choose a narrower preset, or "Everything you hold", which copies this credential's own set exactly.`;
 }
