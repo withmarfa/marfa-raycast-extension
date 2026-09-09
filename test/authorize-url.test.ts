@@ -18,7 +18,9 @@ describe('buildAuthorizeUrl', () => {
     // consent gates check it ahead of the stored-consent lookup, so an ordinary
     // sign-in must not carry it or every launch would ask again.
     expect(params(buildAuthorizeUrl(base)).has('prompt')).toBe(false);
-    expect(params(buildAuthorizeUrl({ ...base, forceConsent: true })).get('prompt')).toBe('consent');
+    expect(params(buildAuthorizeUrl({ ...base, forceConsent: true })).get('prompt')).toBe(
+      'consent',
+    );
     expect(params(buildAuthorizeUrl({ ...base, forceConsent: false })).has('prompt')).toBe(false);
   });
 

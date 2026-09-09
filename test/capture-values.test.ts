@@ -297,7 +297,10 @@ describe('values that arrive as text', () => {
     Object.entries(o).map(([name, value]) => ({ name, value }));
 
   it('shapes each kind the way its control would have', () => {
-    const values = valuesFromText(sink, pairs({ name: 'x', when: '2026-03-15T12:00:00.000Z', flag: 'true' }));
+    const values = valuesFromText(
+      sink,
+      pairs({ name: 'x', when: '2026-03-15T12:00:00.000Z', flag: 'true' }),
+    );
     expect(values.when).toBeInstanceOf(Date);
     expect(values.flag).toBe(true);
     expect(values.name).toBe('x');

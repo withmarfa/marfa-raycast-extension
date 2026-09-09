@@ -199,14 +199,17 @@ describe('planCaptureForm', () => {
 describe('what the form reserves for itself', () => {
   const reservedByForm = (name: string) => name.startsWith(FORM_FIELD_PREFIX);
 
-  it('refuses a schema field that would collide with the form\'s own controls', () => {
+  it("refuses a schema field that would collide with the form's own controls", () => {
     // The platform accepts a field literally named `__extra`, so the prefix is
     // only safe because the planner refuses one. Rendering it would put two
     // controls on one id and split a single value between them.
     const registry = [
       schema('acme.thing', { fields: { title: f({}), __extra: f({}), __raw: f({}) } }),
     ];
-    const result = planCaptureForm(registry, 'acme.thing', { toTitle: toTitleCase, reservedByForm });
+    const result = planCaptureForm(registry, 'acme.thing', {
+      toTitle: toTitleCase,
+      reservedByForm,
+    });
     expect(names(result.primary)).toEqual(['title']);
     expect(result.shadowed.sort()).toEqual(['__extra', '__raw']);
   });
@@ -236,9 +239,23 @@ describe('fields the form fills in on its own', () => {
     // one writes none at all, which that field's own description says means the
     // schedule advances in UTC.
     const order = [
-      'title', 'description', 'starts_at', 'ends_at', 'duration', 'place', 'latitude',
-      'longitude', 'url', 'precision', 'status', 'notes', 'recurrence', 'all_day',
-      'timezone', 'end_timezone', 'original_starts_at',
+      'title',
+      'description',
+      'starts_at',
+      'ends_at',
+      'duration',
+      'place',
+      'latitude',
+      'longitude',
+      'url',
+      'precision',
+      'status',
+      'notes',
+      'recurrence',
+      'all_day',
+      'timezone',
+      'end_timezone',
+      'original_starts_at',
     ];
     const registry = [
       schema('core.event', {

@@ -83,9 +83,9 @@ interface TokenResponseBody {
  * **`scope` is not optional here, and omitting it fails silently.** The server
  * stores a scope ceiling against the client at registration and never updates
  * it; a registration naming nothing receives the default bundle expansion,
- * which by design never carries a capability scope. The authorize surface then
+ * which by design never carries a space permission. The authorize surface then
  * *narrows* rather than refuses — it drops a scope outside the ceiling from the
- * request and completes — so `capability.keys` would vanish between asking and
+ * request and completes — so `space.keys` would vanish between asking and
  * consenting, the consent screen would never show it, and the grant would come
  * back without it and without a word. Declaring it is what puts it in the row
  * the consent screen is built from.
@@ -115,7 +115,7 @@ async function dcrRegister(
 /**
  * The client id for this issuer, registering one if there is none.
  *
- * `renew` asks for a fresh registration, because a capability scope can only
+ * `renew` asks for a fresh registration, because a space permission can only
  * reach a ceiling that way — the server's own catch-up excludes that family,
  * and the authorize surface then narrows silently rather than refusing, so
  * there is no error to key off. It is honoured only when it would change
@@ -496,7 +496,7 @@ async function reconsentIfServerOffersMore(
     message: `This server offers ${String(decision.missing.length)} permissions your last sign-in did not grant.`,
   });
   await pkceClient.removeTokens();
-  // Only a capability shortfall needs a new registration. Every other missing
+  // Only a space permission shortfall needs a new registration. Every other missing
   // scope is repaired by the server's own ceiling catch-up during the very
   // next authorize, so renewing for those would abandon a client row each time
   // an operator adds a type — which is most of the reason this path runs.

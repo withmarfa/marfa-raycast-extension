@@ -96,13 +96,13 @@ describe('a narrower grant outranks a broader one', () => {
 });
 
 describe('the families with no breadth', () => {
-  it('reaches a capability by naming it and by nothing else', () => {
+  it('reaches a space permission by naming it and by nothing else', () => {
     // The kind exists so a wildcard cannot reach an administrative surface. A
     // matcher answering otherwise reinstates the fail-open one level above the
     // place that kind was added to remove it.
-    expectAgreement('capability.webhooks', 'capability.webhooks', true);
-    expectAgreement('*:read *:write', 'capability.webhooks', false);
-    expectAgreement('content:write', 'capability.webhooks', false);
+    expectAgreement('space.webhooks', 'space.webhooks', true);
+    expectAgreement('*:read *:write', 'space.webhooks', false);
+    expectAgreement('content:write', 'space.webhooks', false);
   });
 
   it('reaches an OIDC literal by naming it and by nothing else', () => {
@@ -175,8 +175,8 @@ describe('agreement over combinations nobody enumerated', () => {
     'metadata:read',
     'metadata.types:read',
     'openid profile email',
-    'capability.webhooks',
-    'core.note:read capability.webhooks openid',
+    'space.webhooks',
+    'core.note:read space.webhooks openid',
   ];
   const REQUIRED = [
     'core.note:read',
@@ -194,8 +194,8 @@ describe('agreement over combinations nobody enumerated', () => {
     'metadata.types:write',
     'openid',
     'offline_access',
-    'capability.webhooks',
-    'capability.connections',
+    'space.webhooks',
+    'space.connections',
     'not a scope',
   ];
 
@@ -239,7 +239,11 @@ describe('which scopes are content a person could be told about', () => {
   it('leaves out writes and administrative surfaces', () => {
     expect(isContentReadScope('core.note:write')).toBe(false);
     expect(isContentReadScope('edge.*:write')).toBe(false);
-    expect(isContentReadScope('capability.admin:read')).toBe(false);
+    // A well-formed space permission carries no verb at all, so the first
+    // shape is the realistic one. The second is malformed and still refused,
+    // which is the guard rather than the case.
+    expect(isContentReadScope('space.keys')).toBe(false);
+    expect(isContentReadScope('space.keys:read')).toBe(false);
     expect(isContentReadScope('openid')).toBe(false);
     expect(isContentReadScope('profile')).toBe(false);
   });
@@ -259,9 +263,9 @@ describe('which scopes are content a person could be told about', () => {
       'metadata:read',
       'metadata.types:read',
     ];
-    expect(missingScopes('core.*:read core.note:write', advertised.filter(isContentReadScope))).toEqual(
-      [],
-    );
+    expect(
+      missingScopes('core.*:read core.note:write', advertised.filter(isContentReadScope)),
+    ).toEqual([]);
   });
 
   it('still reports content the server offered and did not grant', () => {

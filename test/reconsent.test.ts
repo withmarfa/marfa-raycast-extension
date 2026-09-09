@@ -65,7 +65,10 @@ describe('a server that narrows and keeps narrowing', () => {
   it('asks once, then never again', () => {
     // The termination argument. A server may issue less than it advertises, so
     // a check deciding from the shortfall asks again on every launch forever.
-    let session: Session = { record: { advertised: READ_ONLY, granted: READ_ONLY }, tokenScope: READ_ONLY };
+    let session: Session = {
+      record: { advertised: READ_ONLY, granted: READ_ONLY },
+      tokenScope: READ_ONLY,
+    };
 
     const first = launch(session, READ_AND_WRITE, READ_ONLY);
     expect(first.reconsent).toBe(true);
@@ -85,7 +88,10 @@ describe('a server that narrows and keeps narrowing', () => {
   it('asks again only when the advertisement moves', () => {
     // The case the whole feature exists for: bundles widen as types are
     // registered, so a valid older session is missing a whole bundle.
-    let session: Session = { record: { advertised: READ_ONLY, granted: READ_ONLY }, tokenScope: READ_ONLY };
+    let session: Session = {
+      record: { advertised: READ_ONLY, granted: READ_ONLY },
+      tokenScope: READ_ONLY,
+    };
 
     for (const advertised of [READ_AND_WRITE, WIDER]) {
       const asked = launch(session, advertised, advertised);
@@ -130,7 +136,10 @@ describe('the answers that are "make no claim"', () => {
 
   it('says nothing when the grant is broader than the advertisement', () => {
     const broad = launch(
-      { record: { advertised: READ_AND_WRITE, granted: ['core.*:write'] }, tokenScope: ['core.*:write'] },
+      {
+        record: { advertised: READ_AND_WRITE, granted: ['core.*:write'] },
+        tokenScope: ['core.*:write'],
+      },
       READ_AND_WRITE,
       READ_AND_WRITE,
     );
@@ -180,7 +189,12 @@ describe('it settles, over combinations nobody enumerated', () => {
   const SEEDS = [READ_ONLY, READ_AND_WRITE, WIDER];
   const GRANTS = [[], READ_ONLY, READ_AND_WRITE, ['core.*:read'], ['core.*:write']];
 
-  function drive(seedAdvertised: string[], advertised: string[], held: string[], serverGrants: string[]) {
+  function drive(
+    seedAdvertised: string[],
+    advertised: string[],
+    held: string[],
+    serverGrants: string[],
+  ) {
     let session: Session = {
       record: { advertised: seedAdvertised, granted: held },
       tokenScope: held.length ? held : undefined,
@@ -203,7 +217,10 @@ describe('it settles, over combinations nobody enumerated', () => {
   it('never asks more than once for the same question', () => {
     const offenders = combinations
       .filter((c) => drive(c.seed, c.advertised, c.held, c.grants) > 1)
-      .map((c) => `seed=${c.seed.length} ad=${c.advertised.length} held=${c.held.join(',')} grants=${c.grants.join(',')}`);
+      .map(
+        (c) =>
+          `seed=${c.seed.length} ad=${c.advertised.length} held=${c.held.join(',')} grants=${c.grants.join(',')}`,
+      );
     expect(offenders).toEqual([]);
   });
 

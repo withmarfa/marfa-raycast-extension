@@ -77,7 +77,9 @@ describe('requiredFieldNames', () => {
 describe('resolveSchemaFields', () => {
   it('merges a parent chain, nearest declaration winning', () => {
     const registry = [
-      schema('a.parent', { fields: { shared: field({ description: 'from parent' }), only_parent: field() } }),
+      schema('a.parent', {
+        fields: { shared: field({ description: 'from parent' }), only_parent: field() },
+      }),
       schema('a.child', {
         parent: 'a.parent',
         fields: { shared: field({ description: 'from child' }), only_child: field() },

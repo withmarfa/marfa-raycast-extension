@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { claimCovers, needsClientRenewal } from '../src/auth/client-renewal';
-import { REQUESTED_CAPABILITY_SCOPES } from '../src/auth/discovery';
+import { REQUESTED_SPACE_PERMISSIONS } from '../src/auth/discovery';
 
 describe('needsClientRenewal', () => {
   it('is false for the ordinary shortfall, which the server repairs itself', () => {
@@ -13,22 +13,22 @@ describe('needsClientRenewal', () => {
     expect(needsClientRenewal([])).toBe(false);
   });
 
-  it('is true when a capability is missing, the one family that catch-up excludes', () => {
-    for (const capability of REQUESTED_CAPABILITY_SCOPES) {
-      expect(needsClientRenewal([capability])).toBe(true);
-      expect(needsClientRenewal(['core.note:read', capability])).toBe(true);
+  it('is true when a space permission is missing, the one family that catch-up excludes', () => {
+    for (const permission of REQUESTED_SPACE_PERMISSIONS) {
+      expect(needsClientRenewal([permission])).toBe(true);
+      expect(needsClientRenewal(['core.note:read', permission])).toBe(true);
     }
   });
 
-  it('does not treat a scope that merely looks like one as a capability', () => {
+  it('does not treat a scope that merely looks like one as a space permission', () => {
     // The check is the shared grammar's, not a prefix match, so a literal the
     // server does not recognize cannot force a pointless registration.
-    expect(needsClientRenewal(['capability.not_a_real_one'])).toBe(false);
+    expect(needsClientRenewal(['space.not_a_real_one'])).toBe(false);
   });
 });
 
 describe('claimCovers', () => {
-  const needed = 'openid offline_access core.*:read capability.keys';
+  const needed = 'openid offline_access core.*:read space.keys';
 
   it('is false when nothing was recorded, so an unknown client is renewed', () => {
     // A client stored by a build that did not record its claim: the safe
@@ -55,6 +55,6 @@ describe('claimCovers', () => {
   });
 
   it('is insensitive to spacing and order, since scope is an unordered set', () => {
-    expect(claimCovers('capability.keys   openid  offline_access core.*:read', needed)).toBe(true);
+    expect(claimCovers('space.keys   openid  offline_access core.*:read', needed)).toBe(true);
   });
 });

@@ -45,7 +45,10 @@ describe('mergeEntries', () => {
   it('sorts the walked pages even with nothing typed', () => {
     // The list is date-grouped whether or not a query is running, so the
     // no-query path cannot rely on the server having sorted for it.
-    const loaded = [entry('old', '2020-01-01T10:00:00.000Z'), entry('new', '2026-09-05T10:00:00.000Z')];
+    const loaded = [
+      entry('old', '2020-01-01T10:00:00.000Z'),
+      entry('new', '2026-09-05T10:00:00.000Z'),
+    ];
     expect(ids(mergeEntries(loaded, []))).toEqual(['new', 'old']);
   });
 
