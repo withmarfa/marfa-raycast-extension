@@ -98,9 +98,11 @@ function ServerInfoCommand() {
       return { ...resolveSessionIdentity({ staticKey, profile }), shortfall };
     } catch (error) {
       // Handled rather than thrown, which is also why this hook has no error
-      // handler: a profile this session cannot read is the ordinary case, so
-      // a toast on every launch would be noise on the one screen meant to
-      // explain the session rather than interrupt it. The reason is rendered.
+      // handler: the profile is gated on a permission a person can decline on
+      // the consent screen, so a session that cannot read it is an ordinary
+      // session rather than a fault, and a toast on every launch would be
+      // noise on the one screen meant to explain the session rather than
+      // interrupt it. The reason is rendered.
       return { ...resolveSessionIdentity({ staticKey, error }), shortfall };
     }
   }, []);
