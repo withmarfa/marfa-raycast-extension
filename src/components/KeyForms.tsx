@@ -15,6 +15,7 @@ import { ForbiddenError, MarfaError } from '@withmarfa/sdk';
 import { getClient } from '../client';
 import { creatorCeilingRefusal } from '../key-refusal';
 import {
+  CONTENT_READ_PRESET_ID,
   CUSTOM_PRESET_ID,
   EVERYTHING_PRESET_ID,
   KEY_PRESETS,
@@ -226,6 +227,21 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
     if (!values.source?.trim()) {
       setSourceError('Source is required');
       invalid = true;
+    }
+
+    // **The one preset that cannot be sent before the grant has arrived.** It
+    // names the credential's own reach at read, and an unread grant is
+    // indistinguishable from one the server never reported, so submitting
+    // inside that window sends the widest read there is — the exact shape a
+    // sign-in cannot hold. Every other preset either names nothing or names a
+    // set that does not depend on the answer.
+    if (preset === CONTENT_READ_PRESET_ID && credential.loading) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: 'Still reading what this credential holds',
+        message: 'This preset asks for that set at read, so it cannot be sent yet.',
+      });
+      return;
     }
 
     // Resolve permissions. A preset decides the whole request on its own;
