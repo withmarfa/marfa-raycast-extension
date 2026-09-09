@@ -1,7 +1,8 @@
 import { getPreferenceValues } from '@raycast/api';
 import { getAccessToken } from '@raycast/utils';
 import { MarfaClient } from '@withmarfa/sdk';
-import { authorize, normalizeServerUrl } from './auth/marfa-oauth';
+import { authorize } from './auth/marfa-oauth';
+import { normalizeServerUrl } from './auth/issuer';
 
 interface Preferences {
   apiUrl: string;

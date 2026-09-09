@@ -25,8 +25,9 @@ import {
 } from './discovery';
 import type { GrantRecord } from './discovery';
 import { buildAuthorizeUrl } from './authorize-url';
-import { buildRegistrationBody } from './registration-body';
-import { claimCovers, needsClientRenewal } from './client-renewal';
+import { clientIdStorageKey, clientScopeStorageKey, ensureClientId } from './client-registration';
+import { armConsentOnNextLaunch, consentIsOwed, spendOnCompletedExchange } from './force-consent';
+import { normalizeServerUrl, stripTrailingSlash } from './issuer';
 
 const PROVIDER_NAME = 'Marfa';
 const PROVIDER_ID = 'marfa';
@@ -34,21 +35,6 @@ const PROVIDER_ICON = 'icon.png';
 
 interface Preferences {
   apiUrl?: string;
-}
-
-function stripTrailingSlash(s: string): string {
-  return s.replace(/\/+$/, '');
-}
-
-function clientIdStorageKey(issuer: string): string {
-  return `marfa.client_id:${stripTrailingSlash(issuer)}`;
-}
-
-/** The scope the stored client was registered claiming. Kept because a
- *  ceiling is invisible from here — nothing reads it back — so this is the
- *  only way to know whether registering again would change anything. */
-function clientScopeStorageKey(issuer: string): string {
-  return `marfa.client_scope:${stripTrailingSlash(issuer)}`;
 }
 
 /** Singleton PKCEClient, keeping token storage consistent across command
@@ -61,10 +47,6 @@ export const pkceClient = new OAuth.PKCEClient({
   description: 'Sign in to your Marfa account.',
 });
 
-interface DcrResponse {
-  client_id?: string;
-}
-
 interface TokenResponseBody {
   access_token?: string;
   refresh_token?: string;
@@ -72,74 +54,6 @@ interface TokenResponseBody {
   scope?: string;
   error?: string;
   error_description?: string;
-}
-
-/**
- * Dynamic-client-registration. Persists the issued `client_id` per issuer in
- * Raycast `LocalStorage` so subsequent sign-ins (or token refreshes after a
- * Raycast restart) skip DCR. The `redirect_uris` passed at registration
- * time must include the exact URI Raycast uses on `authorize`.
- *
- * **`scope` is not optional here, and omitting it fails silently.** The server
- * stores a scope ceiling against the client at registration and never updates
- * it; a registration naming nothing receives the default bundle expansion,
- * which by design never carries a space permission. The authorize surface then
- * *narrows* rather than refuses — it drops a scope outside the ceiling from the
- * request and completes — so `space.keys` would vanish between asking and
- * consenting, the consent screen would never show it, and the grant would come
- * back without it and without a word. Declaring it is what puts it in the row
- * the consent screen is built from.
- */
-async function dcrRegister(
-  registrationEndpoint: string,
-  redirectUri: string,
-  scope: string,
-): Promise<string> {
-  const res = await fetch(registrationEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      buildRegistrationBody({ clientName: 'Marfa for Raycast', redirectUri, scope }),
-    ),
-  });
-  if (!res.ok) {
-    throw new Error(`Client registration failed (HTTP ${res.status}): ${await res.text()}`);
-  }
-  const body = (await res.json()) as DcrResponse;
-  if (!body.client_id) {
-    throw new Error('Client registration response missing client_id');
-  }
-  return body.client_id;
-}
-
-/**
- * The client id for this issuer, registering one if there is none.
- *
- * `renew` asks for a fresh registration, because a space permission can only
- * reach a ceiling that way — the server's own catch-up excludes that family,
- * and the authorize surface then narrows silently rather than refusing, so
- * there is no error to key off. It is honoured only when it would change
- * something: a client already claiming everything being asked for is returned
- * as it stands, which is what stops a cancelled sign-in from minting and
- * abandoning a client on every retry.
- */
-async function ensureClientId(
-  issuer: string,
-  registrationEndpoint: string,
-  redirectUri: string,
-  scope: string,
-  renew = false,
-): Promise<string> {
-  const stored = await LocalStorage.getItem<string>(clientIdStorageKey(issuer));
-  if (stored) {
-    if (!renew) return stored;
-    const claimed = await LocalStorage.getItem<string>(clientScopeStorageKey(issuer));
-    if (claimCovers(claimed, scope)) return stored;
-  }
-  const id = await dcrRegister(registrationEndpoint, redirectUri, scope);
-  await LocalStorage.setItem(clientIdStorageKey(issuer), id);
-  await LocalStorage.setItem(clientScopeStorageKey(issuer), scope);
-  return id;
 }
 
 /**
@@ -193,6 +107,13 @@ const CLIENT_ID_STORAGE_KEY = 'marfa.token_client_id';
  * Raycast stores one token set per PKCE client, while the extension can point
  * at many Marfa instances. Never let a token minted by one issuer be sent to
  * another when the Server URL preference changes.
+ *
+ * **An armed consent screen is deliberately not in the list.** Everything here
+ * is discarded because it describes a credential or a client belonging to the
+ * old issuer and would be wrong against the new one. A pending consent question
+ * is neither: it is keyed by issuer, so it is already about the server it was
+ * asked of, and pointing somewhere else and back would otherwise silently drop
+ * a question somebody asked.
  */
 async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
   const storedIssuer = await LocalStorage.getItem<string>(ISSUER_STORAGE_KEY);
@@ -211,7 +132,7 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
 
 async function runFullAuthFlow(
   issuer: string,
-  options: { forceConsent?: boolean; renewClient?: boolean } = {},
+  options: { forceConsent?: boolean } = {},
 ): Promise<string> {
   const stripped = stripTrailingSlash(issuer);
   // Always re-read on a full sign-in, so consent is asked against what the
@@ -236,16 +157,24 @@ async function runFullAuthFlow(
     scope,
   });
 
-  // `renewClient` is set by the two paths that run because a grant came back
-  // short. Registering again is the only way to move a ceiling, and doing it
-  // anywhere else would abandon a client row on every ordinary sign-in.
-  const clientId = await ensureClientId(
-    stripped,
-    config.registrationEndpoint,
-    request.redirectURI,
+  // Compared on every sign-in rather than when a caller suspects a shortfall:
+  // the sign-in that knew it was short was exactly the one path this used to be
+  // reachable from, and the ordinary sign-in that had no idea was the one that
+  // kept a frozen ceiling. Whether a comparison that comes up short is worth a
+  // registration is `ensureClientId`'s question, not this one's — most gaps the
+  // server closes itself during this very authorize.
+  //
+  // `fromServer` rides along because a fallback scope set is not evidence about
+  // a ceiling. It neither covers nor is covered by what a real instance
+  // advertises, so a flapping discovery endpoint would otherwise re-register on
+  // every sign-in, in both directions.
+  const clientId = await ensureClientId({
+    issuer: stripped,
+    registrationEndpoint: config.registrationEndpoint,
+    redirectUri: request.redirectURI,
     scope,
-    options.renewClient,
-  );
+    scopeFromServer: config.fromServer,
+  });
 
   const { authorizationCode } = await pkceClient.authorize({
     url: buildAuthorizeUrl({
@@ -354,24 +283,6 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
 }
 
 /**
- * Which advertised scopes this session's grant does not cover.
- *
- * The shortfall exists whether or not anything can be done about it, and a
- * person told their content is not shared needs somewhere to read what else
- * is not. It runs the same decision the re-consent check runs, so the two
- * cannot drift into disagreeing about what is missing.
- *
- * Empty when there is nothing missing, and also when there is no basis to say:
- * no server document, no grant reported, no configured issuer.
- *
- * Not free of side effects, despite reading like it. Resolving the config on a
- * cold or expired cache fetches the discovery document and stores it, so
- * opening this screen can install a newer advertisement that the next command
- * launch then acts on. That is the same caching every other caller gets and is
- * not worth a second code path, but it does mean this is a read that can arm a
- * consent prompt.
- */
-/**
  * Content this session was offered and not given, from the stored record.
  *
  * **Deliberately not `getGrantShortfall`.** That one resolves the auth config,
@@ -398,6 +309,24 @@ export async function getUnreadableContent(): Promise<string[]> {
   }
 }
 
+/**
+ * Which advertised scopes this session's grant does not cover.
+ *
+ * The shortfall exists whether or not anything can be done about it, and a
+ * person told their content is not shared needs somewhere to read what else
+ * is not. It runs the same decision the re-consent check runs, so the two
+ * cannot drift into disagreeing about what is missing.
+ *
+ * Empty when there is nothing missing, and also when there is no basis to say:
+ * no server document, no grant reported, no configured issuer.
+ *
+ * Not free of side effects, despite reading like it. Resolving the config on a
+ * cold or expired cache fetches the discovery document and stores it, so
+ * opening this screen can install a newer advertisement that the next command
+ * launch then acts on. That is the same caching every other caller gets and is
+ * not worth a second code path, but it does mean this is a read that can arm a
+ * consent prompt.
+ */
 export async function getGrantShortfall(): Promise<string[]> {
   try {
     const issuer = getIssuer();
@@ -427,18 +356,6 @@ export async function getGrantedScopes(): Promise<string | undefined> {
   return tokens?.scope;
 }
 
-/** Accept a host typed without a scheme (e.g. "api.marfa.so"). Node's
- *  fetch/URL parser rejects scheme-less URLs with "Failed to parse URL",
- *  which the browser silently tolerates, so the sign-in page would open and
- *  consent succeed, yet every fetch() this extension makes (DCR, token
- *  exchange, refresh, SDK data calls) would throw. Default a scheme-less
- *  value to https and strip any trailing slash. */
-export function normalizeServerUrl(value: string): string {
-  const trimmed = value.trim();
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  return stripTrailingSlash(withScheme);
-}
-
 /** Resolve the configured Marfa issuer from preferences. Throws a clear
  *  error if unset. The user is prompted to set it on first run by
  *  Raycast's required-preference UX. */
@@ -461,7 +378,7 @@ function getIssuer(): string {
  * widens whenever types are added, so a session minted last month can be
  * missing a whole bundle while remaining perfectly valid. Left alone, the
  * missing content simply does not appear, which is indistinguishable from
- * an empty library and is exactly the failure this wave exists to fix.
+ * an empty library, and is the failure this check exists to catch.
  *
  * Two things keep it from becoming a nuisance. Coverage rather than set
  * difference means a broader older grant is never treated as short, and the
@@ -496,15 +413,19 @@ async function reconsentIfServerOffersMore(
     message: `This server offers ${String(decision.missing.length)} permissions your last sign-in did not grant.`,
   });
   await pkceClient.removeTokens();
-  // Only a space permission shortfall needs a new registration. Every other missing
-  // scope is repaired by the server's own ceiling catch-up during the very
-  // next authorize, so renewing for those would abandon a client row each time
-  // an operator adds a type — which is most of the reason this path runs.
-  return runFullAuthFlow(issuer, { renewClient: needsClientRenewal(decision.missing) });
+  return runFullAuthFlow(issuer);
 }
 
 /**
- * Ask for consent again, on a session the server would otherwise wave through.
+ * Ask for the consent screen again, on a session the server would otherwise
+ * wave through.
+ *
+ * **It arms a question rather than asking one, and that is the fix rather than
+ * a limitation.** `./force-consent` carries the full account of why the browser
+ * round trip cannot happen in an action handler; the short version is that the
+ * redirect resolves back into a worker the handler's own command is about to
+ * take with it. Arming puts the round trip back inside `withAccessToken`'s
+ * `authorize`, which is where the same flow already completes.
  *
  * **`prompt=consent`, and deliberately not a revoke.** Revoking looked like the
  * answer and is not: the plugin's revoke marks the refresh token and deletes
@@ -514,12 +435,13 @@ async function reconsentIfServerOffersMore(
  * clear. The one route that does cascade is a browser-session route this client
  * cannot reach.
  *
- * OIDC has a word for this and the server honours it ahead of the lookup, so
- * nothing is destroyed to get a question asked. A cancelled consent leaves the
- * session exactly as it was.
+ * The tokens go because a valid one short-circuits the sign-in before it can
+ * spend the flag, so leaving them would arm a question nothing would ever ask.
  */
-export async function reauthorize(): Promise<string> {
-  return runFullAuthFlow(getIssuer(), { forceConsent: true, renewClient: true });
+export async function requestConsentOnNextLaunch(): Promise<void> {
+  const issuer = getIssuer();
+  await armConsentOnNextLaunch(issuer);
+  await pkceClient.removeTokens();
 }
 
 /**
@@ -533,6 +455,14 @@ export async function reauthorize(): Promise<string> {
 export async function authorize(): Promise<string> {
   const issuer = getIssuer();
   await discardTokensForDifferentIssuer(issuer);
+
+  // Owed a consent screen, so nothing stored can satisfy this launch. The
+  // ordering is the helper's: a consent the person backs out of is still owed
+  // on the launch after that.
+  if (await consentIsOwed(issuer)) {
+    return spendOnCompletedExchange(issuer, () => runFullAuthFlow(issuer, { forceConsent: true }));
+  }
+
   const existing = await pkceClient.getTokens();
 
   if (existing?.accessToken && !existing.isExpired()) {

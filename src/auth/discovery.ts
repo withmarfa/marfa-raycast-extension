@@ -115,10 +115,12 @@ const FALLBACK_SCOPES = [
  * diagnose of the two hand-rolled clients: the web app's equivalent fetch
  * hard-fails and names the instance.
  *
- * **Nothing here can catch a regression to the bare root.** This extension
- * has no test harness, so the value is held by this comment and by the
- * server's own path-aware registrations, and a wrong one would surface only
- * as a quietly narrowed grant on a live deployment.
+ * **Nothing catches a regression to the bare root, and the test suite is not
+ * where that would change.** The suite covers pure logic, and this is a
+ * constant spent on a network call: an assertion on its text would restate the
+ * literal rather than check it against anything. So the value is held by this
+ * comment and by the server's own path-aware registrations, and a wrong one
+ * would surface only as a quietly narrowed grant on a live deployment.
  */
 const DISCOVERY_PATH = '/.well-known/oauth-authorization-server/auth';
 
