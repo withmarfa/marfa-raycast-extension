@@ -34,7 +34,7 @@ export interface ScopeFamily {
  * scopes carrying no access need a family of their own. Keying on the name
  * alone would merge two unrelated things.
  */
-const SIGN_IN_FAMILY = 'sign-in';
+export const SIGN_IN_FAMILY = 'sign-in';
 
 /** A Map rather than an object literal, because the key comes from a remote
  *  document and `constructor` would otherwise resolve to something inherited. */

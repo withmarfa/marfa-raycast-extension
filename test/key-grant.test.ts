@@ -13,7 +13,8 @@ import {
  * screen did. **May this session offer key management** is answered before any
  * request, from the grant. **Why did the server refuse** is answered from the
  * refusal, and the two answers do not always agree: a grant read from stale
- * storage can be optimistic, and only the server knows about role.
+ * storage can be optimistic, and only the server knows what the credential in
+ * hand actually holds.
  */
 
 const GRANT_WITH_KEYS = 'openid core.note:read space.keys';
@@ -64,16 +65,17 @@ describe('sessionMayManageKeys', () => {
 describe('spacePermissionRefusedBy', () => {
   it('names the permission a refusal asked for', () => {
     // The server states it rather than the client inferring it, so a screen can
-    // say "you did not grant this" instead of "you are not an admin" — two
+    // say "you did not grant this" instead of "this credential cannot" — two
     // different problems with two different fixes.
     const refusal = { details: { required_scope: 'space.keys' } };
     expect(spacePermissionRefusedBy(refusal)).toBe('space.keys');
   });
 
   it('says nothing about a refusal that named no permission', () => {
-    // A role refusal. The distinction is the point: this must not turn every
-    // 403 into an invitation to re-consent, which would send a member round the
-    // consent screen forever without ever gaining the role they actually lack.
+    // A refusal from the credential itself. The distinction is the point: this
+    // must not turn every 403 into an invitation to re-consent, which would send
+    // somebody round the consent screen forever without ever gaining the
+    // permission they actually lack.
     expect(spacePermissionRefusedBy({ details: {} })).toBeUndefined();
     expect(spacePermissionRefusedBy(new Error('Admin access required'))).toBeUndefined();
     expect(spacePermissionRefusedBy(undefined)).toBeUndefined();

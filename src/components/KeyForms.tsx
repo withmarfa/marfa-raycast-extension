@@ -10,12 +10,21 @@ import {
 } from '@raycast/api';
 import { showFailureToast } from '@raycast/utils';
 import { useState } from 'react';
-import type { ApiKey, UpdateKeyInput } from '@withmarfa/sdk';
-import type { SpacePermission } from '@withmarfa/shared';
-import { SPACE_PERMISSIONS } from '@withmarfa/shared';
+import type { ApiKey, CreateKeyInput, UpdateKeyInput } from '@withmarfa/sdk';
 import { ForbiddenError, MarfaError } from '@withmarfa/sdk';
 import { getClient } from '../client';
+import { creatorCeilingRefusal } from '../key-refusal';
+import {
+  CUSTOM_PRESET_ID,
+  EVERYTHING_PRESET_ID,
+  KEY_PRESETS,
+  describePermissionMap,
+  isPresetId,
+  presetPermissionFields,
+  presetSummary,
+} from '../key-presets';
 import { showRefusal } from '../show-refusal';
+import { useCredentialReach } from '../use-credential-reach';
 
 /**
  * Permission shapes:
@@ -34,73 +43,6 @@ interface PermissionBundle {
   edge_permissions: RwMap;
   metadata_permissions: RwMap;
 }
-
-interface CreatePreset {
-  id: string;
-  label: string;
-  /**
-   * The administrative surfaces the key holds, named one by one.
-   *
-   * Empty is the ordinary case and is not a lesser version of the first
-   * preset: a key that writes every type still holds no authority over the
-   * space itself, which is the distinction one permission model exists to
-   * make. Naming it empty is also different from omitting it — the server
-   * reads an absent list as the creator's whole set.
-   */
-  space_permissions: SpacePermission[];
-  default_tier: 'library' | 'feed';
-  permissions: PermissionBundle;
-}
-
-/**
- * Three presets, matching the ones the server's own keys form offers.
- *
- * The five that were here carried a role each, and two of them differed in
- * nothing else — `full-admin` and `space-admin` had identical permission maps
- * and were told apart only by a rank the model no longer has. What is left is
- * the distinction that survives: everything, the content of a space, or a
- * read of it.
- */
-const CREATE_PRESETS: CreatePreset[] = [
-  {
-    id: 'everything',
-    label: 'Everything (the whole space, administration included)',
-    space_permissions: [...SPACE_PERMISSIONS],
-    default_tier: 'library',
-    permissions: {
-      type_permissions: { '*': 'write' },
-      extension_permissions: { '*': 'write' },
-      edge_permissions: { '*': 'write' },
-      metadata_permissions: { types: 'write' },
-    },
-  },
-  {
-    id: 'content-only',
-    label: 'Content only (write everything, administer nothing)',
-    space_permissions: [],
-    default_tier: 'library',
-    permissions: {
-      type_permissions: { '*': 'write' },
-      extension_permissions: { '*': 'write' },
-      edge_permissions: { '*': 'write' },
-      metadata_permissions: { types: 'write' },
-    },
-  },
-  {
-    id: 'read-only',
-    label: 'Read only',
-    space_permissions: [],
-    default_tier: 'library',
-    permissions: {
-      type_permissions: { '*': 'read' },
-      extension_permissions: { '*': 'read' },
-      edge_permissions: { '*': 'read' },
-      metadata_permissions: { types: 'read' },
-    },
-  },
-];
-
-const CUSTOM_PRESET_ID = 'custom';
 
 interface QuickSetOption<T extends string> {
   id: string;
@@ -199,7 +141,15 @@ ${apiKey.key}
     (apiKey.space_permissions ?? []).length > 0
       ? (apiKey.space_permissions ?? []).join(', ')
       : 'none'
-  }`;
+  }
+
+**Types:** ${describePermissionMap(apiKey.type_permissions)}
+
+**Extensions:** ${describePermissionMap(apiKey.extension_permissions)}
+
+**Edges:** ${describePermissionMap(apiKey.edge_permissions)}
+
+**Metadata:** ${describePermissionMap(apiKey.metadata_permissions)}`;
 
   return (
     <Detail
@@ -237,7 +187,8 @@ interface CreateValues {
 
 export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
   const { push } = useNavigation();
-  const [presetId, setPresetId] = useState(CREATE_PRESETS[0].id);
+  const credential = useCredentialReach();
+  const [presetId, setPresetId] = useState<string>(EVERYTHING_PRESET_ID);
   const [typeQuickset, setTypeQuickset] = useState(TYPE_QUICKSETS[0].id);
   const [extQuickset, setExtQuickset] = useState(RW_QUICKSETS[0].id);
   const [edgeQuickset, setEdgeQuickset] = useState(RW_QUICKSETS[0].id);
@@ -249,9 +200,12 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
   const [extError, setExtError] = useState<string | undefined>();
   const [edgeError, setEdgeError] = useState<string | undefined>();
   const [metadataError, setMetadataError] = useState<string | undefined>();
+  // **The one refusal that belongs on the form rather than in a toast.** It is
+  // about what was asked for, so it has to stay on screen beside the control
+  // that asked, and a toast is gone by the time somebody changes a preset.
+  const [ceilingRefusal, setCeilingRefusal] = useState<string | undefined>();
 
-  const usingPreset = presetId !== CUSTOM_PRESET_ID;
-  const activePreset = CREATE_PRESETS.find((p) => p.id === presetId);
+  const preset = isPresetId(presetId) ? presetId : undefined;
 
   async function handleSubmit(values: CreateValues) {
     let invalid = false;
@@ -264,11 +218,15 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
       invalid = true;
     }
 
-    // Resolve permissions. Top-level preset wins; Custom drops to per-map quicksets.
-    let permissions: PermissionBundle;
-    if (activePreset) {
-      permissions = activePreset.permissions;
-    } else {
+    // Resolve permissions. A preset decides the whole request on its own;
+    // Custom drops to per-map quicksets.
+    let custom: PermissionBundle = {
+      type_permissions: {},
+      extension_permissions: {},
+      edge_permissions: {},
+      metadata_permissions: {},
+    };
+    if (!preset) {
       const typeOpt = TYPE_QUICKSETS.find((q) => q.id === values.type_quickset);
       const extOpt = RW_QUICKSETS.find((q) => q.id === values.ext_quickset);
       const edgeOpt = RW_QUICKSETS.find((q) => q.id === values.edge_quickset);
@@ -324,7 +282,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
           metadataMap = parsed.value;
         }
       }
-      permissions = {
+      custom = {
         type_permissions: typeMap,
         extension_permissions: extMap,
         edge_permissions: edgeMap,
@@ -337,30 +295,45 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
     // to tick one, and naming the empty array rather than omitting it is the
     // difference between a key that administers nothing and a key that
     // inherits everything its creator holds. Somebody wanting more reaches
-    // for a preset, or the server's own keys page, which offers the eleven.
-    const spacePermissions = activePreset?.space_permissions ?? [];
-    const defaultTier = (activePreset?.default_tier ??
-      (values.default_tier as 'library' | 'feed')) as 'library' | 'feed';
+    // for "Everything you hold", or the server's own keys page, which offers
+    // the eleven one by one.
+    const input: CreateKeyInput = {
+      label: values.label.trim(),
+      source: values.source.trim(),
+      ...(preset
+        ? presetPermissionFields(preset)
+        : {
+            space_permissions: [],
+            default_tier: values.default_tier as 'library' | 'feed',
+            ...custom,
+          }),
+    };
 
     try {
+      setCeilingRefusal(undefined);
       const client = getClient();
-      const created = await client.keys.create({
-        label: values.label.trim(),
-        source: values.source.trim(),
-        space_permissions: spacePermissions,
-        default_tier: defaultTier,
-        type_permissions: permissions.type_permissions,
-        extension_permissions: permissions.extension_permissions,
-        edge_permissions: permissions.edge_permissions,
-        metadata_permissions: permissions.metadata_permissions,
-      });
+      const created = await client.keys.create(input);
       onCreated();
       push(<PlaintextKeyView apiKey={created} />);
     } catch (error) {
       if (error instanceof MarfaError && error.status === 409) {
         setSourceError(error.message);
       } else if (error instanceof ForbiddenError) {
-        await showRefusal(error);
+        // The ceiling and the door wear one status code. A ceiling refusal
+        // names what the request reached for and belongs beside the controls
+        // that reached; anything else is about the credential, and
+        // `showRefusal` carries the way out for the one case that has one.
+        const ceiling = creatorCeilingRefusal(error);
+        if (ceiling) {
+          setCeilingRefusal(ceiling);
+          await showToast({
+            style: Toast.Style.Failure,
+            title: 'Key not created',
+            message: ceiling,
+          });
+        } else {
+          await showRefusal(error);
+        }
       } else {
         await showFailureToast(error, { title: 'Failed to create key' });
       }
@@ -380,14 +353,18 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         id="preset"
         title="Preset"
         value={presetId}
-        onChange={setPresetId}
+        onChange={(value) => {
+          setPresetId(value);
+          setCeilingRefusal(undefined);
+        }}
         info="Pick a preset for the common cases, or Custom to set permissions per map."
       >
-        {CREATE_PRESETS.map((p) => (
+        {KEY_PRESETS.map((p) => (
           <Form.Dropdown.Item key={p.id} value={p.id} title={p.label} />
         ))}
         <Form.Dropdown.Item value={CUSTOM_PRESET_ID} title="Custom" />
       </Form.Dropdown>
+      {ceilingRefusal && <Form.Description title="Refused" text={ceilingRefusal} />}
 
       <Form.Separator />
 
@@ -406,7 +383,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         onChange={() => setSourceError(undefined)}
       />
 
-      {!usingPreset && (
+      {!preset && (
         <>
           <Form.Dropdown id="default_tier" title="Default Tier" defaultValue="library">
             <Form.Dropdown.Item value="library" title="Library" />
@@ -518,23 +495,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         </>
       )}
 
-      {usingPreset && activePreset && (
-        <Form.Description
-          title="Permissions"
-          text={[
-            `Space permissions: ${
-              activePreset.space_permissions.length > 0
-                ? activePreset.space_permissions.join(', ')
-                : 'none'
-            }`,
-            `Default tier: ${activePreset.default_tier}`,
-            `Types: ${stringifyMap(activePreset.permissions.type_permissions)}`,
-            `Extensions: ${stringifyMap(activePreset.permissions.extension_permissions)}`,
-            `Edges: ${stringifyMap(activePreset.permissions.edge_permissions)}`,
-            `Metadata: ${stringifyMap(activePreset.permissions.metadata_permissions)}`,
-          ].join('\n')}
-        />
-      )}
+      {preset && <Form.Description title="Permissions" text={presetSummary(preset, credential)} />}
     </Form>
   );
 }
@@ -593,6 +554,9 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
   const [extError, setExtError] = useState<string | undefined>();
   const [edgeError, setEdgeError] = useState<string | undefined>();
   const [metadataError, setMetadataError] = useState<string | undefined>();
+  // An edit is clamped to the caller exactly as a mint is, so this form can
+  // reach past the ceiling too and needs the same answer beside the controls.
+  const [ceilingRefusal, setCeilingRefusal] = useState<string | undefined>();
 
   async function handleSubmit(values: EditValues) {
     let invalid = false;
@@ -669,6 +633,7 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
     };
 
     try {
+      setCeilingRefusal(undefined);
       const client = getClient();
       await client.keys.update(apiKey.id, input);
       await showToast({ style: Toast.Style.Success, title: 'Key updated' });
@@ -682,7 +647,13 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
       ) {
         await showFailureToast(error, { title: error.message });
       } else if (error instanceof ForbiddenError) {
-        await showRefusal(error);
+        const ceiling = creatorCeilingRefusal(error);
+        if (ceiling) {
+          setCeilingRefusal(ceiling);
+          await showToast({ style: Toast.Style.Failure, title: 'Key not saved', message: ceiling });
+        } else {
+          await showRefusal(error);
+        }
       } else {
         await showFailureToast(error, { title: 'Failed to update key' });
       }
@@ -705,6 +676,7 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
         error={labelError}
         onChange={() => setLabelError(undefined)}
       />
+      {ceilingRefusal && <Form.Description title="Refused" text={ceilingRefusal} />}
       <Form.Description title="Source" text={`${apiKey.source} (immutable)`} />
       <Form.Description
         title="Space permissions"

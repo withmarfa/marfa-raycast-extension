@@ -1,4 +1,4 @@
-import { spacePermissionRefusedBy } from './auth/discovery';
+import { scopeRefusedBy, spacePermissionRefusedBy } from './auth/discovery';
 
 /**
  * What to say when the server refuses a key operation.
@@ -69,4 +69,26 @@ export function keyRefusal(error: unknown): KeyRefusal {
     description: KEY_MANAGEMENT_NEEDS_PERMISSION,
     reconsentHelps: false,
   };
+}
+
+/**
+ * What to say when the server refused a key because the request named more
+ * than the credential in hand holds.
+ *
+ * **A different question from {@link keyRefusal}, and only the two forms can
+ * ask it.** Reaching this refusal means the credential already passed the
+ * key-management door, so nothing about its authority is in doubt: what is
+ * wrong is the request. Sending it through the other answer told somebody
+ * their credential could not manage keys on a screen it had just opened by
+ * managing keys, and pointed them at a consent screen that would not have
+ * helped.
+ *
+ * `space.keys` is excluded deliberately. This form asks for no space
+ * permission at all, so a refusal naming that one is the door rather than the
+ * ceiling, and the door has its own answer with a way out on it.
+ */
+export function creatorCeilingRefusal(error: unknown): string | undefined {
+  const required = scopeRefusedBy(error);
+  if (required === undefined || required === 'space.keys') return undefined;
+  return `This credential does not hold ${required}, and a key cannot be given a permission its creator does not hold. Choose a narrower preset, or "Everything you hold", which copies this credential's own set exactly.`;
 }
