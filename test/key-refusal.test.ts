@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { creatorCeilingRefusal, keyRefusal } from '../src/key-refusal';
+import { ForbiddenError } from '@withmarfa/sdk';
+import {
+  KEY_MANAGEMENT_NEEDS_PERMISSION,
+  creatorCeilingRefusal,
+  keyRefusal,
+} from '../src/key-refusal';
 
 /**
  * Four surfaces refuse a key operation and all four used to say one thing,
@@ -103,8 +108,44 @@ describe('creatorCeilingRefusal', () => {
     expect(creatorCeilingRefusal({ details: { required_scope: 'space.keys' } })).toBeUndefined();
   });
 
-  it('declines anything that named no scope', () => {
-    for (const notACeiling of [undefined, null, new Error('network'), {}, { details: {} }]) {
+  it('renders the server\'s own words when this door refused without naming one', () => {
+    // **The refusal that had no answer at all.** The extension refusals throw
+    // FORBIDDEN with no `details`, so nothing names a scope, and answering
+    // `undefined` sent the form to "this credential cannot manage API keys,
+    // paste one that holds `space.keys`" — on a form the credential had just
+    // opened by managing keys, about a permission it demonstrably holds.
+    //
+    // Safe because the door names `required_scope` wherever it checks one:
+    // `requireSpacePermission` attaches it unconditionally, so a refusal from
+    // the create or update door carrying none is never the door.
+    const message =
+      'A signed-in app cannot ask for `extension_permissions`: no scope names an extension namespace, so there is nothing to check the request against.';
+    const refusal = creatorCeilingRefusal(new ForbiddenError(message));
+    expect(refusal).toBe(message);
+    expect(refusal).not.toContain(KEY_MANAGEMENT_NEEDS_PERMISSION);
+  });
+
+  it('reads the refusal structurally, not by class', () => {
+    // The same shape arriving as a plain object, because what this reads is
+    // the wire's own answer and a test asserting only against the class would
+    // pass while the field it actually consults was renamed.
+    expect(creatorCeilingRefusal({ status: 403, code: 'forbidden', message: 'Nope' })).toBe('Nope');
+  });
+
+  it('declines anything that is not this door refusing', () => {
+    // A transport failure carries a message too, and rendering one as the
+    // form's refusal would put "fetch failed" where an explanation belongs.
+    // An empty message is declined for the same reason: a blank `Form.Description`
+    // reads as a bug in the form.
+    for (const notACeiling of [
+      undefined,
+      null,
+      new Error('network'),
+      {},
+      { details: {} },
+      { status: 403, code: 'forbidden', message: '   ' },
+      { status: 500, message: 'Internal error' },
+    ]) {
       expect(creatorCeilingRefusal(notACeiling)).toBeUndefined();
     }
   });

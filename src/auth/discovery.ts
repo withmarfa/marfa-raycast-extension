@@ -353,6 +353,33 @@ export function scopeRefusedBy(error: unknown): string | undefined {
 }
 
 /**
+ * The server's own sentence, when a refusal was a 403 and carried one.
+ *
+ * **Not every refusal names a scope, and one family never can.** A door
+ * refuses on a space permission and always attaches it; a mint refused for
+ * asking above its creator names whatever the request reached for. The
+ * exception is `extension_permissions`, where no literal exists to name: the
+ * server refuses the family outright for a session and compares it directly
+ * for a key, and both of those throw with no `details` at all. A surface that
+ * reads only {@link scopeRefusedBy} therefore has nothing to say about the one
+ * refusal that already explains itself, and falls back to an answer about the
+ * credential that is false — the credential passed the door to get here.
+ *
+ * **Read structurally rather than by class, matching every sibling here.** The
+ * gate is the status and the code together, so a transport failure, which
+ * carries a message and neither of those, cannot be rendered as though the
+ * server had explained something. An empty message is declined for the same
+ * reason a blank refusal is worse than none: it reads as a bug in the form.
+ */
+export function forbiddenMessage(error: unknown): string | undefined {
+  const refusal = error as
+    { status?: unknown; code?: unknown; message?: unknown } | null | undefined;
+  if (refusal?.status !== 403 && refusal?.code !== 'forbidden') return undefined;
+  const message = typeof refusal.message === 'string' ? refusal.message.trim() : '';
+  return message === '' ? undefined : message;
+}
+
+/**
  * What the last successful token exchange asked for, and what it was given.
  *
  * **Both halves, because either alone is the defect.** Recording only the
