@@ -3,6 +3,7 @@ import type { Item, Metadata } from '@withmarfa/sdk';
 import { STATE_CONFIG } from '../constants';
 import { formatDate, formatTime, formatRelativeTime, toTitleCase } from '../helpers';
 import type { TypeRegistry } from '../type-display';
+import { buildItemMarkdown } from '../item-markdown';
 import { splitItemProperties, type ScalarSidebarEntry } from '../item-metadata';
 
 /**
@@ -22,32 +23,19 @@ interface ItemInlineDetailProps {
 
 const INLINE_BODY_TRUNCATE = 600;
 
-function truncate(text: string, max: number): string {
-  if (text.length <= max) return text;
-  return text.slice(0, max).trimEnd() + '…';
-}
-
 export function ItemInlineDetail({ item, metadata, snippet, registry }: ItemInlineDetailProps) {
   const typeLabel = registry.label(item.type);
   const typeColor = registry.appearance(item.type).color;
   const stateConfig = STATE_CONFIG[item.state];
   const bodyField = registry.bodyField(item.type);
 
-  const p = item.properties;
-  const lines: string[] = [`# ${registry.titleOf(item)}`, ''];
-  if (snippet) lines.push(snippet, '');
-  // The registry's own body field first. A captured email keeps its text in
-  // `text_body`, a podcast episode in `content_encoded`.
-  const hintedBody = bodyField ? p[bodyField] : undefined;
-  if (typeof hintedBody === 'string' && hintedBody)
-    lines.push(truncate(hintedBody, INLINE_BODY_TRUNCATE), '');
-  if (typeof p.body === 'string' && p.body) lines.push(truncate(p.body, INLINE_BODY_TRUNCATE), '');
-  if (typeof p.description === 'string' && p.description)
-    lines.push(truncate(p.description, INLINE_BODY_TRUNCATE), '');
-  if (typeof p.text === 'string' && p.text) lines.push(truncate(p.text, INLINE_BODY_TRUNCATE), '');
-  if (typeof p.notes === 'string' && p.notes)
-    lines.push(truncate(p.notes, INLINE_BODY_TRUNCATE), '');
-  if (typeof p.url === 'string' && p.url) lines.push(`[${p.url}](${p.url})`, '');
+  const markdown = buildItemMarkdown({
+    item,
+    title: registry.titleOf(item),
+    bodyField,
+    snippet,
+    truncateAt: INLINE_BODY_TRUNCATE,
+  });
 
   const { scalar: sidebarEntries } = splitItemProperties(item, [
     registry.titleField(item.type),
@@ -58,7 +46,7 @@ export function ItemInlineDetail({ item, metadata, snippet, registry }: ItemInli
 
   return (
     <List.Item.Detail
-      markdown={lines.join('\n')}
+      markdown={markdown}
       metadata={
         <List.Item.Detail.Metadata>
           <List.Item.Detail.Metadata.TagList title="Type">

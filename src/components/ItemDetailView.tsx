@@ -12,6 +12,7 @@ import {
   arrayBufferToBase64,
 } from '../helpers';
 import { ItemActionSections } from './ItemActions';
+import { buildItemMarkdown } from '../item-markdown';
 import { splitItemProperties, type ScalarSidebarEntry } from '../item-metadata';
 import { useTypeRegistry } from '../use-type-registry';
 import type { TypeRegistry } from '../type-display';
@@ -62,22 +63,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   const typeColor = registry.appearance(item.type).color;
   const stateConfig = STATE_CONFIG[item.state];
 
-  const lines: string[] = [];
-  if (imageMarkdownUrl) {
-    lines.push(`![${title}](${imageMarkdownUrl})`, '');
-  }
-  lines.push(`# ${title}`, '');
-  const p = item.properties;
-
-  // The registry's own body field first, then the conventional names for
-  // types it has no hint for.
-  const hintedBody = bodyField ? p[bodyField] : undefined;
-  if (typeof hintedBody === 'string' && hintedBody) lines.push(hintedBody, '');
-  if (typeof p.body === 'string' && p.body) lines.push(p.body, '');
-  if (typeof p.description === 'string' && p.description) lines.push(p.description, '');
-  if (typeof p.text === 'string' && p.text) lines.push(p.text, '');
-  if (typeof p.notes === 'string' && p.notes) lines.push(p.notes, '');
-  if (typeof p.url === 'string' && p.url) lines.push(`[${p.url}](${p.url})`, '');
+  const markdown = buildItemMarkdown({ item, title, bodyField, imageUrl: imageMarkdownUrl });
 
   const { scalar: sidebarEntries, complex: complexEntries } = splitItemProperties(item, [
     registry.titleField(item.type),
@@ -108,7 +94,7 @@ export function ItemDetailView({ itemId, onRefresh }: ItemDetailViewProps) {
   return (
     <Detail
       isLoading={isLoading}
-      markdown={lines.join('\n')}
+      markdown={markdown}
       navigationTitle={title}
       metadata={
         <Detail.Metadata>
