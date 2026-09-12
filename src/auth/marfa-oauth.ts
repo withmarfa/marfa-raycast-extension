@@ -25,7 +25,10 @@ import {
 } from './discovery';
 import type { GrantRecord } from './discovery';
 import { buildAuthorizeUrl } from './authorize-url';
-import { clientIdStorageKey, clientScopeStorageKey, ensureClientId } from './client-registration';
+import { RAYCAST_CLIENT_NAME, RaycastClientRegistrationStore } from './client-registration';
+import { readTokenOutcome } from './token-response';
+import { afterExchangeFailure, afterRefreshFailure, REFRESH_STATE_MISSING } from './recovery';
+import { resolveClient } from '@withmarfa/sdk/auth';
 import { armConsentOnNextLaunch, consentIsOwed, spendOnCompletedExchange } from './force-consent';
 import { normalizeServerUrl, stripTrailingSlash } from './issuer';
 
@@ -46,15 +49,6 @@ export const pkceClient = new OAuth.PKCEClient({
   providerId: PROVIDER_ID,
   description: 'Sign in to your Marfa account.',
 });
-
-interface TokenResponseBody {
-  access_token?: string;
-  refresh_token?: string;
-  expires_in?: number;
-  scope?: string;
-  error?: string;
-  error_description?: string;
-}
 
 /**
  * What the last successful token exchange asked for and was given, per issuer.
@@ -103,6 +97,10 @@ async function writeGrantRecord(issuer: string, record: GrantRecord): Promise<vo
 const ISSUER_STORAGE_KEY = 'marfa.token_issuer';
 const CLIENT_ID_STORAGE_KEY = 'marfa.token_client_id';
 
+/** One store for the whole module. Holds only the registration; the tokens
+ *  live in Raycast's own `OAuth.PKCEClient` store. */
+const registrationStore = new RaycastClientRegistrationStore();
+
 /**
  * Raycast stores one token set per PKCE client, while the extension can point
  * at many Marfa instances. Never let a token minted by one issuer be sent to
@@ -123,8 +121,7 @@ async function discardTokensForDifferentIssuer(issuer: string): Promise<void> {
     pkceClient.removeTokens(),
     LocalStorage.removeItem(ISSUER_STORAGE_KEY),
     LocalStorage.removeItem(CLIENT_ID_STORAGE_KEY),
-    LocalStorage.removeItem(clientIdStorageKey(storedIssuer)),
-    LocalStorage.removeItem(clientScopeStorageKey(storedIssuer)),
+    registrationStore.clear(storedIssuer),
     LocalStorage.removeItem(grantRecordKey(storedIssuer)),
     LocalStorage.removeItem(legacyRequestedScopesKey(storedIssuer)),
   ]);
@@ -168,12 +165,17 @@ async function runFullAuthFlow(
   // a ceiling. It neither covers nor is covered by what a real instance
   // advertises, so a flapping discovery endpoint would otherwise re-register on
   // every sign-in, in both directions.
-  const clientId = await ensureClientId({
+  const { clientId } = await resolveClient({
     issuer: stripped,
+    store: registrationStore,
     registrationEndpoint: config.registrationEndpoint,
-    redirectUri: request.redirectURI,
-    scope,
-    scopeFromServer: config.fromServer,
+    manifest: {
+      clientName: RAYCAST_CLIENT_NAME,
+      grantTypes: ['authorization_code', 'refresh_token'],
+      redirectUris: [request.redirectURI],
+    },
+    scopes: config.scopes,
+    scopesAreAuthoritative: config.fromServer,
   });
 
   const { authorizationCode } = await pkceClient.authorize({
@@ -202,18 +204,22 @@ async function runFullAuthFlow(
     }).toString(),
     signal: AbortSignal.timeout(20000),
   });
-  const body = (await res.json().catch(() => ({}))) as TokenResponseBody;
-  if (!res.ok || !body.access_token) {
-    throw new Error(
-      `Token exchange failed (HTTP ${res.status}): ${body.error_description ?? body.error ?? 'unknown'}`,
-    );
+  const outcome = readTokenOutcome(res.status, await res.json().catch(() => ({})));
+  if (outcome.kind === 'refused') {
+    if (afterExchangeFailure(outcome.error) === 'discard-client-then-reauthenticate') {
+      // The client is gone server-side. Signing in again with it would
+      // dead-end on the issuer's error page with nothing coming back, so the
+      // registration goes and the next launch registers afresh.
+      await registrationStore.clear(stripped);
+    }
+    throw outcome.error;
   }
 
   await pkceClient.setTokens({
-    accessToken: body.access_token,
-    refreshToken: body.refresh_token,
-    expiresIn: body.expires_in,
-    scope: body.scope,
+    accessToken: outcome.accessToken,
+    refreshToken: outcome.refreshToken,
+    expiresIn: outcome.expiresIn,
+    scope: outcome.scope,
   });
   await LocalStorage.setItem(ISSUER_STORAGE_KEY, stripped);
   await LocalStorage.setItem(CLIENT_ID_STORAGE_KEY, clientId);
@@ -233,11 +239,11 @@ async function runFullAuthFlow(
   if (config.fromServer) {
     await writeGrantRecord(stripped, {
       advertised: config.scopes,
-      granted: scopesGranted(body, config.scopes),
+      granted: scopesGranted({ scope: outcome.scope }, config.scopes),
     });
   }
 
-  return body.access_token;
+  return outcome.accessToken;
 }
 
 async function refreshExistingTokens(refreshToken: string): Promise<string> {
@@ -248,7 +254,7 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
   if (!issuer || !clientId) {
     // Cached tokens predate the issuer/clientId persistence, so fall through
     // to a full sign-in.
-    throw new Error('refresh_state_missing');
+    throw new Error(REFRESH_STATE_MISSING);
   }
   const { tokenEndpoint } = await resolveAuthConfig(issuer);
   const res = await fetch(tokenEndpoint, {
@@ -260,12 +266,8 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
       client_id: clientId,
     }).toString(),
   });
-  const body = (await res.json().catch(() => ({}))) as TokenResponseBody;
-  if (!res.ok || !body.access_token) {
-    throw new Error(
-      `Token refresh failed (HTTP ${res.status}): ${body.error_description ?? body.error ?? 'unknown'}`,
-    );
-  }
+  const outcome = readTokenOutcome(res.status, await res.json().catch(() => ({})));
+  if (outcome.kind === 'refused') throw outcome.error;
   // The scope is carried forward when the response omits it. RFC 6749 section
   // 5.1 makes it optional on a refresh whose grant matches the request, so
   // writing the absence through would empty the stored scope roughly an hour
@@ -274,12 +276,12 @@ async function refreshExistingTokens(refreshToken: string): Promise<string> {
   // see none of it.
   const existing = await pkceClient.getTokens();
   await pkceClient.setTokens({
-    accessToken: body.access_token,
-    refreshToken: body.refresh_token ?? refreshToken,
-    expiresIn: body.expires_in,
-    scope: body.scope ?? existing?.scope,
+    accessToken: outcome.accessToken,
+    refreshToken: outcome.refreshToken ?? refreshToken,
+    expiresIn: outcome.expiresIn,
+    scope: outcome.scope ?? existing?.scope,
   });
-  return body.access_token;
+  return outcome.accessToken;
 }
 
 /**
@@ -474,12 +476,18 @@ export async function authorize(): Promise<string> {
     try {
       return await refreshExistingTokens(existing.refreshToken);
     } catch (err) {
-      // Refresh failed, so drop the stale tokens and fall through to a
-      // full sign-in. The user gets one extra consent click rather than
-      // an opaque error.
-      if (err instanceof Error && err.message === 'refresh_state_missing') {
-        // No issuer/clientId persisted; fall through.
-      } else {
+      // **Three answers, not two.** Dropping the tokens on any failure at all
+      // meant a server having a bad minute cost a full sign-in and a consent
+      // screen. And a dead client needs its registration dropped alongside
+      // them, or the sign-in that follows dead-ends on the issuer's error
+      // page with no code and no error ever reaching this extension.
+      const action = afterRefreshFailure(err);
+      if (action === 'surface') throw err;
+      if (action === 'discard-client-then-reauthenticate') {
+        await pkceClient.removeTokens();
+        await registrationStore.clear(stripTrailingSlash(issuer));
+      } else if (!(err instanceof Error && err.message === REFRESH_STATE_MISSING)) {
+        // A dead grant. The tokens go; the client is still good.
         await pkceClient.removeTokens();
       }
     }
