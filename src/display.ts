@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import type { Item, TypeDefinition } from './marfa';
 import { noteExcerpt, noteTitle } from './notes';
 
@@ -11,6 +12,8 @@ import { noteExcerpt, noteTitle } from './notes';
 
 export const NOTE_TYPE = 'core.note';
 export const BOOKMARK_TYPE = 'core.bookmark';
+export const FILE_TYPE = 'core.file';
+export const IMAGE_TYPE = 'core.file.image';
 
 export interface Registry {
   label(typeId: string): string;
@@ -140,4 +143,45 @@ export function captureFromText(
   if (!value) return null;
   if (isWebUrl(value)) return { type: BOOKMARK_TYPE, properties: { url: value }, noun: 'Bookmark' };
   return { type: NOTE_TYPE, properties: { body: value }, noun: 'Note' };
+}
+
+const MIME_BY_EXTENSION: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  svg: 'image/svg+xml',
+  pdf: 'application/pdf',
+  txt: 'text/plain',
+  md: 'text/markdown',
+  csv: 'text/csv',
+  json: 'application/json',
+  html: 'text/html',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  wav: 'audio/wav',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  zip: 'application/zip',
+};
+
+/**
+ * What a copied file becomes: an image as an image, anything else as a file,
+ * named by its file name. The clipboard offers a path or a `file://` URL.
+ */
+export function captureFromFile(pathOrUrl: string): {
+  path: string;
+  type: string;
+  mimeType: string;
+  title: string;
+} {
+  const path = pathOrUrl.startsWith('file://') ? fileURLToPath(pathOrUrl) : pathOrUrl;
+  const title = path.split('/').pop() || path;
+  const extension = title.includes('.') ? (title.split('.').pop() ?? '').toLowerCase() : '';
+  const mimeType = MIME_BY_EXTENSION[extension] ?? 'application/octet-stream';
+  return { path, type: mimeType.startsWith('image/') ? IMAGE_TYPE : FILE_TYPE, mimeType, title };
 }

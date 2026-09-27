@@ -1,37 +1,62 @@
 import { Clipboard, getPreferenceValues, showHUD, showToast, Toast } from '@raycast/api';
-import { captureFromText, parseTags } from './display';
+import { openAsBlob } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { captureFromFile, captureFromText, parseTags } from './display';
 import { showFailure } from './feedback';
-import { createItem } from './marfa';
+import { createItem, uploadBlob } from './marfa';
 
 /**
- * The clipboard's text, captured without a form: a lone web address as a
- * bookmark, anything else as a note. To shape the text first, Quick Capture
- * inserts the clipboard into its form.
+ * The clipboard captured without a form: a copied file as a file, an image as
+ * an image, a lone web address as a bookmark, and any other text as a note. To
+ * shape text first, Quick Capture inserts the clipboard into its form.
  */
 export default async function ClipboardCapture() {
   const { defaultTags } = getPreferenceValues<Preferences>();
+  const tags = parseTags(defaultTags);
   const content = await Clipboard.read();
-  // A copied file also offers its name as text, which would capture a note
-  // holding a file name; files are not captured yet, so say so.
+
+  // Checked before the text, since a copied file also offers its name as text.
   if (content.file) {
-    await showToast({
-      style: Toast.Style.Failure,
-      title: 'Files are not captured yet',
-      message: 'Copy text or a link instead.',
+    const file = captureFromFile(content.file);
+    // A folder opens as a blob too, and only fails once fetch reads it, as a
+    // transport error that would blame the server.
+    if (!(await stat(file.path).catch(() => undefined))?.isFile()) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: 'Only files can be captured',
+        message: `${file.title} is a folder or cannot be read.`,
+      });
+      return;
+    }
+    const toast = await showToast({
+      style: Toast.Style.Animated,
+      title: 'Uploading',
+      message: file.title,
     });
+    try {
+      const bytes = await openAsBlob(file.path, { type: file.mimeType });
+      const { hash } = await uploadBlob(bytes);
+      await createItem({
+        type: file.type,
+        properties: { blob_ref: hash, mime_type: file.mimeType, title: file.title },
+        tags,
+      });
+      await toast.hide();
+      await showHUD(file.type === 'core.file.image' ? 'Image captured' : 'File captured');
+    } catch (error) {
+      await toast.hide();
+      await showFailure(error, `Capturing ${file.title}`);
+    }
     return;
   }
+
   const capture = captureFromText(content.text ?? '');
   if (!capture) {
-    await showToast({ style: Toast.Style.Failure, title: 'No text on the clipboard' });
+    await showToast({ style: Toast.Style.Failure, title: 'Nothing to capture on the clipboard' });
     return;
   }
   try {
-    await createItem({
-      type: capture.type,
-      properties: capture.properties,
-      tags: parseTags(defaultTags),
-    });
+    await createItem({ type: capture.type, properties: capture.properties, tags });
     await showHUD(`${capture.noun} captured`);
   } catch (error) {
     await showFailure(error, `Capturing the ${capture.noun.toLowerCase()}`);
