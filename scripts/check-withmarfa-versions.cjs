@@ -19,7 +19,7 @@ for (const [key, { version }] of Object.entries(lock.packages ?? {})) {
   }
   if (installed !== version) {
     console.error(
-      `${key.slice('node_modules/'.length)}: installed ${installed ?? '(missing)'}, lockfile resolves ${version}. Reinstall: npm ci --legacy-peer-deps`,
+      `${key.slice('node_modules/'.length)}: installed ${installed ?? '(missing)'}, lockfile resolves ${version}. Reinstall: npm ci`,
     );
     failed = true;
   }

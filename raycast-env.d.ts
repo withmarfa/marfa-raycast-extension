@@ -8,18 +8,12 @@
 /* eslint-disable @typescript-eslint/ban-types */
 
 type ExtensionPreferences = {
-  /** Server URL - Marfa server URL */
+  /** Server URL - Where your Marfa server answers */
   "apiUrl": string,
-  /** API Key - Optional dev/escape-hatch API key. Normal use signs in via OAuth on first command run. */
-  "apiKey"?: string,
-  /** Default tier - Tier stamped on captured items by default */
-  "defaultTier": "library" | "feed",
-  /** Default capture type - Preselected type in Quick Capture. Clipboard file/URL routing overrides. */
-  "defaultCaptureType": string,
-  /** Default tags - Comma-separated tags applied to every capture */
-  "defaultTags"?: string,
-  /** Capture location - Attach lat/lon via the "Marfa Capture Location" Shortcut */
-  "captureLocation": boolean
+  /** API Key - A key minted for Raycast, for example with `marfa keys create` */
+  "apiKey": string,
+  /** Default Tags - Comma-separated tags every capture starts with */
+  "defaultTags"?: string
 }
 
 /** Preferences accessible in all the extension's commands */
@@ -32,14 +26,6 @@ declare namespace Preferences {
   export type QuickCapture = ExtensionPreferences & {}
   /** Preferences accessible in the `clipboard-capture` command */
   export type ClipboardCapture = ExtensionPreferences & {}
-  /** Preferences accessible in the `clipboard-capture-edit` command */
-  export type ClipboardCaptureEdit = ExtensionPreferences & {}
-  /** Preferences accessible in the `manage-keys` command */
-  export type ManageKeys = ExtensionPreferences & {}
-  /** Preferences accessible in the `server-info` command */
-  export type ServerInfo = ExtensionPreferences & {}
-  /** Preferences accessible in the `type-registry` command */
-  export type TypeRegistry = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
@@ -49,13 +35,5 @@ declare namespace Arguments {
   export type QuickCapture = {}
   /** Arguments passed to the `clipboard-capture` command */
   export type ClipboardCapture = {}
-  /** Arguments passed to the `clipboard-capture-edit` command */
-  export type ClipboardCaptureEdit = {}
-  /** Arguments passed to the `manage-keys` command */
-  export type ManageKeys = {}
-  /** Arguments passed to the `server-info` command */
-  export type ServerInfo = {}
-  /** Arguments passed to the `type-registry` command */
-  export type TypeRegistry = {}
 }
 

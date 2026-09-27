@@ -1,6 +1,6 @@
 # Marfa Raycast Extension
 
-Raycast extension for browsing, searching and capturing Marfa items. Standard extension layout: npm with a committed lockfile, no workspace files.
+Raycast extension for capturing notes to Marfa and browsing what every app wrote there. Standard extension layout: npm with a committed lockfile, no workspace files.
 
 ## Build and run
 
@@ -13,108 +13,57 @@ npm run test        # vitest run
 npm run typecheck   # faster signal than a build for type errors
 ```
 
-Three gotchas are baked into the config and each fails quietly without them.
+Two gotchas are baked into the config and each fails quietly without them.
 
-- **`.npmrc` carries `legacy-peer-deps=true`**, a documented workaround for a strict-peer-deps quirk in the eslint toolchain the Raycast config pulls in. Without it the install errors on a transitive devDependency.
 - **The React and Node type packages are pinned to exact versions**, matching what `@raycast/api` declares. Drifting to ranges duplicates the React type tree under the API package's own modules and breaks the type check.
-- **A version guard runs before typecheck, dev and build, so none of them answer against a stale tree.** CI installs from the lockfile on a fresh checkout and is therefore always right, which means nothing in CI can notice that a working copy is not. A dependency bump merged without anyone reinstalling leaves the installed tree at a different `@withmarfa/*` version from the one the lockfile resolved, and both the compiler and the Raycast build answer that wrong question silently. The guard compares installed against **resolved**, not against the declared range, which a same-range bump satisfies whether or not anyone reinstalled. The fix is a clean install.
+- **A version guard runs before typecheck, dev, test and build, so none of them answer against a stale tree.** CI installs from the lockfile on a fresh checkout and is therefore always right, which means nothing in CI can notice that a working copy is not. The guard compares the installed `@withmarfa/*` packages against the version the lockfile **resolved**, not against the declared range, which a same-range bump satisfies whether or not anyone reinstalled. The fix is a clean install.
+
+## The server
+
+**The extension speaks to a Marfa server over HTTP through `@withmarfa/client`**, the TypeScript client generated from the server's API document. There is no local copy and no sync: every command reads and writes the server directly, so it needs the server to be reachable. `src/marfa.ts` is the one door to it; every call there returns what the server answered or throws, so a view never reads an error out of a successful value.
+
+- **The contract integer is the client's to check.** A server speaking another contract makes every call throw `ContractMismatchError`, which the views show as a screen naming both numbers. Nothing here names a contract number.
+- **The server merges; the extension does not.** An edit sends only the properties the person changed, against the version the form loaded, with `conflict=auto`. A stale edit that collides on nothing lands. A collision the type's merge policy settles lands too: a note's body keeps both copies, so the other side's text stays and this edit becomes a conflicted copy, which the save reports. A collision nothing settles is refused `409`, and the editor shows both texts and saves nothing.
+- **A trashed item answers `404` by id**, by design, so anything shown for a trashed item comes from the list row.
+- **Source is server-stamped** from the key, never set by the client, so everything captured here carries the key's own source.
 
 ## Configuration
 
-Preferences carry the server URL (required, no default), an optional static API key as an escape hatch, capture defaults for tier, type and tags, and a location toggle.
+Preferences carry the server URL, the API key and the tags every capture starts with. **Sign-in is a key for now.** The server's device-code flow exists and Raycast can open a browser, so a sign-in replaces the key preference later.
 
-**Capture location invokes a named macOS Shortcut** that must print `lat,lon` on stdout. Best-effort: a missing shortcut or a denied permission falls through silently and the capture proceeds without location.
+**Mint the key for Raycast alone and hold it to what the extension does**: write on the content types and their tags, read on edges, and no permissions. The extension never manages keys, types or purges, so a key able to would only widen what a leaked preference exposes.
 
-## Auth
-
-Implicit OAuth on first use, following the canonical Raycast pattern: every command's default export is wrapped with an access-token higher-order component over the PKCE client.
-
-- **Endpoints and scopes come from the server, not from this repository.** The instance's authorization-server document supplies the three endpoints and the permission bundles it advertises, expanded into the scope string and cached per issuer for a day. The hardcoded paths survive only as the fallback for a server serving no document.
-- **Bundles cover content, not operations.** They name item types and say nothing about edges or metadata, which this extension performs whatever content it is granted, nor about offline access, which is not a permission over data at all. A separate always-requested list is unioned in to cover both, and removing that union silently breaks tagging, the detail view's edges and the type registry itself.
-- **The space permissions are unioned in from their own list, and the split is the rule rather than tidiness.** This extension asks for one, the permission to create and revoke keys, because managing keys is its whole administrative reach. It cannot come from a bundle: the server withholds space permissions from every bundle deliberately, so that granting one is always a person ticking a row rather than a side effect of accepting a group, and an extension waiting for a bundle to offer one would wait forever. It cannot go in the always-requested list either, whose defining property is being asked for unconditionally, which is the one thing a space permission must never be. Both lists reach the same request; the split preserves the reason, which is the half that survives someone adding the next entry.
-- **The registration declares its scope, and a stored client id freezes it.** The server stores a ceiling from the registration body, and the authorize surface *narrows* rather than refuses, so a scope above the ceiling is dropped before the consent screen is drawn. A registration omitting its scope therefore does not fail; it caps every later sign-in at the default bundle expansion, which carries no space permission at all, and the one this extension needs goes missing between asking and consenting with nothing naming the cause.
-- **The registration rule lives in `@withmarfa/sdk/auth`, not here.** It was written here and again in the CLI, and the copies drifted until one of them could repair a client the server had forgotten and the other could not — which is what left this extension presenting a dead id with no route back but a reinstall. What stays here is the store: where the record is kept, under key names an existing install is already holding. **Do not reimplement the decision locally, however small the case looks.**
-- **A client the server has forgotten cannot report itself on the authorize endpoint.** An unknown `client_id` is answered with a redirect to the server's own error page rather than to the registered redirect URI, so no code and no error ever arrives and the sign-in simply never completes. The refusal is only readable where a token or refresh request reports it, which is why `recovery.ts` decides there, and why a stored registration carries an epoch: a dead client with no tokens produces no wire error at all, and a bumped epoch is what makes such an install re-register.
-- **A refresh failure has three answers, not two.** Dropping the tokens on any failure at all meant a server having a bad minute cost a full sign-in and a consent screen. Only a refusal naming the credential does that now, and a dead client takes the registration with it.
-- **The session records what it was given, not what it asked for.** A completed exchange writes both, keyed by issuer, and the re-consent check compares that pair against what the server advertises now. Recording only the request is what made a narrow grant permanent and invisible: the full advertised set was written down, a subset was issued, and every launch afterwards concluded there was nothing left to ask for.
-- **The rule is "has anything changed since this exact ask produced this exact answer".** Not "is the grant short of the advertisement", which never terminates when a server issues less than it advertises. Not "has the advertisement moved" either, which terminates but goes blind to a server that quietly narrows. Comparing the pair terminates and stays honest, so a scope permanently refused costs exactly one consent screen ever. A generated sweep asserts the decision reaches a fixed point within one round.
-- **A refresh response that omits `scope` means "as requested", and the stored scope is carried forward.** Writing the absence through would empty it about an hour after a sign-in, and every surface that explains an absence would quietly stop being able to.
-- **Coverage is the platform's question, and it is asked through `@withmarfa/shared`.** Do not reimplement the scope grammar here, however small the case looks. A local copy disagreed with the real rule on the content category, where a grant of the category reaches every type through a projection the copy had no arm for, so it reported the whole registry as unreadable to a session that could read all of it. It also treated any requirement it could not parse as covered, which is fail-open on exactly the axis where a new scope family would first appear.
-- **One line is deliberately not the platform's answer: an empty or unknown grant is missing nothing.** The shared helper reports an empty grant as covering nothing, which is right for its question and wrong for this one. A token whose scopes the server did not report is not evidence of a narrow grant, and deciding from that shortfall once discarded the session on every launch and presented as signing out immediately after signing in. A test states the disagreement, so removing the guard fails rather than reading as a tidy-up.
-- **A narrower grant outranks a broader one.** The request path resolves exact, then the longest matching subtree wildcard, then the global one. Returning on the first match with a sufficient verb read a broad write plus a narrow read as covering writes everywhere, which is yes where the server says no, and what reads this decides whether to tell someone their content is visible.
-- **Reauthorizing sends `prompt=consent` and deliberately does not revoke.** Raycast's logout clears local tokens and cannot touch the server, so signing out and back in presents the same client against a standing grant. Revoking looks like the answer and is not: the provider's revoke marks the refresh token and deletes the access tokens beside it while touching the consent row not at all, so it signs the person out and the next authorization is waved through on exactly the grant it was meant to clear.
-- **It arms the consent screen rather than opening one, because a browser redirect resolves back into a worker.** A worker belongs to a command the person is about to dismiss and Raycast is entitled to unload, so awaiting the flow in an action handler lost four consecutive consent screens on a real install. The flag is per issuer, spent only once an exchange completes, and kept rather than discarded when the Server URL changes: it is already about the server it was asked of. A pasted API key is refused outright, since none of this reaches one.
+```bash
+marfa keys create --label raycast --source raycast \
+  --type-permission '*=write' --metadata-permission '*=write' --edge-permission '*=read'
+```
 
 ## Commands
 
-- **Browse** is the one list over your items. **Its search bar does two things at once**, which is what let it absorb a separate search command: the native filter narrows loaded rows instantly, and the same text goes to the server as full text, so a match past the loaded pages arrives instead of reading as absent. A server hit carries the query as a keyword, without which the native filter would hide a row fetched precisely because it matched. The empty state for a type the session was not granted carries the review action, since nothing else on that screen can change the answer.
-- **Quick Capture** builds its form from the type's schema. Free-form additional properties accept `key: value` lines for anything the type does not declare.
-- **Manage Keys** covers list, detail, create, edit and revoke. **A browser sign-in can create a key**: the server grants that on the key permission, clamps the new key to the reach the session itself holds, and derives its permissions from the grant when the form asks for none, so "a key like this sign-in" is the no-input case. **A refusal names the permission that was missing**, and the empty state carries the review action; the decision is read from the server's own reported requirement rather than inferred from the local grant, which can be stale.
-- **Clipboard Capture** reads the clipboard and routes by content: a URL becomes a bookmark, a file becomes a file item, rich text becomes a note preserving the HTML. The edit variant offers the same generated form pre-filled, with a file picker for any type declaring blob and MIME fields, which covers the file family without naming any of it.
-- **Server Info** reports the instance, auth mode and identity. **Auth mode is derived from the credential, never from whether a call succeeded**: the profile route is gated on a permission a person can decline on the consent screen, so a sign-in that reads its own identity and one that is refused are the same auth mode, and reporting that refusal as a static key pointed diagnosis at the wrong preference.
-- **Type Registry** lists every type the instance registers, with fields resolved through ancestry. The raw schema is a copy action rather than a view.
+- **Browse** lists every item, newest change first, with a type filter defaulting to notes and a state submenu reaching the Trash. An empty search bar walks the list page by page; typing hands the text to the server's full-text search, which reaches past the loaded pages. The list is read again on every open, so a change made in another app shows the next time Browse opens, or at once with Refresh. A note can be edited, and any item tagged, trashed with an undo, or restored.
+- **Quick Capture** writes a note to the library, with drafts. Insert Clipboard Text brings the clipboard into the form, which is how a clipboard capture is shaped before it is saved.
+- **Clipboard Capture** saves the clipboard's text without a form: a lone web address as a bookmark, anything else as a note. A copied file is refused for now.
 
-Only Server Info ships disabled by default. **Manage Keys already refuses a caller without the permission with a clear empty state**, which is what hiding it stood in for, and three commands nobody launched accumulated presentation defects a later pass had to go and find.
+**A note is named by its first line as it reads**, without its markdown, by the rule Memos WithMarfa uses (`src/notes.ts`). A note's stored `title` is not its name: Memos WithMarfa never writes one and Marfa Mini treats it as a date stamp, so a list titled by it would disagree with every other app showing the same notes. Capture writes `body` alone for the same reason.
 
-## AI tools
+**Types come from the server's registry**, walked through `parent`, so a type declared beneath the note lists and edits as a note, and an instance's own types show their own labels. The only type identifiers named here are the two capture writes, `core.note` and `core.bookmark`.
 
-Four tools, three reads and one write behind a confirmation.
-
-- **A tool has no access-token wrapper**, and whether one would work at a tool entry point is not something the documentation answers. The client factory removes the need to know: its token provider falls through to authorizing when nothing has put a token in the global, which is the ordinary path in a tool.
-- **That fallback runs per request, and caching what it returns is a trap worth naming.** The SDK asks for a token on every call, so memoizing is tempting; authorizing is also the refresh path, so a memoized result is an expired token handed out for the life of the process, recovering only on restart. It short-circuits on a still-valid token, which is what makes repeating it cheap.
-- **A hook guards nothing in a tool**, because a hook runs where something renders, so tools call the grant check directly. Without it a tool returns an empty list for a type the session cannot read, and a model reports the person has none of them.
-- **That guard only fires when a type was named, and the tools tell the model to omit it**, so the common read had nothing checking it. The reads therefore answer with the items plus a note naming the content this session was not granted, and the instructions pass it on. It rides alongside the results rather than throwing, because the items are real: what would be wrong is calling them complete.
-- **The note is computed from the stored grant and from content read scopes only.** Resolving the auth config reads the discovery document and caches it, so computing it any other way would install a newer advertisement during a search and surface a consent screen later with nothing connecting it to anything the person did. And a raw shortfall carries offline access and every write scope, so counting those told a session that had declined nothing that its results were incomplete.
-- **Properties are a list of name and value pairs, not a map.** Raycast extracts a tool's schema from the TypeScript and cannot resolve a record type, which the build reports rather than shipping.
-- **The write tool runs the same plan and validator the form does.** A second copy would eventually disagree about what a type requires, and an event captured by asking would carry no timezone while the same event through the form carried the device's.
-- **Text reaching the validator is parsed, never coerced quietly.** A date-only string read as a `Date` is UTC midnight, which is the previous day west of Greenwich, so date text is read as calendar parts and an unreadable date is refused and named. An enum is checked against the schema's values, since a dropdown constrains a person and nothing constrains a caller.
-- **A tool eval asserts only what the documented matcher grammar covers.** Nothing describes matching one element of an array, and a guessed syntax that matches nothing passes vacuously, which is worse than asserting less.
-
-## Building a capture form
-
-**The form comes from the type's schema, not from a branch per type.** The planner turns resolved fields into controls and the value layer turns what was typed into properties, refusing what the server would refuse. Both are pure and tested.
-
-- **Kinds map through a total record**, so a field type the platform adds fails the build here rather than falling through to a text box. A kind this build has never heard of, which can arrive over the wire, becomes a JSON box.
-- **A list is one value per line, never comma-separated**, because recurrence rules contain commas.
-- **A date sends the day the person picked, in their zone.** Slicing an ISO string is the UTC day, a different day west of Greenwich after their afternoon.
-- **Errors are keyed by field name.** A closed union of seven let a failure outside it fall through a bare return, so the form did nothing at all: no toast, no marked field.
-- **The form's own controls are prefixed and the planner refuses a schema field using the prefix.** The platform accepts a field literally named with it, so the prefix alone guarantees nothing. Four shipped types declare a field called `tags`, which is how this was found: the tag box owned that id and the two controls split one value.
-- **A field the form supplies a value for is never behind the toggle**, because a hidden control writes a value nobody chose while an untouched one writes none, and for a timezone those mean different things.
-- **The toggle expands only.** Collapsing unmounts the extra controls, and an unmounted control contributes no value, so closing the section would silently discard everything typed into it.
-- **The defaults table is for a caller with no control, and the form deliberately does not read it.** A dropdown must carry a selection that is one of its own options, so the form defaults every start zone to the device's. Routing the form through the table looks like the fix and is not: a type outside it would default to an empty string matching none of its options.
-- **A type with no schema on this server gets the whole-payload JSON editor**, and a submit is refused while the registry is still loading, since an unarrived registry looks exactly like an unknown type.
-
-## Displaying a type
-
-**Display comes from the instance's registry, not from a map in this repository.** Marfa is self-hostable and instances register their own types, so a hardcoded table can only describe the types someone remembered to add.
-
-- **Required-ness is declared two ways and both are read.** The platform accepts a top-level array and a per-field flag, normalizing the first into the second, so a current server shows only the flags. Reading only the array found none and validated nothing: every type reported requiring nothing and no capture was refused before it reached the network.
-- **Walk ancestry across the fetched schema list, never through the shared package's schema lookups.** Those resolve against the vocabulary compiled into the package and cannot know what a given instance registered. The grammar helpers are instance-independent and safe to call directly.
-- **Do not extend the curated appearance table to integration or publisher types.** It exists only where a distinct glyph carries recognition a label cannot, which is true of the core vocabulary and essentially nothing else; widening it buys a build check at the cost of the flexibility the resolver exists to provide.
-
-## Server contract
-
-- **Lifecycle** is active, archived and trashed for user-facing items; the system namespace uses its own bounded pair, and this extension only surfaces the three-state subset.
-- **Tier** is stamped as library on everything this extension captures. System items have no tier, and the detail view omits the row rather than rendering a placeholder.
-- **Relationships are first-class typed edges.** The item shape carries no parent, thread or about field: replying creates a thread edge and annotating creates a reference edge, and atomic edge writes ride the create call.
-- **Source is server-stamped** from the credential, never set by the client.
+**A failure that stops everything owns the screen**: another contract, an unusable URL, an unreachable server and a refused key each replace the list with what to change, and a way to the preferences. Anything else is a toast over what is already there.
 
 ## Testing
 
-**Automated coverage is deliberately narrow: pure logic only.** Property classification, display resolution, the scope grammar, the re-consent decision, the client-registration decision and the capture validators are among what is covered, and all of them take values and return values, which is where every defect that has cost real time here has lived. Component rendering is not harnessed and should not be.
+**Automated coverage is pure logic only**: the note's name, the registry's display rules, what the clipboard becomes, the properties an edit sends, and how a failure is sorted. All of them take values and return values. Component rendering is not harnessed and should not be; move the answerable part of a question into a pure function a test can reach instead.
 
-**What that leaves uncovered is the glue, and it is not a small gap.** Nothing tests the tools, the client or the views, so a defect in how a tool assembles its arguments or how the token provider resolves is invisible to a green suite. Both have shipped one. The lesson taken was to move the answerable part of the question into a pure function a test can reach, rather than to harness the glue.
-
-- **Tests live in `test/`, mirroring `src/`, not beside the source.** Lint runs over every file in the source directory, so a colocated test is a linted test.
-- **`@raycast/api` ships no runtime.** Its manifest declares types and no entry point, because Raycast injects the runtime when it builds, so anything importing an icon, a colour or storage as a value is unimportable under a plain Node runner. The test config aliases the package to stubs that double only what something under test imports. Types still resolve from the real package, so a stub cannot change what a source file is checked against, but the icon proxies are the part a stub cannot keep honest: a renamed member still resolves, and only the type check sees it.
-- **Manual verification against a real instance still decides whether a change works.** Point the extension at staging during development.
+- **Tests live in `test/`, not beside the source.** Lint runs over every file in the source directory, so a colocated test is a linted test.
+- **A tested module never imports `@raycast/api`**, which ships types and no runtime, since Raycast injects one when it builds.
+- **Manual verification against a running server decides whether a change works.** Boot one from the monorepo with `core/scripts/server-up.sh`, mint a key as above, and point the extension at it.
 
 ## Conventions
 
-- American English throughout, Conventional Commits, Prettier with single quotes at 100 characters.
+- American English throughout, scoped Conventional Commits, Prettier with single quotes at 100 characters.
 - **Build outputs to `./dist/`.** Never to the repository root: that path is destructive and removes the assets directory between runs.
 - **Lint runs relaxed**, which skips store-publish icon validation. Drop that flag if this is ever submitted to the store.
-- Comments are self-contained and explain *why*, never referencing internal trackers or project phases.
+- Comments are self-contained and explain _why_, never referencing internal trackers or project phases.
 
 ## CI
 
