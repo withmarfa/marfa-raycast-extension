@@ -139,6 +139,12 @@ describe('what a copied file becomes', () => {
     });
   });
 
+  it('keeps an escaped # in a file URL as part of the name', () => {
+    expect(captureFromFile('file:///Users/someone/Report%20%232.pdf').path).toBe(
+      '/Users/someone/Report #2.pdf',
+    );
+  });
+
   it('anything unknown is a file of bytes', () => {
     expect(captureFromFile('/tmp/archive.xyz').mimeType).toBe('application/octet-stream');
     expect(captureFromFile('/tmp/Makefile')).toMatchObject({

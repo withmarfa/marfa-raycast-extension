@@ -103,7 +103,22 @@ function KeyGrants({ apiKey }: { apiKey: ApiKey }) {
     ['Tags and Metadata', apiKey.metadata_permissions],
     ['Edges', apiKey.edge_permissions],
     ['Extensions', apiKey.extension_permissions],
+    ['Profile', apiKey.profile_permissions],
   ];
+  // An operator key runs the instance and sits outside the permission model:
+  // its maps are empty by design, and it is refused on every read of items.
+  if (apiKey.is_operator) {
+    return (
+      <>
+        <Detail.Metadata.Separator />
+        <Detail.Metadata.Label title="Key" text={apiKey.label} />
+        <Detail.Metadata.TagList title="Kind">
+          <Detail.Metadata.TagList.Item text="Operator key" color={Color.Red} />
+        </Detail.Metadata.TagList>
+        <Detail.Metadata.Label title="Reads Items" text="No. Mint a key for Raycast." />
+      </>
+    );
+  }
   return (
     <>
       <Detail.Metadata.Separator />

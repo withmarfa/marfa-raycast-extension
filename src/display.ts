@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import type { Item, TypeDefinition } from './marfa';
 import { noteExcerpt, noteTitle } from './notes';
 
@@ -178,9 +179,7 @@ export function captureFromFile(pathOrUrl: string): {
   mimeType: string;
   title: string;
 } {
-  const path = pathOrUrl.startsWith('file://')
-    ? decodeURIComponent(new URL(pathOrUrl).pathname)
-    : pathOrUrl;
+  const path = pathOrUrl.startsWith('file://') ? fileURLToPath(pathOrUrl) : pathOrUrl;
   const title = path.split('/').pop() || path;
   const extension = title.includes('.') ? (title.split('.').pop() ?? '').toLowerCase() : '';
   const mimeType = MIME_BY_EXTENSION[extension] ?? 'application/octet-stream';

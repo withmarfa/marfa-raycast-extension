@@ -1,5 +1,6 @@
 import { Clipboard, getPreferenceValues, showHUD, showToast, Toast } from '@raycast/api';
 import { openAsBlob } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { captureFromFile, captureFromText, parseTags } from './display';
 import { showFailure } from './feedback';
 import { createItem, uploadBlob } from './marfa';
@@ -17,6 +18,16 @@ export default async function ClipboardCapture() {
   // Checked before the text, since a copied file also offers its name as text.
   if (content.file) {
     const file = captureFromFile(content.file);
+    // A folder opens as a blob too, and only fails once fetch reads it, as a
+    // transport error that would blame the server.
+    if (!(await stat(file.path).catch(() => undefined))?.isFile()) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: 'Only files can be captured',
+        message: `${file.title} is a folder or cannot be read.`,
+      });
+      return;
+    }
     const toast = await showToast({
       style: Toast.Style.Animated,
       title: 'Uploading',
