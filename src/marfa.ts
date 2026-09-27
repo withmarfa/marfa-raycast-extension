@@ -171,8 +171,8 @@ export async function createItem(input: {
 }
 
 /**
- * Sends only the properties the person changed, against the version they
- * read. `conflict=auto` lets the server merge a stale edit that collides on
+ * Sends properties against the version the caller read: the ones changed
+ * under `merge`, the whole set under `replace`. `conflict=auto` lets the server merge a stale edit that collides on
  * nothing, and settle a collision by the type's merge policy where it has one;
  * a note's body keeps both copies, so the other side's text stays and this one
  * lands as a conflicted copy the answer names. A collision no policy settles
@@ -237,9 +237,16 @@ export async function countTrash(): Promise<number> {
 
 export type BulkJob = components['schemas']['BulkActionJob'];
 
-/** Starts emptying the Trash. The server answers a job, which `bulkJob` follows. */
-export async function emptyTrash(): Promise<BulkJob> {
-  const job = await answer(marfa().POST('/items/bulk-actions', { body: EMPTY_TRASH }));
+/**
+ * Starts emptying the Trash. The server answers a job, which `bulkJob`
+ * follows. The job matches again when it runs, so `max_items` holds it to the
+ * count the person confirmed: anything trashed since makes it refuse rather
+ * than delete more than was agreed.
+ */
+export async function emptyTrash(confirmed: number): Promise<BulkJob> {
+  const job = await answer(
+    marfa().POST('/items/bulk-actions', { body: { ...EMPTY_TRASH, max_items: confirmed } }),
+  );
   if (!('status' in job)) throw unexpected('a job for emptying the Trash');
   return job;
 }
@@ -261,6 +268,16 @@ export async function listEdges(id: string): Promise<{ outbound: Edge[]; inbound
   return { outbound: rows(outbound), inbound: rows(inbound) };
 }
 
+/** Draws one edge, with properties an item's inline edges cannot carry. */
+export async function createEdge(edge: {
+  source_id: string;
+  target_id: string;
+  edge_type: string;
+  properties?: Record<string, unknown>;
+}): Promise<void> {
+  await answer(marfa().POST('/edges', { body: edge }));
+}
+
 /**
  * Items by id, in batches of the door's hundred. An id that does not resolve,
  * a trashed one included, is left out rather than refused.
@@ -272,7 +289,7 @@ export async function getMany(ids: readonly string[]): Promise<Item[]> {
       marfa().POST('/items/bulk-get', { body: { ids: ids.slice(start, start + 100) } }),
     );
     if (!Array.isArray(batch.items)) throw unexpected('a list of items');
-    items.push(...batch.items.map((row) => ('item' in row ? row.item : row) as Item));
+    items.push(...(batch.items as Item[]));
   }
   return items;
 }

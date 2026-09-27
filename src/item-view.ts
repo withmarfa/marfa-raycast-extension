@@ -25,6 +25,8 @@ export function buildItemMarkdown(options: {
   item: Item;
   title: string;
   bodyField?: string;
+  /** The field the title came from, which the page does not repeat below it. */
+  titleField?: string;
   /** Hidden from the page because the title already says it, as a note's first line does. */
   titleIsBody?: boolean;
   imageUrl?: string | null;
@@ -34,6 +36,7 @@ export function buildItemMarkdown(options: {
   if (imageUrl) lines.push(`![${title.replace(/[[\]]/g, '')}](${imageUrl})`, '');
   if (!options.titleIsBody) lines.push(`# ${title}`, '');
   for (const field of bodyFieldsToRender(bodyField)) {
+    if (!options.titleIsBody && field === options.titleField) continue;
     const value = readable(item.properties[field]);
     if (value) lines.push(value, '');
   }
@@ -183,4 +186,23 @@ export function groupRelations(edges: {
 /** Every item at the other end of the relations, each once. */
 export function relatedIds(groups: { relations: Relation[] }[]): string[] {
   return [...new Set(groups.flatMap((group) => group.relations.map((r) => r.otherId)))];
+}
+
+/**
+ * Where a reply goes: into the thread the item is in, or a new one rooted at
+ * the item, after the thread's last reply. A reply to a reply joins the same
+ * thread, as Marfa Mini threads it; `in-thread` is many to one, so a thread's
+ * root is the one item every reply points at, and `position` orders them.
+ */
+export function threadPlacement(
+  itemId: string,
+  outbound: readonly Edge[],
+  rootInbound: (root: string) => readonly Edge[],
+): { root: string; position: number } {
+  const root = outbound.find((edge) => edge.edge_type === 'in-thread')?.target_id ?? itemId;
+  const positions = rootInbound(root)
+    .filter((edge) => edge.edge_type === 'in-thread')
+    .map((edge) => Number(edge.properties.position))
+    .filter((position) => Number.isFinite(position));
+  return { root, position: Math.max(0, ...positions) + 1 };
 }

@@ -28,7 +28,7 @@ export default async function tool(input: Input) {
         type: input.type,
         state: input.state ?? 'active',
         tier: input.tier ?? 'all',
-        limit: Math.min(Math.max(input.limit ?? 20, 1), 50),
+        limit: Math.min(Math.max(Math.round(input.limit ?? 20), 1), 50),
       }),
     ]);
     const registry = buildRegistry(types);

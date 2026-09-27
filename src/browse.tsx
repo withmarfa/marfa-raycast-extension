@@ -17,6 +17,7 @@ import { EntryListItem } from './components/EntryListItem';
 import { FailureEmptyView } from './components/FailureEmptyView';
 import { groupByDay } from './dates';
 import { NOTE_TYPE } from './display';
+import { describeFailure, MarfaRequestError } from './failure';
 import { showFailure } from './feedback';
 import {
   bulkJob,
@@ -121,6 +122,15 @@ export default function Browse() {
     try {
       count = await countTrash();
     } catch (error) {
+      if (error instanceof MarfaRequestError && error.code === 'bulk_cap_exceeded') {
+        await showToast({
+          style: Toast.Style.Failure,
+          title: 'The Trash is too full to empty at once',
+          message:
+            'It holds more than the server purges in one job. Delete some items permanently first.',
+        });
+        return;
+      }
       await showFailure(error, 'Counting the Trash');
       return;
     }
@@ -136,17 +146,35 @@ export default function Browse() {
     });
     if (!confirmed) return;
     const toast = await showToast({ style: Toast.Style.Animated, title: 'Emptying the Trash' });
+    let started;
     try {
-      const job = await followJob(await emptyTrash(), bulkJob, (ms) => sleep(ms));
-      const result = describeJob(job);
+      started = await emptyTrash(count);
+    } catch (error) {
+      await toast.hide();
+      if (error instanceof MarfaRequestError && error.code === 'bulk_cap_exceeded') {
+        await showToast({
+          style: Toast.Style.Failure,
+          title: 'The Trash changed since it was counted',
+          message: 'Nothing was deleted. Empty it again to confirm the new count.',
+        });
+        refresh();
+        return;
+      }
+      await showFailure(error, 'Emptying the Trash');
+      return;
+    }
+    try {
+      const result = describeJob(await followJob(started, bulkJob, (ms) => sleep(ms)));
       toast.style = result.ok ? Toast.Style.Success : Toast.Style.Failure;
       toast.title = result.title;
       toast.message = result.message;
-      refresh();
     } catch (error) {
-      await toast.hide();
-      await showFailure(error, 'Emptying the Trash');
+      // The job was started and runs on without Raycast; only following it failed.
+      toast.style = Toast.Style.Failure;
+      toast.title = 'The server is emptying the Trash';
+      toast.message = `Raycast lost track of it: ${describeFailure(error).message}`;
     }
+    refresh();
   }
 
   const listActions = (
@@ -196,7 +224,7 @@ export default function Browse() {
           title="Empty Trash"
           icon={Icon.Trash}
           style={Action.Style.Destructive}
-          shortcut={{ modifiers: ['cmd', 'shift'], key: 'backspace' }}
+          shortcut={Keyboard.Shortcut.Common.RemoveAll}
           onAction={emptyTheTrash}
         />
       )}

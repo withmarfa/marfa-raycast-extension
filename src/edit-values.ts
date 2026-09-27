@@ -60,39 +60,40 @@ function canonical(value: unknown): unknown {
   return value;
 }
 
-function same(field: PlannedField, before: unknown, after: unknown): boolean {
-  // One instant written two ways, `...00Z` and `...00.000Z`, is not an edit.
-  if (field.kind === 'datetime' && typeof before === 'string' && typeof after === 'string') {
-    return instant(before)?.getTime() === instant(after)?.getTime();
-  }
+function same(before: unknown, after: unknown): boolean {
   return JSON.stringify(canonical(before)) === JSON.stringify(canonical(after));
 }
 
 /**
- * The item's whole properties after the edit: each field the form showed takes
- * what the form built, or goes when the form left it empty; everything else,
- * undeclared properties and a file's reference included, stays as it was.
- * A field whose value only changed spelling keeps its original.
+ * The item's whole properties after the edit. A field changed only where what
+ * the form built differs from what it would have built untouched (the
+ * baseline); anything else keeps its stored value exactly, however the
+ * controls would respell it: a stored false, a trailing space, an empty list,
+ * a full timestamp in a date field. A changed field takes the built value, or
+ * goes when the form left it empty. Undeclared properties and a file's
+ * reference stay as they were.
  */
 export function editedProperties(
   fields: readonly PlannedField[],
   original: Record<string, unknown>,
   built: Record<string, unknown>,
+  baseline: { properties: Record<string, unknown>; unreadable: ReadonlySet<string> },
 ): { properties: Record<string, unknown>; changed: string[] } {
   const properties = { ...original };
   const changed: string[] = [];
   for (const field of fields) {
-    const before = original[field.name];
     const after = built[field.name];
-    if (after === undefined) {
-      // An empty thumbnail picker keeps the image; nothing was chosen to replace it.
-      if (field.kind === 'thumbnail' || before === undefined) continue;
-      delete properties[field.name];
-      changed.push(field.name);
+    // An empty thumbnail picker keeps the image; nothing was chosen to replace it.
+    if (field.kind === 'thumbnail' && after === undefined) continue;
+    if (!baseline.unreadable.has(field.name) && same(baseline.properties[field.name], after)) {
       continue;
     }
-    if (before !== undefined && same(field, before, after)) continue;
-    properties[field.name] = after;
+    if (after === undefined) {
+      if (!(field.name in original)) continue;
+      delete properties[field.name];
+    } else {
+      properties[field.name] = after;
+    }
     changed.push(field.name);
   }
   return { properties, changed };

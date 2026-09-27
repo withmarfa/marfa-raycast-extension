@@ -10,12 +10,15 @@ import {
   Toast,
   useNavigation,
 } from '@raycast/api';
+import { usePromise } from '@raycast/utils';
 import type { ReactNode } from 'react';
 import { parseTags, type Registry } from '../display';
 import { showFailure } from '../feedback';
+import { threadPlacement } from '../item-view';
 import {
   addTags,
   type Entry,
+  listEdges,
   type Item,
   purgeItem,
   removeTag,
@@ -166,8 +169,7 @@ export function ItemActions({
             target={
               <LinkedCapture
                 registry={registry}
-                typeId="core.note"
-                edge="in-thread"
+                kind="reply"
                 to={item}
                 title={`Reply to ${title}`}
                 onCaptured={onChanged}
@@ -180,8 +182,7 @@ export function ItemActions({
             target={
               <LinkedCapture
                 registry={registry}
-                typeId="core.highlight"
-                edge="references"
+                kind="annotation"
                 to={item}
                 title={`Annotate ${title}`}
                 onCaptured={onChanged}
@@ -237,12 +238,13 @@ export function ItemActions({
             title="Delete Permanently"
             icon={Icon.XMarkTopRightSquare}
             style={Action.Style.Destructive}
-            shortcut={Keyboard.Shortcut.Common.RemoveAll}
+            shortcut={{ modifiers: ['ctrl', 'shift'], key: 'backspace' }}
             onAction={purge}
           />
         )}
       </ActionPanel.Section>
       <ActionPanel.Section title="Copy">
+        <Action.CopyToClipboard title="Copy Title" content={title} />
         <Action.CopyToClipboard
           title="Copy ID"
           content={item.id}
@@ -255,34 +257,59 @@ export function ItemActions({
 }
 
 /**
- * A new item linked to this one: a reply is a note in its thread, and an
- * annotation a highlight that references it.
+ * A new item linked to this one: a reply is a note in the item's thread,
+ * placed after its last reply, and an annotation a highlight that references
+ * the item.
  */
 function LinkedCapture({
   registry,
-  typeId,
-  edge,
+  kind,
   to,
   title,
   onCaptured,
 }: {
   registry: Registry;
-  typeId: string;
-  edge: string;
+  kind: 'reply' | 'annotation';
   to: Item;
   title: string;
   onCaptured: () => void;
 }) {
   const { pop } = useNavigation();
+  const thread = usePromise(
+    async (id: string) => {
+      const here = await listEdges(id);
+      const root = here.outbound.find((edge) => edge.edge_type === 'in-thread')?.target_id ?? id;
+      const inbound = root === id ? here.inbound : (await listEdges(root)).inbound;
+      return threadPlacement(id, here.outbound, () => inbound);
+    },
+    [to.id],
+    {
+      execute: kind === 'reply',
+      onError: (error) => {
+        void showFailure(error, 'Reading the thread');
+        pop();
+      },
+    },
+  );
+  if (kind === 'reply' && !thread.data) return <Form isLoading navigationTitle={title} />;
   return (
     <CaptureForm
       registry={registry}
       registryLoading={false}
-      initialType={typeId}
+      initialType={kind === 'reply' ? 'core.note' : 'core.highlight'}
       lockType
-      edges={{ [edge]: [to.id] }}
+      edges={kind === 'annotation' ? { references: [to.id] } : undefined}
+      link={
+        kind === 'reply' && thread.data
+          ? {
+              edgeType: 'in-thread',
+              to: thread.data.root,
+              properties: { position: thread.data.position },
+            }
+          : undefined
+      }
       navigationTitle={title}
-      submitTitle={edge === 'in-thread' ? 'Reply' : 'Save Highlight'}
+      submitTitle={kind === 'reply' ? 'Reply' : 'Save Highlight'}
       onCaptured={async (label) => {
         onCaptured();
         pop();

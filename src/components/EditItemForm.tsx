@@ -13,7 +13,12 @@ import { readFile } from 'node:fs/promises';
 import { useState } from 'react';
 import { captureFormModel } from '../capture-form';
 import type { PlannedField } from '../capture-plan';
-import { buildCaptureProperties, type CaptureErrors, deviceTimeZone } from '../capture-values';
+import {
+  baselineProperties,
+  buildCaptureProperties,
+  type CaptureErrors,
+  deviceTimeZone,
+} from '../capture-values';
 import type { Registry } from '../display';
 import { controlValue, editedProperties } from '../edit-values';
 import { conflictCurrent, refusedFields } from '../failure';
@@ -96,11 +101,12 @@ function LoadedForm({
 }) {
   const model = captureFormModel(registry, item.type);
   const fields = [...model.plan.primary, ...model.plan.secondary];
-  const [values, setValues] = useState<Record<string, Value>>(() =>
+  const [start] = useState<Record<string, Value>>(() =>
     Object.fromEntries(
       fields.map((field) => [field.name, controlValue(field, item.properties[field.name])]),
     ),
   );
+  const [values, setValues] = useState<Record<string, Value>>(start);
   const [errors, setErrors] = useState<CaptureErrors>({});
   const zone = deviceTimeZone();
   const declared = new Set(Object.keys(registry.fields(item.type)));
@@ -144,7 +150,12 @@ function LoadedForm({
       return;
     }
 
-    const { properties, changed } = editedProperties(fields, item.properties, built.properties);
+    const { properties, changed } = editedProperties(
+      fields,
+      item.properties,
+      built.properties,
+      baselineProperties(fields, item.type, start),
+    );
     if (changed.length === 0) {
       onSaved();
       return;

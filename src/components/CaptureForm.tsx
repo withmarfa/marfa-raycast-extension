@@ -34,7 +34,7 @@ import {
 import { parseTags, type Registry } from '../display';
 import { refusedFields } from '../failure';
 import { showFailure } from '../feedback';
-import { createItem, uploadBlob } from '../marfa';
+import { createEdge, createItem, uploadBlob } from '../marfa';
 import { thumbnailFromBytes } from '../thumbnail';
 
 type Value = Form.Value | undefined;
@@ -59,8 +59,13 @@ export function CaptureForm(props: {
   navigationTitle?: string;
   /** Holds the form to its initial type, for a capture that only makes sense as one. */
   lockType?: boolean;
-  /** Edges the new item draws, such as a reply's thread. */
+  /** Edges the new item draws, written with it, such as an annotation's reference. */
   edges?: Record<string, string[]>;
+  /**
+   * One edge drawn after the item is written, for an edge carrying properties
+   * the inline edges cannot, such as a reply's place in its thread.
+   */
+  link?: { edgeType: string; to: string; properties?: Record<string, unknown> };
   /** Called with the new item's label once saved; without it, a HUD closes Raycast. */
   onCaptured?: (label: string) => Promise<void>;
   submitTitle?: string;
@@ -187,12 +192,28 @@ export function CaptureForm(props: {
           properties[model.titleField] = title;
         }
       }
-      await createItem({
+      const created = await createItem({
         type: typeId,
         properties,
         tags: parseTags(textOf(TAGS_FIELD)),
         edges: props.edges,
       });
+      if (props.link) {
+        try {
+          await createEdge({
+            source_id: created.item.id,
+            target_id: props.link.to,
+            edge_type: props.link.edgeType,
+            properties: props.link.properties,
+          });
+        } catch (error) {
+          // The item stands on its own; only the link failed, and saying so is all that is left.
+          await toast.hide();
+          await showFailure(error, `Saved the ${label.toLowerCase()}, but linking it`);
+          if (props.onCaptured) await props.onCaptured(label);
+          return;
+        }
+      }
       await toast.hide();
       if (props.onCaptured) {
         await props.onCaptured(label);
@@ -356,11 +377,16 @@ export function CaptureForm(props: {
   );
 }
 
-/** Every IANA zone the runtime knows, the device's first: the list is searchable. */
-function zoneOptions(device: string): string[] {
+/**
+ * Every IANA zone the runtime knows, the device's first, and the zone already
+ * held when the runtime spells it otherwise (it lists `Europe/Kiev`, not
+ * `Europe/Kyiv`), so a stored zone is never an option the list lacks.
+ */
+function zoneOptions(device: string, held: string): string[] {
   const all =
     typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
-  return [device, ...all.filter((zone) => zone !== device)];
+  const zones = [device, ...all.filter((zone) => zone !== device)];
+  return held && !zones.includes(held) ? [held, ...zones] : zones;
 }
 
 /** A draft hands a date back as a string; one that does not parse is dropped rather than guessed. */
@@ -403,7 +429,7 @@ export function FieldControl(props: {
     return (
       <Form.Dropdown {...shared} value={text} onChange={onChange}>
         <Form.Dropdown.Item value="" title={isEnd ? 'Same as start' : 'Not set'} />
-        {zoneOptions(props.zone).map((zone) => (
+        {zoneOptions(props.zone, text).map((zone) => (
           <Form.Dropdown.Item key={zone} value={zone} title={zone} />
         ))}
       </Form.Dropdown>

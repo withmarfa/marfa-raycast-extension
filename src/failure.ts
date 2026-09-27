@@ -177,7 +177,7 @@ function describeRefusal(error: MarfaRequestError): Failure {
 }
 
 /** The permission a `403` names as the one the key lacks, such as `items.purge`. */
-export function requiredScope(error: unknown): string | undefined {
+function requiredScope(error: unknown): string | undefined {
   if (!(error instanceof MarfaRequestError) || error.status !== 403) return undefined;
   const details = (error.body as { error?: { details?: { required_scope?: unknown } } } | undefined)
     ?.error?.details;

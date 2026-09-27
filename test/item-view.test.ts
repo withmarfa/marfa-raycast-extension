@@ -9,6 +9,7 @@ import {
   relatedIds,
   sidebarEntries,
   summarizeComplex,
+  threadPlacement,
 } from '../src/item-view';
 import type { Edge, Item } from '../src/marfa';
 import { schema } from './fixtures';
@@ -70,6 +71,16 @@ describe('the detail page', () => {
         titleIsBody: true,
       }),
     ).toBe('# Plan\n\nGo');
+  });
+
+  it('does not repeat below the heading the field the title came from', () => {
+    const markdown = buildItemMarkdown({
+      item: item({ text: 'The passage', note: 'Worth keeping' }, 'core.highlight'),
+      title: 'The passage',
+      titleField: 'text',
+      bodyField: 'note',
+    });
+    expect(markdown).toBe('# The passage\n\nWorth keeping');
   });
 
   it('puts the image above everything and the link below, once', () => {
@@ -190,5 +201,33 @@ describe('related items', () => {
       ['references: linked from', ['c', 'a']],
     ]);
     expect(relatedIds(groups)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('where a reply goes', () => {
+  const positioned = (source: string, target: string, position?: number): Edge => ({
+    ...edge(source, target, 'in-thread'),
+    properties: position === undefined ? {} : { position },
+  });
+
+  it('starts a thread at an item in none, as its first reply', () => {
+    expect(threadPlacement('me', [], () => [])).toEqual({ root: 'me', position: 1 });
+  });
+
+  it('joins the thread a reply is in, after its last reply', () => {
+    const inbound = [
+      positioned('r1', 'root', 1),
+      positioned('r2', 'root', 3),
+      positioned('r3', 'root'),
+      edge('x', 'root', 'references'),
+    ];
+    expect(
+      threadPlacement('r1', [positioned('r1', 'root', 1)], (root) =>
+        root === 'root' ? inbound : [],
+      ),
+    ).toEqual({
+      root: 'root',
+      position: 4,
+    });
   });
 });

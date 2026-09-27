@@ -12,6 +12,7 @@ import { usePromise } from '@raycast/utils';
 import { typeIcon } from '../appearance';
 import { formatRelative, formatWhen } from '../dates';
 import type { Registry } from '../display';
+import { describeFailure } from '../failure';
 import { showFailure } from '../feedback';
 import {
   buildItemMarkdown,
@@ -65,13 +66,25 @@ export function ItemDetail({
   onChanged: () => void;
 }) {
   const { pop } = useNavigation();
-  const trashed = entry.item.state === 'trashed';
-  const fresh = usePromise((id: string) => getItem(id), [entry.item.id], {
-    execute: !trashed,
-    onError: (error) => void showFailure(error, 'Reading the item'),
-  });
+  // A trashed item answers 404 by id, so that answer means the row is still what there is.
+  const fresh = usePromise(
+    async (id: string) => {
+      try {
+        return await getItem(id);
+      } catch (error) {
+        if (describeFailure(error).kind === 'gone') return undefined;
+        throw error;
+      }
+    },
+    [entry.item.id],
+    {
+      execute: entry.item.state !== 'trashed',
+      onError: (error) => void showFailure(error, 'Reading the item'),
+    },
+  );
   const current = fresh.data ?? entry;
   const { item, metadata } = current;
+  const trashed = item.state === 'trashed';
   // Keyed by what the picture is, so the row and the fresh read do not each fetch it.
   const source = imageSource(item, registry);
   const image = usePromise(
@@ -96,17 +109,19 @@ export function ItemDetail({
     item,
     title,
     bodyField,
+    titleField,
     titleIsBody: isNote,
     imageUrl: source ? image.data : null,
   });
   const entries = sidebarEntries(item, [bodyField, isNote ? undefined : titleField]);
   const type = registry.type(item.type);
-  const edgeCount = (edges.data?.outbound.length ?? 0) + (edges.data?.inbound.length ?? 0);
+  const relatedCount = edges.data ? relatedIds(groupRelations(edges.data)).length : 0;
   const state = STATE_TAGS[item.state] ?? { text: item.state, color: Color.SecondaryText };
 
   function changed() {
+    // Read again even in the Trash: a restore makes the item readable by id.
     fresh.revalidate();
-    edges.revalidate();
+    if (!trashed) edges.revalidate();
     onChanged();
   }
 
@@ -153,10 +168,10 @@ export function ItemDetail({
           <Detail.Metadata.Label title="Created" text={formatWhen(item.created_at)} />
           <Detail.Metadata.Label title="Source" text={item.source} />
           {item.source_id && <Detail.Metadata.Label title="Source ID" text={item.source_id} />}
-          {edgeCount > 0 && (
+          {relatedCount > 0 && (
             <Detail.Metadata.Label
               title="Related"
-              text={edgeCount === 1 ? '1 item' : `${String(edgeCount)} items`}
+              text={relatedCount === 1 ? '1 item' : `${String(relatedCount)} items`}
             />
           )}
           {Object.keys(metadata.extensions).length > 0 && (
@@ -192,15 +207,15 @@ export function ItemDetail({
             lead={
               !trashed && (
                 <>
-                  {edgeCount > 0 && edges.data && (
+                  {relatedCount > 0 && (
                     <Action.Push
                       title="Show Related Items"
                       icon={Icon.Link}
                       shortcut={{ modifiers: ['cmd'], key: 'l' }}
                       target={
                         <RelatedItems
+                          id={item.id}
                           title={title}
-                          edges={edges.data}
                           registry={registry}
                           onChanged={changed}
                         />
@@ -228,6 +243,12 @@ export function ItemDetail({
               title="Copy Properties as JSON"
               content={JSON.stringify(item.properties, null, 2)}
             />
+            {Object.keys(metadata.extensions).length > 0 && (
+              <Action.CopyToClipboard
+                title="Copy Extensions as JSON"
+                content={JSON.stringify(metadata.extensions, null, 2)}
+              />
+            )}
           </ActionPanel.Section>
         </ActionPanel>
       }
@@ -263,22 +284,32 @@ function SidebarRow({ entry }: { entry: SidebarEntry }) {
  * with the items read in one batch rather than one call a row.
  */
 function RelatedItems({
+  id,
   title,
-  edges,
   registry,
   onChanged,
 }: {
+  id: string;
   title: string;
-  edges: Awaited<ReturnType<typeof listEdges>>;
   registry: Registry;
   onChanged: () => void;
 }) {
-  const groups = groupRelations(edges);
-  const items = usePromise(
-    async (ids: string[]) => new Map((await getMany(ids)).map((row) => [row.id, row])),
-    [relatedIds(groups)],
+  // Its own read, so an action taken from an item opened here shows when it comes back.
+  const related = usePromise(
+    async (itemId: string) => {
+      const groups = groupRelations(await listEdges(itemId));
+      const items = new Map((await getMany(relatedIds(groups))).map((row) => [row.id, row]));
+      return { groups, items };
+    },
+    [id],
     { onError: (error) => void showFailure(error, 'Reading the related items') },
   );
+  const groups = related.data?.groups ?? [];
+  const items = { data: related.data?.items, isLoading: related.isLoading };
+  const changed = () => {
+    related.revalidate();
+    onChanged();
+  };
 
   return (
     <List
@@ -316,7 +347,7 @@ function RelatedItems({
                               metadata: { item_id: other.id, tags: [], extensions: {} },
                             }}
                             registry={registry}
-                            onChanged={onChanged}
+                            onChanged={changed}
                           />
                         }
                       />

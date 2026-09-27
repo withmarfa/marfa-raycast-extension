@@ -8,7 +8,7 @@ import type { BulkJob } from './marfa';
 
 const FINISHED: ReadonlySet<string> = new Set(['completed', 'failed', 'canceled']);
 
-export function isFinished(job: BulkJob): boolean {
+function isFinished(job: BulkJob): boolean {
   return FINISHED.has(job.status);
 }
 

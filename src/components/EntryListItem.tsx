@@ -1,6 +1,5 @@
-import { Action, Color, Icon, List } from '@raycast/api';
+import { Action, ActionPanel, Color, Icon, List } from '@raycast/api';
 import type { ReactNode } from 'react';
-import { ActionPanel } from '@raycast/api';
 import { typeIcon } from '../appearance';
 import { formatWhen } from '../dates';
 import type { Registry } from '../display';

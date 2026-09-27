@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FieldKind, PlannedField } from '../src/capture-plan';
-import { buildCaptureProperties } from '../src/capture-values';
+import { baselineProperties, buildCaptureProperties } from '../src/capture-values';
 import { controlValue, editedProperties } from '../src/edit-values';
 
 const field = (name: string, kind: FieldKind, extra: Partial<PlannedField> = {}): PlannedField => ({
@@ -40,20 +40,65 @@ const ORIGINAL = {
   blob_ref: 'h1',
 };
 
-function roundTrip(edit: (values: Record<string, unknown>) => void = () => undefined) {
+function roundTrip(
+  edit: (values: Record<string, unknown>) => void = () => undefined,
+  original: Record<string, unknown> = ORIGINAL,
+  fields: PlannedField[] = FIELDS,
+  typeId = 'user.recipe',
+) {
   const values: Record<string, unknown> = Object.fromEntries(
-    FIELDS.map((f) => [f.name, controlValue(f, ORIGINAL[f.name as keyof typeof ORIGINAL])]),
+    fields.map((f) => [f.name, controlValue(f, original[f.name])]),
   );
+  const baseline = baselineProperties(fields, typeId, values);
   edit(values);
-  const plan = { primary: FIELDS, secondary: [], shadowed: [], known: true };
-  const built = buildCaptureProperties(plan, 'user.recipe', values);
+  const plan = { primary: fields, secondary: [], shadowed: [], known: true };
+  const built = buildCaptureProperties(plan, typeId, values);
   if ('errors' in built) throw new Error(JSON.stringify(built.errors));
-  return editedProperties(FIELDS, ORIGINAL, built.properties);
+  return editedProperties(fields, original, built.properties, baseline);
 }
 
 describe('an edit that touches nothing', () => {
   it('changes nothing, however the controls respell the values', () => {
     expect(roundTrip()).toEqual({ properties: ORIGINAL, changed: [] });
+  });
+});
+
+describe('a value the controls would respell', () => {
+  it('is kept exactly as stored when nobody touched it', () => {
+    const stored = {
+      title: 'Foo ',
+      done: false,
+      steps: [],
+      place: '',
+      day: '2026-10-01T09:00:00Z',
+      serves: '4',
+      meta: null,
+    };
+    expect(roundTrip(undefined, stored)).toEqual({ properties: stored, changed: [] });
+  });
+
+  it('keeps an event’s end zone equal to its start, which the form would leave out', () => {
+    const zones = [
+      field('title', 'text', { required: true }),
+      field('timezone', 'text'),
+      field('end_timezone', 'text'),
+    ];
+    const event = { title: 'x', timezone: 'Europe/London', end_timezone: 'Europe/London' };
+    expect(roundTrip(undefined, event, zones, 'core.event')).toEqual({
+      properties: event,
+      changed: [],
+    });
+    const moved = roundTrip((values) => void (values.title = 'y'), event, zones, 'core.event');
+    expect(moved).toEqual({ properties: { ...event, title: 'y' }, changed: ['title'] });
+  });
+
+  it('keeps a stored false when another field is edited', () => {
+    const { properties, changed } = roundTrip((values) => void (values.title = 'Bread'), {
+      ...ORIGINAL,
+      done: false,
+    });
+    expect(changed).toEqual(['title']);
+    expect(properties.done).toBe(false);
   });
 });
 

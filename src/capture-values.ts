@@ -331,6 +331,28 @@ export function buildCaptureProperties(
 }
 
 /**
+ * What the form would send for values nobody has touched: each field read
+ * alone, the type's normalizing applied, and the fields that cannot be read
+ * named. An edit compares against this rather than the stored value, so a
+ * value the form only respells is not taken for a change.
+ */
+export function baselineProperties(
+  fields: readonly PlannedField[],
+  typeId: string,
+  values: Record<string, unknown>,
+): { properties: Record<string, unknown>; unreadable: Set<string> } {
+  const properties: Record<string, unknown> = {};
+  const unreadable = new Set<string>();
+  for (const field of fields) {
+    const read = readField(field, values[field.name]);
+    if ('error' in read) unreadable.add(field.name);
+    else if (read.value !== undefined) properties[field.name] = read.value;
+  }
+  NORMALIZERS[typeId]?.(properties);
+  return { properties, unreadable };
+}
+
+/**
  * Text values as the form's controls would have produced them, so the tool
  * and the form answer to one validator: a `Date` for a date, an array for a
  * tag picker, a boolean for a checkbox. Every field counts, not only the ones
