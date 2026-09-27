@@ -21,7 +21,8 @@ export interface CaptureFormModel {
   takesFile: boolean;
   titleField?: string;
   bodyField?: string;
-  hasUrlField: boolean;
+  /** Where a copied link goes: the field named `url`, or else the first URL field declared. */
+  urlField?: string;
 }
 
 export function captureFormModel(registry: Registry, typeId: string): CaptureFormModel {
@@ -75,7 +76,10 @@ export function captureFormModel(registry: Registry, typeId: string): CaptureFor
     takesFile,
     titleField,
     bodyField,
-    hasUrlField: Object.values(fields).some((field) => field.type === 'url'),
+    urlField:
+      fields.url?.type === 'url'
+        ? 'url'
+        : Object.entries(fields).find(([, field]) => field.type === 'url')?.[0],
   };
 }
 

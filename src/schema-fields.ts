@@ -150,7 +150,7 @@ export function namespaceOf(typeId: string): Namespace {
   }
 }
 
-/** An IANA zone the runtime recognises, rather than an offset spelled like one. */
+/** An IANA zone the runtime recognizes, rather than an offset spelled like one. */
 export function isValidTimeZone(value: string): boolean {
   if (value === 'UTC') return true;
   if (!/^[A-Z][A-Za-z_-]*(\/[A-Z][A-Za-z0-9_+-]*)+$/.test(value)) return false;
@@ -173,7 +173,7 @@ export function isValidUrl(value: string): boolean {
   }
 }
 
-/** The server's own email check, which is a shape rather than a promise of delivery. */
+/** A shape check for an email address, looser than the server's own: it refuses what this cannot read, and the server refuses the rest. */
 export function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -203,7 +203,7 @@ const INITIALISMS = new Set([
   'xml',
 ]);
 
-/** A field name as a label: first word capitalised, the rest lowercase, initialisms in capitals. */
+/** A field name as a label: first word capitalized, the rest lowercase, initialisms in capitals. */
 export function toTitleCase(key: string): string {
   const words = key.split('_').filter(Boolean);
   if (words.length === 0) return key;

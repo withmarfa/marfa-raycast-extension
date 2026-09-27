@@ -214,9 +214,8 @@ describe('what the form reserves for itself', () => {
     expect(result.shadowed.sort()).toEqual(['__extra', '__raw']);
   });
 
-  it('renders a field called tags, now that the form no longer claims that id', () => {
-    // Four shipped types declare one, and the extension's own tag box used to
-    // own the id: typing item tags wrote the property and vice versa.
+  it('renders a field called tags beside the form’s own tag box', () => {
+    // Types may declare one, and two controls on one id would split its value.
     const registry = [
       schema('readwise.highlight', {
         fields: { text: f({}), tags: f({ type: 'array', items_type: 'string' }) },

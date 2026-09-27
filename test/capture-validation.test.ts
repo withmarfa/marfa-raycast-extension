@@ -8,11 +8,8 @@ import { schema } from './fixtures';
 const f = (over: Record<string, unknown> = {}) => ({ type: 'string', ...over }) as never;
 
 /**
- * The end-to-end shape of the defect this replaced: a type with required fields
- * that the form said required nothing, and submitted anyway.
- *
- * Read live from a real instance, which is where the wrong assumption showed:
- * two fields marked required per-field, and no top-level array anywhere.
+ * A type registered by an integration, with two fields required per field:
+ * the form must refuse a capture missing either before it reaches the server.
  */
 const PLAYLIST = [
   schema('google.youtube.playlist', {
@@ -37,7 +34,7 @@ const build = (values: Record<string, unknown>) =>
   buildCaptureProperties(plan, 'google.youtube.playlist', values);
 
 describe('a capture is refused before it reaches the network', () => {
-  it('knows the type requires two fields, where the form used to say none', () => {
+  it('knows the type requires two fields', () => {
     expect([...requiredFieldNames(PLAYLIST, 'google.youtube.playlist')].sort()).toEqual([
       'playlist_id',
       'title',

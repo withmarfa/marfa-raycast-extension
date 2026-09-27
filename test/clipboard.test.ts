@@ -86,10 +86,27 @@ describe('copied HTML', () => {
   });
 
   it('reads an editor’s styled spans as the plain text, unescaped', () => {
-    // Code copied from an editor is HTML of coloured spans; as markdown every * and _ would be escaped.
+    // Code copied from an editor is HTML of colored spans; as markdown every * and _ would be escaped.
     const html = '<div><span style="color:#f00">const a_b = 2 * 3;</span></div>';
     expect(htmlToMarkdown(html)).toBeUndefined();
     expect(clipboardBody({ text: 'const a_b = 2 * 3;', html })).toBe('const a_b = 2 * 3;');
+  });
+
+  it('fences code, whether or not a code element sits inside the pre', () => {
+    const html = '<pre><span class="k">const</span> a = b*c;\nif (x_y) {}</pre>';
+    expect(htmlToMarkdown(html)).toBe('```\nconst a = b*c;\nif (x_y) {}\n```');
+  });
+
+  it('keeps a table as a markdown table', () => {
+    const html =
+      '<table><thead><tr><th>Name</th><th>Qty</th></tr></thead><tbody><tr><td>Flour</td><td>500 | g</td></tr></tbody></table>';
+    expect(htmlToMarkdown(html)).toBe('| Name | Qty |\n| --- | --- |\n| Flour | 500 \\| g |');
+  });
+
+  it('takes a Google Docs copy with no formatting as its plain text', () => {
+    const html =
+      '<b style="font-weight:normal;" id="docs-internal-guid-2"><p><span>a*b_c</span></p></b>';
+    expect(htmlToMarkdown(html)).toBeUndefined();
   });
 
   it('unwraps the bold Google Docs puts around a whole copy', () => {
@@ -123,15 +140,18 @@ describe('where the clipboard goes in a form', () => {
     required: false,
     rawType,
   });
-  const hints = { titleField: 'title', bodyField: 'body', hasUrlField: true };
+  const hints = { titleField: 'title', bodyField: 'body', urlField: 'url' };
   const link = { text: 'https://example.org/a', html: '', file: null };
   const words = { text: 'Some words', html: '<p>Some <b>words</b></p>', file: null };
   const file = { text: 'Plan.pdf', html: '', file: 'file:///tmp/Plan.pdf' };
 
-  it('puts a link in the URL field, and in the title only when the type has no URL field', () => {
+  it('puts a link in the one URL field, and in the title only when the type has none', () => {
     expect(clipboardSeed(link, field('url', 'url'), hints)).toBe('https://example.org/a');
+    // A bookmark's cover and source are URLs too, and are not the page.
+    expect(clipboardSeed(link, field('image_url', 'url'), hints)).toBeUndefined();
+    expect(clipboardSeed(link, field('source_url', 'url'), hints)).toBeUndefined();
     expect(clipboardSeed(link, field('title'), hints)).toBeUndefined();
-    expect(clipboardSeed(link, field('title'), { ...hints, hasUrlField: false })).toBe(
+    expect(clipboardSeed(link, field('title'), { ...hints, urlField: undefined })).toBe(
       'https://example.org/a',
     );
     expect(clipboardSeed(link, field('body'), hints)).toBeUndefined();

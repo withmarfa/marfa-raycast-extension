@@ -41,17 +41,34 @@ const build = (values: Record<string, unknown>, typeId = 'acme.everything', plan
 
 describe('what gets sent', () => {
   it('omits a blank rather than sending an empty string', () => {
-    // Every write in the forms this replaces trimmed and omitted, and the
-    // platform treats an optional field as nullish, so an empty string is a
+    // The server treats an optional field as nullish, so an empty string is a
     // value where none was meant.
     const result = build({ body: '   ', link: '', count: '' });
     expect(result).toEqual({ properties: { name: 'required' } });
   });
 
-  it('trims what it does send', () => {
-    expect(build({ body: '  hello  ' })).toEqual({
-      properties: { name: 'required', body: 'hello' },
+  it('trims a line of text, and sends a body as written', () => {
+    // An indented first line is a code block in markdown.
+    expect(build({ name: '  x  ', body: '    code\n' })).toEqual({
+      properties: { name: 'x', body: '    code\n' },
     });
+  });
+
+  it('reads a date-time as an instant only when it names its offset', () => {
+    expect(build({ when: '2026-03-15T14:00:00+01:00' })).toEqual({
+      properties: { name: 'required', when: '2026-03-15T13:00:00.000Z' },
+    });
+    expect(build({ when: '2026-03-15' })).toEqual({
+      properties: { name: 'required', when: '2026-03-15' },
+    });
+    expect(build({ when: '2026-03-15T14:00:00' })).toEqual({
+      errors: { when: 'When needs a zone offset, such as Z or +01:00' },
+    });
+  });
+
+  it('takes decimal numbers only', () => {
+    expect(build({ count: '0x10' })).toEqual({ errors: { count: 'Count must be a number' } });
+    expect(build({ count: '1e3' })).toEqual({ properties: { name: 'required', count: 1000 } });
   });
 
   it('writes an optional boolean only when it is true', () => {
@@ -128,9 +145,7 @@ describe('what gets refused', () => {
   });
 
   it('refuses a missing required field, keyed by its own name', () => {
-    // The whole reason errors are keyed by name. The shape this replaces had a
-    // closed union of seven, so an error about an arbitrary field had nowhere
-    // to go and the form silently did nothing.
+    // Keyed by name, so an error about any field a schema declares has a place to show.
     const result = buildCaptureProperties(sink, 'acme.everything', {});
     expect(result).toEqual({ errors: { name: expect.stringContaining('required') } });
   });
@@ -190,8 +205,7 @@ describe('the rules a schema states in prose and cannot express', () => {
     expect(buildEvent({ timezone: 'Mars/Olympus' })).toEqual({
       errors: { timezone: expect.stringContaining('Mars/Olympus') },
     });
-    // Reported against the field that is wrong. The shape this replaces routed
-    // both zone fields to one key, so an end-zone error marked the start zone.
+    // Reported against the field that is wrong, so an end-zone error never marks the start zone.
     expect(buildEvent({ end_timezone: 'Mars/Olympus' })).toEqual({
       errors: { end_timezone: expect.stringContaining('Mars/Olympus') },
     });
@@ -207,10 +221,8 @@ describe('the rules a schema states in prose and cannot express', () => {
   });
 
   it('fills in the zone from the device, for the one type that needs it', () => {
-    // Both capture paths read this. The form used to take the first entry of
-    // its own zone list, which agreed by coincidence of how that list is
-    // ordered rather than by anything saying it should, and a tool supplied
-    // nothing at all, so an event captured by asking advanced in UTC.
+    // The form and the tool both read this, so an event captured by asking
+    // carries the device's zone as one captured in the form does.
     expect(captureDefaults('core.event', 'Europe/London')).toEqual({ timezone: 'Europe/London' });
     expect(captureDefaults('core.note', 'Europe/London')).toEqual({});
     expect(captureDefaults('acme.never-seen', 'Europe/London')).toEqual({});
@@ -231,9 +243,7 @@ describe('a type this server has no schema for', () => {
   const buildUnknown = (values: Record<string, unknown>) =>
     buildCaptureProperties(unknown, 'acme.never-seen', values);
 
-  it('is still capturable, through the payload it used to give everything', () => {
-    // Not the default for anything any more, which is the change. It used to be
-    // what two thirds of a registry got.
+  it('is still capturable, through its properties as JSON', () => {
     expect(unknown.known).toBe(false);
     expect(unknown.primary).toEqual([]);
     expect(buildUnknown({ __raw: '{"anything":"goes"}' })).toEqual({
@@ -301,15 +311,15 @@ describe('values that arrive as text', () => {
       sink,
       pairs({ name: 'x', when: '2026-03-15T12:00:00.000Z', flag: 'true' }),
     );
-    expect(values.when).toBeInstanceOf(Date);
+    expect(values.when).toBe('2026-03-15T12:00:00.000Z');
     expect(values.flag).toBe(true);
+    expect(valuesFromText(sink, pairs({ flag: 'yes' })).flag).toBe('yes');
+    expect(build({ flag: 'yes' })).toEqual({ errors: { flag: 'Flag must be true or false' } });
     expect(values.name).toBe('x');
   });
 
   it('refuses an unreadable date rather than dropping it', () => {
-    // It used to be dropped, silently: the capture reported success and the
-    // date was simply gone. A person told a task has no due date can set one;
-    // a person told nothing cannot.
+    // A date dropped silently would leave a task with no due date and no one told.
     const values = valuesFromText(sink, pairs({ when: 'next tuesday' }));
     expect(values.when).toBe('next tuesday');
     expect(buildCaptureProperties(sink, 'acme.everything', { name: 'x', ...values })).toEqual({

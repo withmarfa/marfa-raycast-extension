@@ -95,7 +95,7 @@ describe('toTitleCase', () => {
   });
 
   it('leaves a word it does not know exactly as it was', () => {
-    // The set is small on purpose, so a miss degrades to the old behavior
+    // The set is small on purpose, so a miss degrades to plain capitalization
     // rather than to something wrong.
     expect(toTitleCase('etag')).toBe('Etag');
     expect(toTitleCase('privacy_status')).toBe('Privacy status');

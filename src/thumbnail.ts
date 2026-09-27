@@ -44,7 +44,7 @@ export function checkThumbnail(value: string): { value: string } | { error: stri
   const read = thumbnailFromBytes(new Uint8Array(bytes));
   if ('error' in read) return read;
   if (!read.value.startsWith(`data:${match[1]};`)) {
-    return { error: `A thumbnail labelled ${match[1]} must hold that format’s bytes` };
+    return { error: `A thumbnail labeled ${match[1]} must hold that format’s bytes` };
   }
   return { value };
 }

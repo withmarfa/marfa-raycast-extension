@@ -38,10 +38,11 @@ const FORMATTING = /<(h[1-6]|strong|b|em|i|a\s[^>]*href|ul|ol|blockquote|pre|tab
  */
 interface Element {
   nodeName: string;
+  textContent: string | null;
   getAttribute(name: string): string | null;
   parentNode: Element | null;
   nextSibling: unknown;
-  children: ArrayLike<unknown>;
+  children: ArrayLike<Element>;
 }
 const element = (node: unknown) => node as Element;
 
@@ -57,6 +58,30 @@ function converter(): TurndownService {
     hr: '---',
   });
   turndown.remove(['head', 'meta', 'style', 'script', 'title', 'noscript']);
+  // Code is fenced as its text, whether or not a `<code>` sits inside the
+  // `<pre>`: highlighters copy as `<pre>` of colored spans, and turndown fences
+  // only `pre > code`, escaping the rest.
+  turndown.addRule('preformatted', {
+    filter: (node) => element(node).nodeName === 'PRE',
+    replacement: (_content, node) => {
+      const code = (element(node).textContent ?? '').replace(/\n$/, '');
+      const fence = code.includes('```') ? '````' : '```';
+      return `\n\n${fence}\n${code}\n${fence}\n\n`;
+    },
+  });
+  // A table as a markdown table, its first row the header, each cell's text on one line.
+  turndown.addRule('table', {
+    filter: (node) => element(node).nodeName === 'TABLE',
+    replacement: (_content, node) => {
+      const rows = tableRows(element(node));
+      if (rows.length === 0) return '';
+      const width = Math.max(...rows.map((row) => row.length));
+      const line = (cells: string[]) =>
+        `| ${Array.from({ length: width }, (_, i) => cells[i] ?? '').join(' | ')} |`;
+      const [head, ...body] = rows;
+      return `\n\n${[line(head), line(Array(width).fill('---')), ...body.map(line)].join('\n')}\n\n`;
+    },
+  });
   // Google Docs wraps a whole copy in a `<b>` it styles back to normal weight.
   turndown.addRule('unboldened', {
     filter: (node) =>
@@ -92,9 +117,33 @@ function converter(): TurndownService {
   return turndown;
 }
 
+function tableRows(table: Element): string[][] {
+  const rows: string[][] = [];
+  const visit = (node: Element) => {
+    for (const child of Array.from(node.children)) {
+      if (child.nodeName === 'TR') {
+        rows.push(
+          Array.from(child.children)
+            .filter((cell) => cell.nodeName === 'TD' || cell.nodeName === 'TH')
+            .map((cell) =>
+              (cell.textContent ?? '').replace(/\s+/g, ' ').trim().replace(/\|/g, '\\|'),
+            ),
+        );
+      } else {
+        visit(child);
+      }
+    }
+  };
+  visit(table);
+  return rows.filter((row) => row.length > 0);
+}
+
+/** The `<b>` Google Docs wraps a whole copy in, which formats nothing. */
+const UNBOLDENED = /<b\b[^>]*font-weight:\s*normal[^>]*>/gi;
+
 /** Copied HTML as markdown, or nothing when it carries no formatting to keep. */
 export function htmlToMarkdown(html: string): string | undefined {
-  if (!FORMATTING.test(html)) return undefined;
+  if (!FORMATTING.test(html.replace(UNBOLDENED, ''))) return undefined;
   const markdown = converter()
     .turndown(html)
     .replace(/\n{3,}/g, '\n\n')
@@ -181,19 +230,20 @@ export function clipboardType(snapshot: ClipboardSnapshot, preferred: string): s
 
 /**
  * Which field on any type the clipboard belongs in, keyed on what the field
- * is rather than on a type: a link to a URL field, or to the title of a type
- * with none, a file's name to the title, and the text to the body.
+ * is rather than on a type: a link to the type's one URL field (a cover or a
+ * source is not the page itself), or to the title of a type with none, a
+ * file's name to the title, and the text to the body.
  */
 export function clipboardSeed(
   snapshot: ClipboardSnapshot,
   field: PlannedField,
-  hints: { titleField?: string; bodyField?: string; hasUrlField: boolean },
+  hints: { titleField?: string; bodyField?: string; urlField?: string },
 ): string | undefined {
   const text = snapshot.text.trim();
   const link = isWebUrl(text);
-  if (field.rawType === 'url' && link) return text;
+  if (link && field.name === hints.urlField) return text;
   if (field.name === hints.titleField) {
-    if (link) return hints.hasUrlField ? undefined : text;
+    if (link) return hints.urlField ? undefined : text;
     if (snapshot.file) return captureFromFile(snapshot.file).title;
     return undefined;
   }

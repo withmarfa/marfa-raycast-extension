@@ -76,7 +76,12 @@ export function CaptureForm(props: {
   const typeId = typeof values[TYPE_FIELD] === 'string' ? values[TYPE_FIELD] : props.initialType;
   const model = captureFormModel(registry, typeId);
   const { plan } = model;
-  const rendered = [...plan.primary, ...(showAll ? plan.secondary : [])];
+  // A hidden field holding a value (from a draft, or typed before a type
+  // switch) opens the section, so nothing is sent that is not on screen and
+  // nothing typed is dropped.
+  const hiddenWithValue = plan.secondary.some((field) => hasValue(values[field.name]));
+  const expanded = showAll || hiddenWithValue;
+  const rendered = [...plan.primary, ...(expanded ? plan.secondary : [])];
 
   // A field nobody has set yet reads its seed from the clipboard, then its
   // control's own starting value; typing replaces both.
@@ -86,7 +91,7 @@ export function CaptureForm(props: {
       ? clipboardSeed(clipboard, field, {
           titleField: model.titleField,
           bodyField: model.bodyField,
-          hasUrlField: model.hasUrlField,
+          urlField: model.urlField,
         })
       : undefined;
     return seed ?? initialValue(field, typeId, zone);
@@ -106,7 +111,8 @@ export function CaptureForm(props: {
     typeof values[name] === 'string' ? (values[name] as string) : '';
 
   async function capture() {
-    if (registryLoading && registry.types.length === 0) {
+    // A note needs no schema; anything else would be sent unchecked.
+    if (!model.isNote && registryLoading && registry.types.length === 0) {
       await showToast({ style: Toast.Style.Failure, title: 'The type registry is still loading' });
       return;
     }
@@ -137,7 +143,10 @@ export function CaptureForm(props: {
     );
     const failures: CaptureErrors = { ...found, ...('errors' in built ? built.errors : {}) };
 
-    const extra = parseAdditionalProperties(textOf(EXTRA_PROPERTIES_FIELD));
+    const extra = parseAdditionalProperties(textOf(EXTRA_PROPERTIES_FIELD), [
+      ...Object.keys(registry.fields(typeId)),
+      ...plan.shadowed,
+    ]);
     if ('error' in extra) failures[EXTRA_PROPERTIES_FIELD] = extra.error;
 
     const picked = values[FILE_FIELD];
@@ -228,7 +237,7 @@ export function CaptureForm(props: {
             />
           )}
           {/* Expands only: a collapsed section's controls would stop counting, and what was typed there with them. */}
-          {plan.secondary.length > 0 && !showAll && (
+          {plan.secondary.length > 0 && !expanded && (
             <Action
               title={`Show ${String(plan.secondary.length)} More Fields`}
               icon={Icon.Sidebar}
@@ -342,6 +351,12 @@ function reviveDate(value: Value): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function hasValue(value: Value): boolean {
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'string') return value.trim() !== '';
+  return value instanceof Date || value === true;
+}
+
 function strings(value: Value): string[] {
   return Array.isArray(value) ? value.map(String) : [];
 }
@@ -350,7 +365,7 @@ function joinInfo(description: string | undefined, addition: string): string {
   return description ? `${description}\n\n${addition}` : addition;
 }
 
-export function FieldControl(props: {
+function FieldControl(props: {
   field: PlannedField;
   value: Value;
   error?: string;

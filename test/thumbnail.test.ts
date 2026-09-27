@@ -13,7 +13,7 @@ const WEBP = new Uint8Array(
 );
 
 describe('a thumbnail from a file', () => {
-  it('is a data URI labelled by the format its bytes begin with', () => {
+  it('is a data URI labeled by the format its bytes begin with', () => {
     expect(thumbnailFromBytes(PNG)).toEqual({
       value: `data:image/png;base64,${Buffer.from(PNG).toString('base64')}`,
     });
@@ -47,7 +47,7 @@ describe('a thumbnail given as text', () => {
   it('refuses a URL, a label that lies about the bytes, and base64 out of its canonical form', () => {
     expect(checkThumbnail('https://example.org/a.png')).toHaveProperty('error');
     expect(checkThumbnail(uri.replace('image/png', 'image/jpeg'))).toEqual({
-      error: 'A thumbnail labelled image/jpeg must hold that format’s bytes',
+      error: 'A thumbnail labeled image/jpeg must hold that format’s bytes',
     });
     // The last byte is zero, so its group ends `AA==`; `AB==` decodes to the same byte but is not canonical.
     const loose = `data:image/png;base64,${Buffer.from(PNG.slice(0, 10)).toString('base64').replace(/A==$/, 'B==')}`;

@@ -7,6 +7,19 @@ import { schema } from './fixtures';
 const f = (over: Record<string, unknown> = {}) => ({ type: 'string', ...over });
 
 const registry = buildRegistry([
+  schema('core.bookmark', {
+    display_hints: { title_field: 'title', body_field: 'body' },
+    fields: {
+      url: f({ type: 'url' }),
+      body: f(),
+      title: f(),
+      source_url: f({ type: 'url' }),
+      image_url: f({ type: 'url' }),
+    },
+  }),
+  schema('acme.clip', {
+    fields: { source_url: f({ type: 'url' }), cover_url: f({ type: 'url' }) },
+  }),
   schema('core.note', {
     display_hints: { title_field: 'title', body_field: 'body' },
     fields: {
@@ -32,6 +45,8 @@ const registry = buildRegistry([
     fields: {
       title: f({ required: true }),
       description: f(),
+      starts_at: f({ type: 'datetime' }),
+      ends_at: f({ type: 'datetime' }),
       timezone: f(),
       end_timezone: f(),
       priority: f({ type: 'enum', enum_values: ['low', 'high'], required: true }),
@@ -66,6 +81,14 @@ describe('a note’s form', () => {
     expect(buildCaptureProperties(plan, 'core.note', { body: ' ' })).toEqual({
       errors: { body: 'Body is required' },
     });
+  });
+});
+
+describe('where a copied link goes', () => {
+  it('to the field named url, or else the first URL field declared', () => {
+    expect(captureFormModel(registry, 'core.bookmark').urlField).toBe('url');
+    expect(captureFormModel(registry, 'acme.clip').urlField).toBe('source_url');
+    expect(captureFormModel(registry, 'core.note').urlField).toBeUndefined();
   });
 });
 
@@ -113,6 +136,39 @@ describe('what a control starts on', () => {
 describe('what the server would refuse, refused first', () => {
   const plan = captureFormModel(registry, 'acme.card').plan;
 
+  it('an event that ends before it starts, even from a revived draft’s text', () => {
+    const event = captureFormModel(registry, 'core.event').plan;
+    expect(
+      buildCaptureProperties(event, 'core.event', {
+        title: 'x',
+        priority: 'low',
+        starts_at: '2026-10-02T09:00:00.000Z',
+        ends_at: '2026-10-02T08:00:00.000Z',
+      }),
+    ).toEqual({ errors: { ends_at: 'The end is before the start' } });
+  });
+
+  it('a tag picker value its enum does not list', () => {
+    const tags = {
+      primary: [
+        {
+          name: 'diet',
+          kind: 'tagpicker' as const,
+          title: 'Diet',
+          required: false,
+          rawType: 'array',
+          enumValues: ['vegan', 'vegetarian'],
+        },
+      ],
+      secondary: [],
+      shadowed: [],
+      known: true,
+    };
+    expect(buildCaptureProperties(tags, 'x.y', { diet: ['keto'] })).toEqual({
+      errors: { diet: 'Diet takes only: vegan, vegetarian' },
+    });
+  });
+
   it('a string past its length', () => {
     expect(buildCaptureProperties(plan, 'acme.card', { name: 'toolong' })).toEqual({
       errors: { name: 'Name takes at most 5 characters' },
@@ -135,6 +191,21 @@ describe('additional properties', () => {
       parseAdditionalProperties('mood: tired\n# skipped\ncount: 3\nfinal: true\nempty:'),
     ).toEqual({
       properties: { mood: 'tired', count: 3, final: true },
+    });
+  });
+
+  it('refuses a field the type declares, which has its own checked control', () => {
+    expect(parseAdditionalProperties('url: nope', ['url', 'title'])).toEqual({
+      error: 'Line 1: "url" is a field of this type; set it above',
+    });
+    expect(parseAdditionalProperties('links: x')).toEqual({
+      error: 'Line 1: "links" is a field of this type; set it above',
+    });
+  });
+
+  it('keeps a number that would not survive the trip as text', () => {
+    expect(parseAdditionalProperties('zip: 01234\nbig: 12345678901234567890\nn: 12')).toEqual({
+      properties: { zip: '01234', big: '12345678901234567890', n: 12 },
     });
   });
 

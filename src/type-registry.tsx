@@ -78,8 +78,11 @@ function TypeCopyActions({ type }: { type: TypeDefinition }) {
 
 function TypeDetail({ type, registry }: { type: TypeDefinition; registry: Registry }) {
   const fields = Object.entries(registry.fields(type.id));
-  const own = new Set(Object.keys(type.fields ?? {}));
-  const hints = type.display_hints ?? {};
+  const titleField = registry.titleField(type.id);
+  const bodyField = registry.bodyField(type.id);
+  // The nearest type in the chain that declares the field, which is the one whose declaration counts.
+  const declaredBy = (name: string) =>
+    registry.lineage(type.id).find((ancestor) => name in (ancestor.fields ?? {}))?.id ?? type.id;
 
   return (
     <List
@@ -106,10 +109,12 @@ function TypeDetail({ type, registry }: { type: TypeDefinition; registry: Regist
           subtitle={fieldSubtitle(field)}
           keywords={[field.type, field.description ?? '']}
           accessories={[
-            ...(name === hints.title_field ? [{ tag: 'title' }] : []),
-            ...(name === hints.body_field ? [{ tag: 'body' }] : []),
+            ...(name === titleField ? [{ tag: 'title' }] : []),
+            ...(name === bodyField ? [{ tag: 'body' }] : []),
           ]}
-          detail={<List.Item.Detail markdown={fieldMarkdown(name, field, own.has(name), type)} />}
+          detail={
+            <List.Item.Detail markdown={fieldMarkdown(name, field, declaredBy(name), type.id)} />
+          }
           actions={
             <ActionPanel>
               <Action.CopyToClipboard title="Copy Field Name" content={name} />
@@ -130,12 +135,12 @@ function fieldSubtitle(field: FieldDefinition): string {
 function fieldMarkdown(
   name: string,
   field: FieldDefinition,
-  declaredHere: boolean,
-  type: TypeDefinition,
+  declaredBy: string,
+  typeId: string,
 ): string {
   const lines = [`# ${name}`, ''];
   lines.push(`\`${field.type}\`${field.required ? ', required' : ', optional'}`, '');
-  if (!declaredHere && type.parent) lines.push(`Inherited through \`${type.parent}\`.`, '');
+  if (declaredBy !== typeId) lines.push(`Inherited from \`${declaredBy}\`.`, '');
   if (field.description) lines.push(field.description, '');
   if (field.enum_values?.length) {
     lines.push('## One of', '', ...field.enum_values.map((value) => `- \`${value}\``), '');

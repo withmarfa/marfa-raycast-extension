@@ -62,12 +62,7 @@ function buildProperties(registry: Registry, input: Input): Record<string, unkno
     alwaysShow: alwaysShownFields(input.type),
   });
   const properties = Array.isArray(input.properties) ? input.properties : [];
-  const supplied = new Set(
-    properties.filter((entry) => entry.value.trim() !== '').map((entry) => entry.name),
-  );
-  const defaults = Object.entries(captureDefaults(input.type, deviceTimeZone()))
-    .filter(([name]) => !supplied.has(name))
-    .map(([name, value]) => ({ name, value }));
+  const defaults = addedDefaults(input);
   const built = buildCaptureProperties(
     plan,
     input.type,
@@ -82,10 +77,33 @@ function buildProperties(registry: Registry, input: Input): Record<string, unkno
   return built.properties;
 }
 
-export const confirmation: Tool.Confirmation<Input> = async (input) => {
-  const registry = buildRegistry(await listTypes());
-  const required = registry.required(input.type);
+async function readRegistry(): Promise<Registry> {
+  try {
+    return buildRegistry(await listTypes());
+  } catch (error) {
+    const failure = describeFailure(error);
+    throw new Error(`${failure.title}. ${failure.message}`);
+  }
+}
+
+/** The defaults the tool adds to what it was given, so the confirmation shows what is written. */
+function addedDefaults(input: Input): { name: string; value: string }[] {
   const properties = Array.isArray(input.properties) ? input.properties : [];
+  const supplied = new Set(
+    properties.filter((entry) => entry.value.trim() !== '').map((entry) => entry.name),
+  );
+  return Object.entries(captureDefaults(input.type, deviceTimeZone()))
+    .filter(([name]) => !supplied.has(name))
+    .map(([name, value]) => ({ name, value }));
+}
+
+export const confirmation: Tool.Confirmation<Input> = async (input) => {
+  const registry = await readRegistry();
+  const required = registry.required(input.type);
+  const properties = [
+    ...(Array.isArray(input.properties) ? input.properties : []),
+    ...addedDefaults(input),
+  ];
   const label = registry.label(input.type);
   return {
     message: `Save this ${label.toLowerCase()} to Marfa?`,
@@ -105,13 +123,7 @@ export const confirmation: Tool.Confirmation<Input> = async (input) => {
 
 /** Writes an item of any type the server holds, exactly as the capture form does. */
 export default async function tool(input: Input) {
-  let registry: Registry;
-  try {
-    registry = buildRegistry(await listTypes());
-  } catch (error) {
-    const failure = describeFailure(error);
-    throw new Error(`${failure.title}. ${failure.message}`);
-  }
+  const registry = await readRegistry();
   const properties = buildProperties(registry, input);
   try {
     const { item, metadata } = await createItem({

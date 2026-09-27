@@ -148,8 +148,6 @@ export async function createItem(input: {
   properties: Record<string, unknown>;
   tags: string[];
   tier?: Tier;
-  /** Edges this item draws, by edge type, to the ids named. */
-  edges?: Record<string, string[]>;
 }): Promise<Entry> {
   const created = await answer(
     marfa().POST('/items', {
@@ -158,7 +156,6 @@ export async function createItem(input: {
         properties: input.properties,
         tags: input.tags,
         tier: input.tier ?? captureTier(),
-        edges: input.edges,
       },
     }),
   );

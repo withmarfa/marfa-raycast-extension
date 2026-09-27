@@ -29,22 +29,22 @@ export const FILE_FIELD = '__file';
  */
 const CROSS_FIELD_CHECKS: Record<
   string,
-  ((values: Record<string, unknown>) => { field: string; message: string } | null)[]
+  ((properties: Record<string, unknown>) => { field: string; message: string } | null)[]
 > = {
   'core.event': [
-    (values) => {
+    (properties) => {
       for (const field of ['timezone', 'end_timezone']) {
-        const zone = values[field];
+        const zone = properties[field];
         if (typeof zone === 'string' && zone && !isValidTimeZone(zone)) {
           return { field, message: `${zone} is not a recognized time zone` };
         }
       }
       return null;
     },
-    (values) => {
-      const starts = values.starts_at;
-      const ends = values.ends_at;
-      if (starts instanceof Date && ends instanceof Date && ends < starts) {
+    (properties) => {
+      const starts = Date.parse(String(properties.starts_at));
+      const ends = Date.parse(String(properties.ends_at));
+      if (!Number.isNaN(starts) && !Number.isNaN(ends) && ends < starts) {
         return { field: 'ends_at', message: 'The end is before the start' };
       }
       return null;
@@ -101,12 +101,17 @@ export function deviceTimeZone(): string {
   return zone && isValidTimeZone(zone) ? zone : 'UTC';
 }
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const OFFSET = /(Z|[+-]\d{2}:?\d{2})$/i;
+/** Decimal notation only: `Number()` would also read `0x10` as sixteen. */
+const DECIMAL = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
+
 function coerceScalar(
   raw: string,
   itemsType: string | undefined,
 ): { value: unknown } | { error: string } {
   if (itemsType === 'number' || itemsType === 'integer') {
-    const value = Number(raw);
+    const value = DECIMAL.test(raw) ? Number(raw) : Number.NaN;
     if (!Number.isFinite(value)) return { error: `"${raw}" is not a number` };
     if (itemsType === 'integer' && !Number.isInteger(value)) {
       return { error: `"${raw}" is not a whole number` };
@@ -144,6 +149,9 @@ function localDate(value: Date): string {
 function readField(field: PlannedField, raw: unknown): { value?: unknown } | { error: string } {
   switch (field.kind) {
     case 'checkbox':
+      if (typeof raw === 'string' && raw.trim() !== '') {
+        return { error: `${field.title} must be true or false` };
+      }
       // Written only when true, unless required: a false is the absence of the flag.
       return raw === true ? { value: true } : field.required ? { value: false } : {};
 
@@ -158,11 +166,26 @@ function readField(field: PlannedField, raw: unknown): { value?: unknown } | { e
       if (!text) return {};
       const parsed = parseDateText(text);
       if (!parsed) return { error: `${field.title} is not a date this can read` };
+      if (field.kind === 'datetime') {
+        // A bare day is the server's all-day shape, and goes as it is.
+        if (DATE_ONLY.test(text)) return { value: text };
+        // A time with no offset names no instant; reading it in this machine's
+        // zone would move an event booked elsewhere.
+        if (!OFFSET.test(text)) {
+          return { error: `${field.title} needs a zone offset, such as Z or +01:00` };
+        }
+      }
       return { value: field.kind === 'date' ? localDate(parsed) : parsed.toISOString() };
     }
 
     case 'tagpicker': {
       const values = Array.isArray(raw) ? raw.filter((v) => typeof v === 'string') : [];
+      const outside = values.filter((value) => !(field.enumValues ?? []).includes(value));
+      if (outside.length > 0) {
+        return {
+          error: `${field.title} takes only: ${(field.enumValues ?? []).join(', ')}`,
+        };
+      }
       if (field.maxItems !== undefined && values.length > field.maxItems) {
         return { error: `${field.title} takes at most ${String(field.maxItems)}` };
       }
@@ -173,7 +196,7 @@ function readField(field: PlannedField, raw: unknown): { value?: unknown } | { e
     case 'integer': {
       const text = typeof raw === 'string' ? raw.trim() : '';
       if (!text) return {};
-      const value = Number(text);
+      const value = DECIMAL.test(text) ? Number(text) : Number.NaN;
       if (!Number.isFinite(value)) return { error: `${field.title} must be a number` };
       if (field.kind === 'integer' && !Number.isInteger(value)) {
         return { error: `${field.title} must be a whole number` };
@@ -182,7 +205,12 @@ function readField(field: PlannedField, raw: unknown): { value?: unknown } | { e
     }
 
     case 'list': {
-      const text = typeof raw === 'string' ? raw : '';
+      // An array arrives when a type switch carries a picker's value to a list of the same name.
+      const text = Array.isArray(raw)
+        ? raw.map(String).join('\n')
+        : typeof raw === 'string'
+          ? raw
+          : '';
       // One per line, never comma-separated: recurrence rules contain commas.
       const lines = text
         .split('\n')
@@ -220,6 +248,14 @@ function readField(field: PlannedField, raw: unknown): { value?: unknown } | { e
     default: {
       const text = typeof raw === 'string' ? raw.trim() : '';
       if (!text) return {};
+      // A body keeps its leading indent and its line breaks: an indented first
+      // line is a code block in markdown.
+      if (field.kind === 'textarea') {
+        if (field.maxLength !== undefined && (raw as string).length > field.maxLength) {
+          return { error: `${field.title} takes at most ${String(field.maxLength)} characters` };
+        }
+        return { value: raw };
+      }
       if (field.rawType === 'url' && !isValidUrl(text)) {
         return { error: `${field.title} must be a URL` };
       }
@@ -284,7 +320,7 @@ export function buildCaptureProperties(
   }
 
   for (const check of CROSS_FIELD_CHECKS[typeId] ?? []) {
-    const failure = check(values);
+    const failure = check(properties);
     if (failure && !errors[failure.field]) errors[failure.field] = failure.message;
   }
 
@@ -314,8 +350,8 @@ export function valuesFromText(
     switch (field.kind) {
       case 'datetime':
       case 'date':
-        // Unreadable text passes through, so the validator refuses it by name.
-        values[field.name] = parseDateText(raw) ?? raw;
+        // As text, so the validator reads the day, the offset or the refusal itself.
+        values[field.name] = raw;
         break;
       case 'tagpicker':
         values[field.name] = raw
@@ -324,7 +360,8 @@ export function valuesFromText(
           .filter(Boolean);
         break;
       case 'checkbox':
-        values[field.name] = raw === 'true';
+        // Anything but the two words stays text, which the validator refuses by name.
+        values[field.name] = raw === 'true' ? true : raw === 'false' ? false : raw;
         break;
       default:
         values[field.name] = raw;
@@ -344,14 +381,21 @@ export function valuesFromText(
   return values;
 }
 
+/** Properties the server resolves onto every type, whatever the type declares. */
+const UNIVERSAL_FIELDS = new Set(['links', 'attachments']);
+
 /**
  * `key: value` lines, for what a person knows that the type does not declare.
- * `true` and `false` become booleans and plain numbers numbers; a key naming
- * an item field is refused, as the server refuses it.
+ * `true` and `false` become booleans, and a number written as its canonical
+ * self a number, so `01234` stays text. A key naming an item field is refused,
+ * as the server refuses it, and so is one the type declares, which has its own
+ * checked control.
  */
 export function parseAdditionalProperties(
   raw: string | undefined,
+  declared: Iterable<string> = [],
 ): { properties: Record<string, unknown> } | { error: string } {
+  const own = new Set(declared);
   const text = raw?.trim() ?? '';
   const properties: Record<string, unknown> = {};
   if (!text) return { properties };
@@ -366,6 +410,9 @@ export function parseAdditionalProperties(
     const value = trimmed.slice(colonAt + 1).trim();
     if (!key) return { error: `${where}: empty key` };
     if (RESERVED_ITEM_FIELDS.has(key)) return { error: `${where}: "${key}" is an item field` };
+    if (own.has(key) || UNIVERSAL_FIELDS.has(key)) {
+      return { error: `${where}: "${key}" is a field of this type; set it above` };
+    }
     if (key in properties) return { error: `${where}: "${key}" is given twice` };
     if (!value) continue;
     properties[key] = coerceValue(value);
@@ -376,6 +423,7 @@ export function parseAdditionalProperties(
 function coerceValue(raw: string): unknown {
   if (raw === 'true') return true;
   if (raw === 'false') return false;
-  if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
+  const number = Number(raw);
+  if (/^-?\d+(\.\d+)?$/.test(raw) && String(number) === raw) return number;
   return raw;
 }
