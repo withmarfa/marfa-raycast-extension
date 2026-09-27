@@ -29,6 +29,7 @@ import {
   type StateFilter,
   type TierFilter,
 } from './marfa';
+import { sameIds } from './requests';
 import { useRegistry } from './use-registry';
 
 const STATES: Array<{ value: StateFilter; title: string }> = [
@@ -118,36 +119,38 @@ export default function Browse() {
   };
 
   async function emptyTheTrash() {
-    let count: number;
+    let counted: { count: number; ids: string[] };
     try {
-      count = await countTrash();
+      counted = await countTrash();
     } catch (error) {
-      if (error instanceof MarfaRequestError && error.code === 'bulk_cap_exceeded') {
-        await showToast({
-          style: Toast.Style.Failure,
-          title: 'The Trash is too full to empty at once',
-          message:
-            'It holds more than the server purges in one job. Delete some items permanently first.',
-        });
-        return;
-      }
       await showFailure(error, 'Counting the Trash');
       return;
     }
+    const { count } = counted;
     if (count === 0) {
-      await showToast({ style: Toast.Style.Success, title: 'The Trash is already empty' });
+      await showToast({ style: Toast.Style.Success, title: 'Nothing in the Trash to delete' });
       refresh();
       return;
     }
     const confirmed = await confirmAlert({
       title: 'Empty the Trash?',
-      message: `${count === 1 ? 'The 1 item' : `All ${String(count)} items`} in the Trash, in every app and not only those listed here, will be deleted for good. This cannot be undone.`,
+      message: `${count === 1 ? 'The 1 item' : `All ${String(count)} items`} in the Trash that this key may delete, in every app and not only those listed here, will be deleted for good. This cannot be undone.`,
       primaryAction: { title: 'Empty Trash', style: Alert.ActionStyle.Destructive },
     });
     if (!confirmed) return;
     const toast = await showToast({ style: Toast.Style.Animated, title: 'Emptying the Trash' });
     let started;
     try {
+      // The purge matches again when it starts and takes no ids, so it starts
+      // only when the Trash holds the very items the person confirmed.
+      const now = await countTrash();
+      if (!sameIds(now.ids, counted.ids)) {
+        toast.style = Toast.Style.Failure;
+        toast.title = 'The Trash changed since it was counted';
+        toast.message = 'Nothing was deleted. Empty it again to confirm what is there now.';
+        refresh();
+        return;
+      }
       started = await emptyTrash(count);
     } catch (error) {
       await toast.hide();
@@ -155,7 +158,7 @@ export default function Browse() {
         await showToast({
           style: Toast.Style.Failure,
           title: 'The Trash changed since it was counted',
-          message: 'Nothing was deleted. Empty it again to confirm the new count.',
+          message: 'Nothing was deleted. Empty it again to confirm what is there now.',
         });
         refresh();
         return;
@@ -167,7 +170,11 @@ export default function Browse() {
       const result = describeJob(await followJob(started, bulkJob, (ms) => sleep(ms)));
       toast.style = result.ok ? Toast.Style.Success : Toast.Style.Failure;
       toast.title = result.title;
-      toast.message = result.message;
+      // A narrower key purges only the types it may write; say what it left.
+      const left = (await listItems({ state: 'trashed', limit: 1 })).entries.length > 0;
+      toast.message = left
+        ? `${result.message}; what this key may not delete stays in the Trash`
+        : result.message;
     } catch (error) {
       // The job was started and runs on without Raycast; only following it failed.
       toast.style = Toast.Style.Failure;

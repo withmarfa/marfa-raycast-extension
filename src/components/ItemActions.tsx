@@ -13,6 +13,7 @@ import {
 import { usePromise } from '@raycast/utils';
 import type { ReactNode } from 'react';
 import { parseTags, type Registry } from '../display';
+import { describeFailure } from '../failure';
 import { showFailure } from '../feedback';
 import { threadPlacement } from '../item-view';
 import {
@@ -24,6 +25,7 @@ import {
   removeTag,
   restoreItem,
   transitionItem,
+  trashedNow,
   trashItem,
 } from '../marfa';
 import { CaptureForm } from './CaptureForm';
@@ -116,11 +118,39 @@ export function ItemActions({
     });
     if (!confirmed) return;
     try {
+      // The purge door takes no version, so the item is read again first: one
+      // restored, changed and trashed again since is not what was confirmed.
+      const now = await trashedNow(item.id, item.updated_at);
+      if (!now) {
+        onChanged();
+        await showToast({
+          style: Toast.Style.Failure,
+          title: 'No longer in the Trash',
+          message: `“${title}” was restored or deleted elsewhere. Nothing was deleted.`,
+        });
+        return;
+      }
+      if (now.version !== item.version) {
+        onChanged();
+        await showToast({
+          style: Toast.Style.Failure,
+          title: 'Changed since you saw it',
+          message: 'Nothing was deleted. Look at it again before deleting it.',
+        });
+        return;
+      }
       await purgeItem(item.id);
       onChanged();
       onGone?.();
       await showToast({ style: Toast.Style.Success, title: 'Deleted permanently', message: title });
     } catch (error) {
+      if (describeFailure(error).kind === 'gone') {
+        // Deleted elsewhere meanwhile: what was asked for is done.
+        onChanged();
+        onGone?.();
+        await showToast({ style: Toast.Style.Success, title: 'Already deleted', message: title });
+        return;
+      }
       await showFailure(error, 'Deleting permanently');
     }
   }

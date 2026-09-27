@@ -33,7 +33,8 @@ type Value = Form.Value | undefined;
  * Edits any type through the form its schema describes, against the version
  * the form loaded. The whole properties go with `replace`, the one way to
  * clear a field; the server still merges a stale edit field by field, so a
- * change made elsewhere to a field this form did not touch survives.
+ * change made elsewhere to a field this form did not touch survives, and a
+ * change made elsewhere to one it did is refused and shown beside this edit.
  *
  * A file's reference and anything the type does not declare are carried
  * through untouched.
@@ -140,10 +141,12 @@ function LoadedForm({
       if ('error' in thumbnail) found[field.name] = thumbnail.error;
       else read[field.name] = thumbnail.value;
     }
+    const baseline = baselineProperties(fields, item.type, start);
     const built = buildCaptureProperties(
       { ...model.plan, primary: fields, secondary: [] },
       item.type,
       read,
+      baseline.read,
     );
     if ('errors' in built || Object.keys(found).length > 0) {
       setErrors({ ...found, ...('errors' in built ? built.errors : {}) });
@@ -154,7 +157,7 @@ function LoadedForm({
       fields,
       item.properties,
       built.properties,
-      baselineProperties(fields, item.type, start),
+      baseline,
     );
     if (changed.length === 0) {
       onSaved();
@@ -162,11 +165,14 @@ function LoadedForm({
     }
     const toast = await showToast({ style: Toast.Style.Animated, title: 'Saving' });
     try {
+      // Not settled: most types let the last writer win a collision, which would
+      // overwrite the other side's change to the same field without a word.
       const saved = await updateItem({
         id: item.id,
         version: item.version,
         properties,
         mode: 'replace',
+        settle: false,
       });
       if (saved.resolution?.conflicted_copy_id) {
         toast.style = Toast.Style.Failure;

@@ -29,25 +29,35 @@ export const FILE_FIELD = '__file';
  */
 const CROSS_FIELD_CHECKS: Record<
   string,
-  ((properties: Record<string, unknown>) => { field: string; message: string } | null)[]
+  {
+    /** The fields the rule reads, so an edit judges it only when one of them changed. */
+    fields: string[];
+    check: (properties: Record<string, unknown>) => { field: string; message: string } | null;
+  }[]
 > = {
   'core.event': [
-    (properties) => {
-      for (const field of ['timezone', 'end_timezone']) {
-        const zone = properties[field];
-        if (typeof zone === 'string' && zone && !isValidTimeZone(zone)) {
-          return { field, message: `${zone} is not a recognized time zone` };
+    {
+      fields: ['timezone', 'end_timezone'],
+      check: (properties) => {
+        for (const field of ['timezone', 'end_timezone']) {
+          const zone = properties[field];
+          if (typeof zone === 'string' && zone && !isValidTimeZone(zone)) {
+            return { field, message: `${zone} is not a recognized time zone` };
+          }
         }
-      }
-      return null;
+        return null;
+      },
     },
-    (properties) => {
-      const starts = Date.parse(String(properties.starts_at));
-      const ends = Date.parse(String(properties.ends_at));
-      if (!Number.isNaN(starts) && !Number.isNaN(ends) && ends < starts) {
-        return { field: 'ends_at', message: 'The end is before the start' };
-      }
-      return null;
+    {
+      fields: ['starts_at', 'ends_at'],
+      check: (properties) => {
+        const starts = Date.parse(String(properties.starts_at));
+        const ends = Date.parse(String(properties.ends_at));
+        if (!Number.isNaN(starts) && !Number.isNaN(ends) && ends < starts) {
+          return { field: 'ends_at', message: 'The end is before the start' };
+        }
+        return null;
+      },
     },
   ],
 };
@@ -282,6 +292,12 @@ export function buildCaptureProperties(
   plan: FormPlan,
   typeId: string,
   values: Record<string, unknown>,
+  /**
+   * For an edit, what the form would build for the item untouched. A rule
+   * across fields is then judged only when the person changed one of its
+   * fields: a stored value the server took must not block an unrelated edit.
+   */
+  baseline?: Record<string, unknown>,
 ): { properties: Record<string, unknown> } | { errors: CaptureErrors } {
   // A type the registry does not hold gets its properties as JSON: there is no
   // schema to build a form from, and the server validates what it knows.
@@ -319,8 +335,14 @@ export function buildCaptureProperties(
     }
   }
 
-  for (const check of CROSS_FIELD_CHECKS[typeId] ?? []) {
-    const failure = check(properties);
+  for (const rule of CROSS_FIELD_CHECKS[typeId] ?? []) {
+    const touched =
+      !baseline ||
+      rule.fields.some(
+        (field) => JSON.stringify(properties[field]) !== JSON.stringify(baseline[field]),
+      );
+    if (!touched) continue;
+    const failure = rule.check(properties);
     if (failure && !errors[failure.field]) errors[failure.field] = failure.message;
   }
 
@@ -340,16 +362,22 @@ export function baselineProperties(
   fields: readonly PlannedField[],
   typeId: string,
   values: Record<string, unknown>,
-): { properties: Record<string, unknown>; unreadable: Set<string> } {
-  const properties: Record<string, unknown> = {};
+): {
+  properties: Record<string, unknown>;
+  /** The same before the type's normalizing, as a rule across fields reads them. */
+  read: Record<string, unknown>;
+  unreadable: Set<string>;
+} {
+  const read: Record<string, unknown> = {};
   const unreadable = new Set<string>();
   for (const field of fields) {
-    const read = readField(field, values[field.name]);
-    if ('error' in read) unreadable.add(field.name);
-    else if (read.value !== undefined) properties[field.name] = read.value;
+    const value = readField(field, values[field.name]);
+    if ('error' in value) unreadable.add(field.name);
+    else if (value.value !== undefined) read[field.name] = value.value;
   }
+  const properties = { ...read };
   NORMALIZERS[typeId]?.(properties);
-  return { properties, unreadable };
+  return { properties, read, unreadable };
 }
 
 /**

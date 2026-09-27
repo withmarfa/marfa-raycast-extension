@@ -1,6 +1,7 @@
 import { getPreferenceValues } from '@raycast/api';
 import { createClient, type components, type MarfaClient } from '@withmarfa/client';
 import { MarfaRequestError, SetupError } from './failure';
+import { countTrashBody, editRequest, emptyTrashBody } from './requests';
 
 /**
  * The one door to the server: the generated client, and the calls this
@@ -172,31 +173,30 @@ export async function createItem(input: {
 
 /**
  * Sends properties against the version the caller read: the ones changed
- * under `merge`, the whole set under `replace`. `conflict=auto` lets the server merge a stale edit that collides on
- * nothing, and settle a collision by the type's merge policy where it has one;
- * a note's body keeps both copies, so the other side's text stays and this one
- * lands as a conflicted copy the answer names. A collision no policy settles
- * is still refused.
+ * under `merge`, the whole set under `replace`, the only way to clear a field,
+ * since a null under a merge is dropped. A stale edit that collides on nothing
+ * merges either way. `settle` decides a collision: settled by the type's merge
+ * policy (a note's body keeps both copies, the other side's text staying and
+ * this one landing as a conflicted copy the answer names), or refused with the
+ * server's current copy.
  */
 export async function updateItem(input: {
   id: string;
   version: number;
   properties: Record<string, unknown>;
-  /**
-   * `replace` sends the item's whole properties, which is the only way to
-   * clear an optional field: a null under a merge is dropped. The server still
-   * merges a stale replace field by field against the version read.
-   */
   mode?: 'merge' | 'replace';
+  settle: boolean;
 }): Promise<Entry & { resolution?: ConflictResolution }> {
+  const request = editRequest({
+    version: input.version,
+    properties: input.properties,
+    mode: input.mode ?? 'merge',
+    settle: input.settle,
+  });
   const updated = await answer(
     marfa().PATCH('/items/{id}', {
-      params: { path: { id: input.id }, query: { conflict: 'auto' } },
-      body: {
-        version: input.version,
-        properties: input.properties,
-        properties_mode: input.mode ?? 'merge',
-      },
+      params: { path: { id: input.id }, query: request.query },
+      body: request.body,
     }),
   );
   return { ...asEntry(updated), resolution: updated.conflict_resolution };
@@ -222,33 +222,45 @@ export async function purgeItem(id: string): Promise<void> {
   await answer(marfa().DELETE('/items/{id}/purge', { params: { path: { id } } }));
 }
 
-const EMPTY_TRASH = { action: 'purge', confirm: 'PURGE', filter: { state: 'trashed' } } as const;
-
-/** How many items emptying the Trash would delete, from a dry run that deletes nothing. */
-export async function countTrash(): Promise<number> {
-  const result = await answer(
-    marfa().POST('/items/bulk-actions', { body: { ...EMPTY_TRASH, dry_run: true } }),
-  );
-  if (!('matched' in result) || typeof result.matched !== 'number') {
+/**
+ * What emptying the Trash would delete, from a dry run that deletes nothing:
+ * the items this key may purge, which a narrower key sees fewer of.
+ */
+export async function countTrash(): Promise<{ count: number; ids: string[] }> {
+  const result = await answer(marfa().POST('/items/bulk-actions', { body: countTrashBody() }));
+  if (!('matched' in result) || typeof result.matched !== 'number' || 'status' in result) {
     throw unexpected('a count of the Trash');
   }
-  return result.matched;
+  return { count: result.matched, ids: result.ids ?? [] };
 }
 
 export type BulkJob = components['schemas']['BulkActionJob'];
 
 /**
- * Starts emptying the Trash. The server answers a job, which `bulkJob`
- * follows. The job matches again when it runs, so `max_items` holds it to the
- * count the person confirmed: anything trashed since makes it refuse rather
- * than delete more than was agreed.
+ * Starts emptying the Trash, refusing if it matches more than the count the
+ * person confirmed. The job matches again when it starts, and the door takes
+ * no list of ids, so the caller counts again just before and starts it only
+ * when the same items are there.
  */
 export async function emptyTrash(confirmed: number): Promise<BulkJob> {
   const job = await answer(
-    marfa().POST('/items/bulk-actions', { body: { ...EMPTY_TRASH, max_items: confirmed } }),
+    marfa().POST('/items/bulk-actions', { body: emptyTrashBody(confirmed) }),
   );
   if (!('status' in job)) throw unexpected('a job for emptying the Trash');
   return job;
+}
+
+/**
+ * A trashed item as the server holds it now, found in the Trash listing since
+ * a trashed item answers no read by id; undefined when it is no longer there.
+ */
+export async function trashedNow(id: string, since: string): Promise<Item | undefined> {
+  const page = await answer(
+    marfa().GET('/items', {
+      params: { query: { state: 'trashed', updated_after: since, limit: 100 } },
+    }),
+  );
+  return rows(page as { data?: Item[] }).find((row) => row.id === id);
 }
 
 export async function bulkJob(id: string): Promise<BulkJob> {

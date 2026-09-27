@@ -133,3 +133,23 @@ describe('an edit', () => {
     expect(properties.cover).toBe('data:image/png;base64,iVBORw0KGgo=');
   });
 });
+
+describe('an edit of a stored value the form cannot read', () => {
+  it('clears it when the person empties the field', () => {
+    const { properties, changed } = roundTrip((values) => void (values.serves = ''), {
+      ...ORIGINAL,
+      serves: 'lots',
+    });
+    expect(changed).toEqual(['serves']);
+    expect(properties).not.toHaveProperty('serves');
+  });
+});
+
+describe('a day in a date control', () => {
+  it('is the local midnight of that day, not the UTC one', () => {
+    const day = controlValue(field('day', 'date'), '2026-10-01') as Date;
+    expect([day.getFullYear(), day.getMonth(), day.getDate(), day.getHours()]).toEqual([
+      2026, 9, 1, 0,
+    ]);
+  });
+});
