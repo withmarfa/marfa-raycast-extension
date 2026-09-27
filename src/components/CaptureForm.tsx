@@ -34,7 +34,7 @@ import {
 import { parseTags, type Registry } from '../display';
 import { refusedFields } from '../failure';
 import { showFailure } from '../feedback';
-import { createItem, uploadBlob } from '../marfa';
+import { createEdge, createItem, uploadBlob } from '../marfa';
 import { thumbnailFromBytes } from '../thumbnail';
 
 type Value = Form.Value | undefined;
@@ -57,6 +57,18 @@ export function CaptureForm(props: {
   /** The clipboard the form was opened from, to seed fields by what they are. */
   clipboard?: ClipboardSnapshot;
   navigationTitle?: string;
+  /** Holds the form to its initial type, for a capture that only makes sense as one. */
+  lockType?: boolean;
+  /** Edges the new item draws, written with it, such as an annotation's reference. */
+  edges?: Record<string, string[]>;
+  /**
+   * One edge drawn after the item is written, for an edge carrying properties
+   * the inline edges cannot, such as a reply's place in its thread.
+   */
+  link?: { edgeType: string; to: string; properties?: Record<string, unknown> };
+  /** Called with the new item's label once saved; without it, a HUD closes Raycast. */
+  onCaptured?: (label: string) => Promise<void>;
+  submitTitle?: string;
 }) {
   const { registry, registryLoading, clipboard } = props;
   const { defaultTags } = getPreferenceValues<Preferences>();
@@ -180,10 +192,35 @@ export function CaptureForm(props: {
           properties[model.titleField] = title;
         }
       }
-      await createItem({ type: typeId, properties, tags: parseTags(textOf(TAGS_FIELD)) });
+      const created = await createItem({
+        type: typeId,
+        properties,
+        tags: parseTags(textOf(TAGS_FIELD)),
+        edges: props.edges,
+      });
+      if (props.link) {
+        try {
+          await createEdge({
+            source_id: created.item.id,
+            target_id: props.link.to,
+            edge_type: props.link.edgeType,
+            properties: props.link.properties,
+          });
+        } catch (error) {
+          // The item stands on its own; only the link failed, and saying so is all that is left.
+          await toast.hide();
+          await showFailure(error, `Saved the ${label.toLowerCase()}, but linking it`);
+          if (props.onCaptured) await props.onCaptured(label);
+          return;
+        }
+      }
       await toast.hide();
-      await showHUD(`${label} captured`);
-      await popToRoot({ clearSearchBar: true });
+      if (props.onCaptured) {
+        await props.onCaptured(label);
+      } else {
+        await showHUD(`${label} captured`);
+        await popToRoot({ clearSearchBar: true });
+      }
     } catch (error) {
       await toast.hide();
       const fields = refusedFields(error);
@@ -224,7 +261,7 @@ export function CaptureForm(props: {
       actions={
         <ActionPanel>
           <Action.SubmitForm
-            title={`Capture ${registry.label(typeId)}`}
+            title={props.submitTitle ?? `Capture ${registry.label(typeId)}`}
             icon={Icon.Plus}
             onSubmit={capture}
           />
@@ -248,27 +285,31 @@ export function CaptureForm(props: {
         </ActionPanel>
       }
     >
-      <Form.Dropdown
-        id={TYPE_FIELD}
-        title="Type"
-        value={typeId}
-        info={registry.type(typeId)?.description}
-        onChange={(value) => {
-          set(TYPE_FIELD, value);
-          setErrors({});
-          setShowAll(false);
-        }}
-      >
-        {options.map((type) => (
-          <Form.Dropdown.Item key={type.id} value={type.id} title={registry.label(type.id)} />
-        ))}
-        {!known && (
-          <Form.Dropdown.Item
-            value={typeId}
-            title={registryLoading ? registry.label(typeId) : `${typeId} (not on this server)`}
-          />
-        )}
-      </Form.Dropdown>
+      {props.lockType ? (
+        <Form.Description title="Type" text={registry.label(typeId)} />
+      ) : (
+        <Form.Dropdown
+          id={TYPE_FIELD}
+          title="Type"
+          value={typeId}
+          info={registry.type(typeId)?.description}
+          onChange={(value) => {
+            set(TYPE_FIELD, value);
+            setErrors({});
+            setShowAll(false);
+          }}
+        >
+          {options.map((type) => (
+            <Form.Dropdown.Item key={type.id} value={type.id} title={registry.label(type.id)} />
+          ))}
+          {!known && (
+            <Form.Dropdown.Item
+              value={typeId}
+              title={registryLoading ? registry.label(typeId) : `${typeId} (not on this server)`}
+            />
+          )}
+        </Form.Dropdown>
+      )}
       <Form.Separator />
 
       {model.takesFile && (
@@ -336,11 +377,16 @@ export function CaptureForm(props: {
   );
 }
 
-/** Every IANA zone the runtime knows, the device's first: the list is searchable. */
-function zoneOptions(device: string): string[] {
+/**
+ * Every IANA zone the runtime knows, the device's first, and the zone already
+ * held when the runtime spells it otherwise (it lists `Europe/Kiev`, not
+ * `Europe/Kyiv`), so a stored zone is never an option the list lacks.
+ */
+function zoneOptions(device: string, held: string): string[] {
   const all =
     typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
-  return [device, ...all.filter((zone) => zone !== device)];
+  const zones = [device, ...all.filter((zone) => zone !== device)];
+  return held && !zones.includes(held) ? [held, ...zones] : zones;
 }
 
 /** A draft hands a date back as a string; one that does not parse is dropped rather than guessed. */
@@ -365,7 +411,7 @@ function joinInfo(description: string | undefined, addition: string): string {
   return description ? `${description}\n\n${addition}` : addition;
 }
 
-function FieldControl(props: {
+export function FieldControl(props: {
   field: PlannedField;
   value: Value;
   error?: string;
@@ -383,7 +429,7 @@ function FieldControl(props: {
     return (
       <Form.Dropdown {...shared} value={text} onChange={onChange}>
         <Form.Dropdown.Item value="" title={isEnd ? 'Same as start' : 'Not set'} />
-        {zoneOptions(props.zone).map((zone) => (
+        {zoneOptions(props.zone, text).map((zone) => (
           <Form.Dropdown.Item key={zone} value={zone} title={zone} />
         ))}
       </Form.Dropdown>

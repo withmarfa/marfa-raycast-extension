@@ -80,6 +80,25 @@ describe('a failure is sorted by what the person can do about it', () => {
     expect(describeFailure(odd).message).toBe('The server answered 418.');
   });
 
+  it('a missing permission is named, with what to do about it', () => {
+    const refused = new MarfaRequestError(403, {
+      error: {
+        code: 'forbidden',
+        message: 'This credential does not hold items.purge',
+        details: { required_scope: 'items.purge' },
+      },
+    });
+    expect(describeFailure(refused)).toEqual({
+      kind: 'forbidden',
+      title: 'The key does not reach this',
+      message:
+        'It needs the items.purge permission, which the API key does not hold. Use a key minted with it.',
+    });
+    expect(describeFailure(refusal(403, 'type_not_permitted', 'Not this type')).message).toBe(
+      'Not this type',
+    );
+  });
+
   it('a refused write names each field and why, as the server gave them', () => {
     const invalid = new MarfaRequestError(400, {
       error: {

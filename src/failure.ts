@@ -130,7 +130,14 @@ function describeRefusal(error: MarfaRequestError): Failure {
     };
   }
   if (error.status === 403) {
-    return { kind: 'forbidden', title: 'The key does not reach this', message: error.message };
+    const scope = requiredScope(error);
+    return {
+      kind: 'forbidden',
+      title: 'The key does not reach this',
+      message: scope
+        ? `It needs the ${scope} permission, which the API key does not hold. Use a key minted with it.`
+        : error.message,
+    };
   }
   if (COLLISION_CODES.has(error.code)) {
     return { kind: 'conflict', title: 'Changed elsewhere', message: error.message };
@@ -167,6 +174,14 @@ function describeRefusal(error: MarfaRequestError): Failure {
     return { kind: 'refused', title: 'The server refused the values', message: listed };
   }
   return { kind: 'refused', title: 'The server refused', message: error.message };
+}
+
+/** The permission a `403` names as the one the key lacks, such as `items.purge`. */
+function requiredScope(error: unknown): string | undefined {
+  if (!(error instanceof MarfaRequestError) || error.status !== 403) return undefined;
+  const details = (error.body as { error?: { details?: { required_scope?: unknown } } } | undefined)
+    ?.error?.details;
+  return typeof details?.required_scope === 'string' ? details.required_scope : undefined;
 }
 
 /**

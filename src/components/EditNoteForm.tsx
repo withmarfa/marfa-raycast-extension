@@ -59,7 +59,13 @@ export function EditNoteForm({ id, onSaved }: { id: string; onSaved: () => void 
     }
     const toast = await showToast({ style: Toast.Style.Animated, title: 'Saving' });
     try {
-      const saved = await updateItem({ id: item.id, version: item.version, properties: changed });
+      // A note's body keeps both copies under its merge policy, so a collision is settled rather than refused.
+      const saved = await updateItem({
+        id: item.id,
+        version: item.version,
+        properties: changed,
+        settle: true,
+      });
       if (saved.resolution?.conflicted_copy_id) {
         toast.style = Toast.Style.Failure;
         toast.title = 'Changed elsewhere meanwhile';

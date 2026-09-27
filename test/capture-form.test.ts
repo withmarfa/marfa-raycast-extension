@@ -148,6 +148,17 @@ describe('what the server would refuse, refused first', () => {
     ).toEqual({ errors: { ends_at: 'The end is before the start' } });
   });
 
+  it('in an edit, a rule across fields only when one of its fields changed', () => {
+    const event = captureFormModel(registry, 'core.event').plan;
+    const stored = { title: 'x', priority: 'low', timezone: 'Etc/GMT+5' };
+    expect(buildCaptureProperties(event, 'core.event', { ...stored, title: 'y' }, stored)).toEqual({
+      properties: { ...stored, title: 'y' },
+    });
+    expect(
+      buildCaptureProperties(event, 'core.event', { ...stored, timezone: 'Mars/Base' }, stored),
+    ).toEqual({ errors: { timezone: 'Mars/Base is not a recognized time zone' } });
+  });
+
   it('a tag picker value its enum does not list', () => {
     const tags = {
       primary: [
