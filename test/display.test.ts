@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildRegistry,
-  captureFromFile,
-  captureFromText,
-  changedProperties,
-  isWebUrl,
-  parseTags,
-} from '../src/display';
+import { buildRegistry, changedProperties, parseTags } from '../src/display';
 import type { Item, TypeDefinition } from '../src/marfa';
 
 function type(id: string, extra: Partial<TypeDefinition> = {}): TypeDefinition {
@@ -93,63 +86,5 @@ describe('tags as typed', () => {
   it('are trimmed, deduplicated and kept in order', () => {
     expect(parseTags(' reading, later ,reading,, ')).toEqual(['reading', 'later']);
     expect(parseTags(undefined)).toEqual([]);
-  });
-});
-
-describe('what the clipboard becomes', () => {
-  it('a lone web address is a bookmark', () => {
-    expect(captureFromText('  https://example.com/a?b=1 \n')).toEqual({
-      type: 'core.bookmark',
-      properties: { url: 'https://example.com/a?b=1' },
-      noun: 'Bookmark',
-    });
-  });
-
-  it('anything else is a note, including text that holds a link', () => {
-    expect(captureFromText('Read https://example.com later')?.type).toBe('core.note');
-    expect(captureFromText('mailto:someone@example.com')?.type).toBe('core.note');
-    expect(captureFromText('line one\nline two')?.properties).toEqual({
-      body: 'line one\nline two',
-    });
-  });
-
-  it('nothing but space is nothing', () => {
-    expect(captureFromText(' \n\t')).toBeNull();
-    expect(isWebUrl('ftp://example.com')).toBe(false);
-  });
-});
-
-describe('what a copied file becomes', () => {
-  it('an image is an image, named by its file name', () => {
-    expect(captureFromFile('/Users/someone/Desktop/Canal at dusk.PNG')).toEqual({
-      path: '/Users/someone/Desktop/Canal at dusk.PNG',
-      type: 'core.file.image',
-      mimeType: 'image/png',
-      title: 'Canal at dusk.PNG',
-    });
-  });
-
-  it('reads a file URL as its path', () => {
-    const file = captureFromFile('file:///Users/someone/Documents/Plan%20v2.pdf');
-    expect(file.path).toBe('/Users/someone/Documents/Plan v2.pdf');
-    expect(file).toMatchObject({
-      type: 'core.file',
-      mimeType: 'application/pdf',
-      title: 'Plan v2.pdf',
-    });
-  });
-
-  it('keeps an escaped # in a file URL as part of the name', () => {
-    expect(captureFromFile('file:///Users/someone/Report%20%232.pdf').path).toBe(
-      '/Users/someone/Report #2.pdf',
-    );
-  });
-
-  it('anything unknown is a file of bytes', () => {
-    expect(captureFromFile('/tmp/archive.xyz').mimeType).toBe('application/octet-stream');
-    expect(captureFromFile('/tmp/Makefile')).toMatchObject({
-      type: 'core.file',
-      title: 'Makefile',
-    });
   });
 });

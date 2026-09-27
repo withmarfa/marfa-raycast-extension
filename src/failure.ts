@@ -159,7 +159,34 @@ function describeRefusal(error: MarfaRequestError): Failure {
       message: `The server, or a proxy in front of it, answered ${String(error.status)}. Try again shortly.`,
     };
   }
+  const fields = refusedFields(error);
+  if (fields) {
+    const listed = Object.entries(fields)
+      .map(([field, message]) => `${field}: ${message}`)
+      .join('; ');
+    return { kind: 'refused', title: 'The server refused the values', message: listed };
+  }
   return { kind: 'refused', title: 'The server refused', message: error.message };
+}
+
+/**
+ * The fields a refused write names, each with the server's reason, so a form
+ * marks the field rather than only saying the write failed.
+ */
+export function refusedFields(error: unknown): Record<string, string> | undefined {
+  if (!(error instanceof MarfaRequestError)) return undefined;
+  const envelope = (error.body as { error?: { details?: { errors?: unknown } } } | undefined)
+    ?.error;
+  const errors = envelope?.details?.errors;
+  if (!Array.isArray(errors)) return undefined;
+  const fields: Record<string, string> = {};
+  for (const entry of errors) {
+    const { field, message } = (entry ?? {}) as { field?: unknown; message?: unknown };
+    if (typeof field === 'string' && typeof message === 'string' && !(field in fields)) {
+      fields[field] = message;
+    }
+  }
+  return Object.keys(fields).length > 0 ? fields : undefined;
 }
 
 /**

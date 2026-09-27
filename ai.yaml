@@ -9,9 +9,14 @@ instructions: |
   words, not a query language, and name a type only when they named a kind of
   item. Answer from the rows returned; each already carries its text.
 
-  Use capture-note to save a note. Write it in the person's words, with a first
-  line that names it, since every app titles a note by its first line. Add tags
-  only when they asked for them.
+  Use capture-item to save anything. A note is type core.note with one
+  property, body, in the person's words and in markdown, its first line naming
+  it, since every app titles a note by its first line. For any other kind of
+  item, call list-types with that type first to learn its fields and which are
+  required, then pass each as text. Add tags only when they asked for them.
+
+  Use list-types to learn what kinds of item the server holds, or what one
+  kind takes.
 
   If a tool fails because the server or the key is not set up, say what the
   error says to change, rather than retrying.
@@ -38,13 +43,60 @@ evals:
 
   - input: '@marfa save a note saying the runner pool is fixed, tagged ops'
     mocks:
-      capture-note:
+      capture-item:
         id: itm_2
+        type: core.note
         title: The runner pool is fixed
+        tier: library
+        properties:
+          body: The runner pool is fixed
         tags: ['ops']
     expected:
       - callsTool:
-          name: capture-note
+          name: capture-item
           arguments:
-            body:
+            type: core.note
+            # A note takes one property, its body; the text is the model's wording.
+            properties.0.name: body
+            properties.0.value:
               includes: 'runner pool'
+
+  - input: '@marfa add a task to renew the passport, high priority'
+    mocks:
+      list-types:
+        type: core.task
+        label: Task
+        titleField: title
+        bodyField: body
+        fields:
+          - name: title
+            kind: string
+            required: true
+          - name: body
+            kind: string
+            required: false
+          - name: due_at
+            kind: datetime
+            required: false
+          - name: priority
+            kind: enum
+            required: false
+            oneOf: ['low', 'medium', 'high', 'urgent']
+      capture-item:
+        id: itm_3
+        type: core.task
+        title: Renew the passport
+        tier: library
+        properties:
+          title: Renew the passport
+          priority: high
+        tags: []
+    expected:
+      - callsTool:
+          name: list-types
+          arguments:
+            type: core.task
+      - callsTool:
+          name: capture-item
+          arguments:
+            type: core.task

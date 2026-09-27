@@ -12,6 +12,10 @@ type ExtensionPreferences = {
   "apiUrl": string,
   /** API Key - A key minted for Raycast, for example with `marfa keys create` */
   "apiKey": string,
+  /** Default Capture Type - The type Quick Capture starts on, as a type identifier such as core.note or core.task */
+  "defaultCaptureType": string,
+  /** Default Tier - Where captures land: the library keeps what you chose to keep, the feed holds what arrives in volume */
+  "defaultTier": "library" | "feed",
   /** Default Tags - Comma-separated tags every capture starts with */
   "defaultTags"?: string
 }
@@ -26,6 +30,10 @@ declare namespace Preferences {
   export type QuickCapture = ExtensionPreferences & {}
   /** Preferences accessible in the `clipboard-capture` command */
   export type ClipboardCapture = ExtensionPreferences & {}
+  /** Preferences accessible in the `clipboard-capture-edit` command */
+  export type ClipboardCaptureEdit = ExtensionPreferences & {}
+  /** Preferences accessible in the `type-registry` command */
+  export type TypeRegistry = ExtensionPreferences & {}
   /** Preferences accessible in the `status` command */
   export type Status = ExtensionPreferences & {}
 }
@@ -37,6 +45,10 @@ declare namespace Arguments {
   export type QuickCapture = {}
   /** Arguments passed to the `clipboard-capture` command */
   export type ClipboardCapture = {}
+  /** Arguments passed to the `clipboard-capture-edit` command */
+  export type ClipboardCaptureEdit = {}
+  /** Arguments passed to the `type-registry` command */
+  export type TypeRegistry = {}
   /** Arguments passed to the `status` command */
   export type Status = {}
 }

@@ -4,6 +4,7 @@ import {
   conflictCurrent,
   describeFailure,
   MarfaRequestError,
+  refusedFields,
   SETUP_KINDS,
   SetupError,
 } from '../src/failure';
@@ -77,6 +78,33 @@ describe('a failure is sorted by what the person can do about it', () => {
     const odd = new MarfaRequestError(418, '<html>Teapot</html>');
     expect(odd.code).toBe('unknown');
     expect(describeFailure(odd).message).toBe('The server answered 418.');
+  });
+
+  it('a refused write names each field and why, as the server gave them', () => {
+    const invalid = new MarfaRequestError(400, {
+      error: {
+        code: 'invalid_properties',
+        message: 'Invalid properties',
+        details: {
+          errors: [
+            { field: 'title', message: 'Invalid input: expected string, received undefined' },
+            { field: 'priority', message: 'Invalid option' },
+          ],
+        },
+      },
+    });
+    expect(refusedFields(invalid)).toEqual({
+      title: 'Invalid input: expected string, received undefined',
+      priority: 'Invalid option',
+    });
+    expect(describeFailure(invalid)).toEqual({
+      kind: 'refused',
+      title: 'The server refused the values',
+      message:
+        'title: Invalid input: expected string, received undefined; priority: Invalid option',
+    });
+    expect(refusedFields(refusal(400, 'invalid_properties'))).toBeUndefined();
+    expect(refusedFields(new Error('x'))).toBeUndefined();
   });
 
   it('only failures that stop everything own the screen', () => {

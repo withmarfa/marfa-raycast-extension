@@ -1,13 +1,21 @@
-import { fileURLToPath } from 'node:url';
 import type { Item, TypeDefinition } from './marfa';
 import { noteExcerpt, noteTitle } from './notes';
+import {
+  ancestry,
+  type FieldDefinition,
+  type Namespace,
+  namespaceOf,
+  requiredFieldNames,
+  resolveSchemaFields,
+} from './schema-fields';
 
 /**
  * How an item reads, resolved against the registry the server returned.
  *
- * Marfa instances register their own types, so nothing here names a type
- * beyond the note: a type's label and the fields that name it come from the
- * registry, walked through `parent` so a subtype inherits its parent's hints.
+ * Marfa instances register their own types, so nothing here reads a type by
+ * name beyond the note: a type's label, fields and the fields that name it come
+ * from the registry, walked through `parent` so a subtype inherits its parent's.
+ * The other identifiers below are the types the clipboard writes.
  */
 
 export const NOTE_TYPE = 'core.note';
@@ -16,7 +24,18 @@ export const FILE_TYPE = 'core.file';
 export const IMAGE_TYPE = 'core.file.image';
 
 export interface Registry {
+  /** Every type the server answered, system ones included. */
+  types: readonly TypeDefinition[];
+  type(typeId: string): TypeDefinition | undefined;
+  /** The type and its ancestors, nearest first. */
+  lineage(typeId: string): TypeDefinition[];
   label(typeId: string): string;
+  namespace(typeId: string): Namespace;
+  titleField(typeId: string): string | undefined;
+  bodyField(typeId: string): string | undefined;
+  /** Every field the type carries, inherited ones included. */
+  fields(typeId: string): Record<string, FieldDefinition>;
+  required(typeId: string): Set<string>;
   /** A note or a type declared beneath one, which the other apps list as notes too. */
   isNote(typeId: string): boolean;
   titleOf(item: Item): string;
@@ -31,19 +50,12 @@ function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
-export function buildRegistry(types: readonly TypeDefinition[] | undefined): Registry {
-  const byId = new Map((types ?? []).map((type) => [type.id, type]));
+export function buildRegistry(answered: readonly TypeDefinition[] | undefined): Registry {
+  const types = answered ?? [];
+  const byId = new Map(types.map((type) => [type.id, type]));
 
-  function* lineage(typeId: string): Generator<TypeDefinition> {
-    const seen = new Set<string>();
-    for (
-      let type = byId.get(typeId);
-      type && !seen.has(type.id);
-      type = type.parent ? byId.get(type.parent) : undefined
-    ) {
-      seen.add(type.id);
-      yield type;
-    }
+  function lineage(typeId: string): TypeDefinition[] {
+    return ancestry(types, typeId).reverse();
   }
 
   function hint(typeId: string, key: 'title_field' | 'body_field'): string | undefined {
@@ -92,13 +104,21 @@ export function buildRegistry(types: readonly TypeDefinition[] | undefined): Reg
   }
 
   return {
+    types,
+    type: (typeId) => byId.get(typeId),
+    lineage,
     label,
+    namespace: namespaceOf,
+    titleField: (typeId) => hint(typeId, 'title_field'),
+    bodyField: (typeId) => hint(typeId, 'body_field'),
+    fields: (typeId) => resolveSchemaFields(types, typeId),
+    required: (typeId) => requiredFieldNames(types, typeId),
     isNote,
     titleOf,
     subtitleOf,
     bodyOf,
     filterable: () =>
-      (types ?? [])
+      types
         .filter((type) => !type.id.startsWith('system.'))
         .sort((a, b) => label(a.id).localeCompare(label(b.id))),
   };
@@ -123,65 +143,4 @@ export function parseTags(input: string | undefined): string[] {
     .map((tag) => tag.trim())
     .filter(Boolean);
   return [...new Set(tags)];
-}
-
-export function isWebUrl(value: string): boolean {
-  if (/\s/.test(value)) return false;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-/** What a clipboard's text becomes: a lone web address a bookmark, anything else a note. */
-export function captureFromText(
-  raw: string,
-): { type: string; properties: Record<string, unknown>; noun: string } | null {
-  const value = raw.trim();
-  if (!value) return null;
-  if (isWebUrl(value)) return { type: BOOKMARK_TYPE, properties: { url: value }, noun: 'Bookmark' };
-  return { type: NOTE_TYPE, properties: { body: value }, noun: 'Note' };
-}
-
-const MIME_BY_EXTENSION: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  heic: 'image/heic',
-  tif: 'image/tiff',
-  tiff: 'image/tiff',
-  svg: 'image/svg+xml',
-  pdf: 'application/pdf',
-  txt: 'text/plain',
-  md: 'text/markdown',
-  csv: 'text/csv',
-  json: 'application/json',
-  html: 'text/html',
-  mp3: 'audio/mpeg',
-  m4a: 'audio/mp4',
-  wav: 'audio/wav',
-  mp4: 'video/mp4',
-  mov: 'video/quicktime',
-  zip: 'application/zip',
-};
-
-/**
- * What a copied file becomes: an image as an image, anything else as a file,
- * named by its file name. The clipboard offers a path or a `file://` URL.
- */
-export function captureFromFile(pathOrUrl: string): {
-  path: string;
-  type: string;
-  mimeType: string;
-  title: string;
-} {
-  const path = pathOrUrl.startsWith('file://') ? fileURLToPath(pathOrUrl) : pathOrUrl;
-  const title = path.split('/').pop() || path;
-  const extension = title.includes('.') ? (title.split('.').pop() ?? '').toLowerCase() : '';
-  const mimeType = MIME_BY_EXTENSION[extension] ?? 'application/octet-stream';
-  return { path, type: mimeType.startsWith('image/') ? IMAGE_TYPE : FILE_TYPE, mimeType, title };
 }

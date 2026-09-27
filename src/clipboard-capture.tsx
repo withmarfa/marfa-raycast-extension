@@ -1,14 +1,15 @@
 import { Clipboard, getPreferenceValues, showHUD, showToast, Toast } from '@raycast/api';
 import { openAsBlob } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { captureFromFile, captureFromText, parseTags } from './display';
+import { captureFromFile, captureFromText } from './clipboard';
+import { IMAGE_TYPE, parseTags } from './display';
 import { showFailure } from './feedback';
 import { createItem, uploadBlob } from './marfa';
 
 /**
  * The clipboard captured without a form: a copied file as a file, an image as
- * an image, a lone web address as a bookmark, and any other text as a note. To
- * shape text first, Quick Capture inserts the clipboard into its form.
+ * an image, a lone web address as a bookmark, and any other text as a note,
+ * its formatting kept as markdown. Clipboard Capture (Edit) shapes it first.
  */
 export default async function ClipboardCapture() {
   const { defaultTags } = getPreferenceValues<Preferences>();
@@ -42,7 +43,7 @@ export default async function ClipboardCapture() {
         tags,
       });
       await toast.hide();
-      await showHUD(file.type === 'core.file.image' ? 'Image captured' : 'File captured');
+      await showHUD(file.type === IMAGE_TYPE ? 'Image captured' : 'File captured');
     } catch (error) {
       await toast.hide();
       await showFailure(error, `Capturing ${file.title}`);
@@ -50,7 +51,7 @@ export default async function ClipboardCapture() {
     return;
   }
 
-  const capture = captureFromText(content.text ?? '');
+  const capture = captureFromText({ text: content.text ?? '', html: content.html ?? '' });
   if (!capture) {
     await showToast({ style: Toast.Style.Failure, title: 'Nothing to capture on the clipboard' });
     return;

@@ -26,15 +26,29 @@
       "name": "quick-capture",
       "title": "Quick Capture",
       "subtitle": "Marfa",
-      "description": "Write a note and save it to Marfa",
+      "description": "Capture a note, or any type the server holds, in a form built from its schema",
       "mode": "view"
     },
     {
       "name": "clipboard-capture",
       "title": "Clipboard Capture",
       "subtitle": "Marfa",
-      "description": "Capture the clipboard's text as a note, or a link as a bookmark",
+      "description": "Capture the clipboard at once: a file, an image, a link as a bookmark, or text as a note",
       "mode": "no-view"
+    },
+    {
+      "name": "clipboard-capture-edit",
+      "title": "Clipboard Capture (Edit)",
+      "subtitle": "Marfa",
+      "description": "Shape the clipboard in a capture form for any type before it is saved",
+      "mode": "view"
+    },
+    {
+      "name": "type-registry",
+      "title": "Type Registry",
+      "subtitle": "Marfa",
+      "description": "Every type the server holds, and the fields each one declares",
+      "mode": "view"
     },
     {
       "name": "status",
@@ -51,9 +65,14 @@
       "description": "Full-text search across the person's Marfa items, returning each item's name, text and tags."
     },
     {
-      "name": "capture-note",
-      "title": "Capture Note",
-      "description": "Save a note to the person's Marfa library."
+      "name": "capture-item",
+      "title": "Capture Item",
+      "description": "Save an item of any type the person's Marfa server holds: a note, a bookmark, a task, an event or any other."
+    },
+    {
+      "name": "list-types",
+      "title": "List Types",
+      "description": "The types the person's Marfa server holds, or one type's fields and what each requires."
     }
   ],
   "preferences": [
@@ -73,6 +92,33 @@
       "required": true
     },
     {
+      "name": "defaultCaptureType",
+      "title": "Default Capture Type",
+      "description": "The type Quick Capture starts on, as a type identifier such as core.note or core.task",
+      "type": "textfield",
+      "required": false,
+      "default": "core.note",
+      "placeholder": "core.note"
+    },
+    {
+      "name": "defaultTier",
+      "title": "Default Tier",
+      "description": "Where captures land: the library keeps what you chose to keep, the feed holds what arrives in volume",
+      "type": "dropdown",
+      "required": false,
+      "default": "library",
+      "data": [
+        {
+          "title": "Library",
+          "value": "library"
+        },
+        {
+          "title": "Feed",
+          "value": "feed"
+        }
+      ]
+    },
+    {
       "name": "defaultTags",
       "title": "Default Tags",
       "description": "Comma-separated tags every capture starts with",
@@ -84,12 +130,14 @@
   "dependencies": {
     "@raycast/api": "^2.0.5",
     "@raycast/utils": "^2.3.0",
-    "@withmarfa/client": "0.0.2"
+    "@withmarfa/client": "0.0.2",
+    "turndown": "7.2.4"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^2.2.0",
     "@types/node": "22.19.17",
     "@types/react": "19.0.10",
+    "@types/turndown": "5.0.6",
     "eslint": "^10.8.0",
     "prettier": "^3.9.6",
     "typescript": "^6.0.3",
