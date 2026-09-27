@@ -43,12 +43,20 @@ marfa keys create --label raycast --source raycast \
 - **Browse** lists every item, newest change first, with a type filter defaulting to notes and a state submenu reaching the Trash. An empty search bar walks the list page by page; typing hands the text to the server's full-text search, which reaches past the loaded pages. The search index leaves out the Trash, so there typing filters the loaded rows instead. The list is read again on every open, so a change made in another app shows the next time Browse opens, or at once with Refresh. A note can be edited, and any item tagged, trashed with an undo, or restored.
 - **Quick Capture** writes a note to the library, with drafts. Insert Clipboard Text brings the clipboard into the form, which is how a clipboard capture is shaped before it is saved.
 - **Clipboard Capture** saves the clipboard's text without a form: a lone web address as a bookmark, anything else as a note. A copied file is refused for now.
+- **Status** shows the server the extension points at, the contract it speaks beside the one this build reads, and whether the key is accepted. The server's description needs no key, so a refused key still shows which server refused it.
 
 **A note is named by its first line as it reads**, without its markdown, by the rule Memos WithMarfa uses (`src/notes.ts`). A note's stored `title` is not its name: Memos WithMarfa never writes one and Marfa Mini treats it as a date stamp, so a list titled by it would disagree with every other app showing the same notes. Capture writes `body` alone for the same reason.
 
 **Types come from the server's registry**, walked through `parent`, so a type declared beneath the note lists and edits as a note, and an instance's own types show their own labels. The only type identifiers named here are the two capture writes, `core.note` and `core.bookmark`.
 
 **A failure that stops everything owns the screen**: another contract, an unusable URL or key, a URL that redirects or is not a Marfa server, an unreachable server and a refused key each replace the list with what to change, and a way to the preferences. Anything else is a toast over what is already there. `src/marfa.ts` checks the URL and the key before the client sees them, because a key no header can carry fails inside fetch with a message that quotes it.
+
+## AI tools
+
+Two tools over the same door as the commands: **search-items**, which returns full rows (name, text, tags, when it changed) so the model answers without a second call, and **capture-note**, which writes a note exactly as Quick Capture does, behind a confirmation naming the note and its tags. A tool turns a failure into the same words a view shows, so the model can pass on what to change. Instructions and evals are in `ai.yaml`.
+
+- **Input is one object type documented with JSDoc per field**, because Raycast generates the model-facing schema from the TypeScript; the JSDoc is the instruction set.
+- **An eval asserts only what the documented matcher grammar covers**, such as `includes` on a string. A guessed syntax that matches nothing passes vacuously, which is worse than asserting less.
 
 ## Testing
 
