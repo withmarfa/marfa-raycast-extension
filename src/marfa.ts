@@ -136,10 +136,20 @@ export async function getItem(id: string): Promise<Entry> {
   return asEntry(await answer(marfa().GET('/items/{id}', { params: { path: { id } } })));
 }
 
+export type Tier = components['schemas']['Tier'];
+
+/** The tier a capture lands in when the caller names none, from the preferences. */
+export function captureTier(): Tier {
+  return getPreferenceValues<Preferences>().defaultTier === 'feed' ? 'feed' : 'library';
+}
+
 export async function createItem(input: {
   type: string;
   properties: Record<string, unknown>;
   tags: string[];
+  tier?: Tier;
+  /** Edges this item draws, by edge type, to the ids named. */
+  edges?: Record<string, string[]>;
 }): Promise<Entry> {
   const created = await answer(
     marfa().POST('/items', {
@@ -147,7 +157,8 @@ export async function createItem(input: {
         type: input.type,
         properties: input.properties,
         tags: input.tags,
-        tier: 'library',
+        tier: input.tier ?? captureTier(),
+        edges: input.edges,
       },
     }),
   );

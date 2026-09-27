@@ -14,5 +14,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    // A zone with a real offset, so a date that assumed UTC fails here rather
+    // than for every reader west of Greenwich; the locale is pinned for the
+    // same reason, since dates render in the machine's own.
+    env: { TZ: 'America/New_York', LC_ALL: 'en_GB.UTF-8', LANG: 'en_GB.UTF-8' },
   },
 });

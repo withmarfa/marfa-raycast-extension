@@ -11,32 +11,11 @@ import {
   useNavigation,
 } from '@raycast/api';
 import type { ReactNode } from 'react';
+import { typeIcon } from '../appearance';
 import { parseTags, type Registry } from '../display';
 import { showFailure } from '../feedback';
 import { addTags, removeTag, restoreItem, trashItem, type Entry, type Item } from '../marfa';
 import { EditNoteForm } from './EditNoteForm';
-
-/** Glyphs for the core families; any other type takes the generic one. */
-const ICONS: Record<string, Icon> = {
-  'core.note': Icon.Document,
-  'core.bookmark': Icon.Link,
-  'core.task': Icon.CheckCircle,
-  'core.event': Icon.Calendar,
-  'core.highlight': Icon.Highlight,
-  'core.message': Icon.Message,
-  'core.entity': Icon.Person,
-  'core.media': Icon.Video,
-  'core.file': Icon.Paperclip,
-  'core.file.image': Icon.Image,
-};
-
-function iconFor(typeId: string): Icon {
-  for (let id = typeId; id; id = id.slice(0, Math.max(0, id.lastIndexOf('.')))) {
-    const icon = ICONS[id];
-    if (icon) return icon;
-  }
-  return Icon.Circle;
-}
 
 function webUrl(item: Item): string | undefined {
   const url = item.properties.url;
@@ -140,7 +119,7 @@ export function EntryListItem({
       title={title}
       subtitle={showingDetail ? undefined : registry.subtitleOf(item)}
       keywords={[...metadata.tags, ...registry.subtitleOf(item).split(/\s+/)]}
-      icon={{ source: iconFor(item.type), tintColor: trashed ? Color.SecondaryText : undefined }}
+      icon={typeIcon(registry, item.type, trashed)}
       accessories={
         showingDetail
           ? undefined
