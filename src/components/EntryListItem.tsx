@@ -139,6 +139,7 @@ export function EntryListItem({
       id={item.id}
       title={title}
       subtitle={showingDetail ? undefined : registry.subtitleOf(item)}
+      keywords={[...metadata.tags, ...registry.subtitleOf(item).split(/\s+/)]}
       icon={{ source: iconFor(item.type), tintColor: trashed ? Color.SecondaryText : undefined }}
       accessories={
         showingDetail

@@ -40,7 +40,7 @@ marfa keys create --label raycast --source raycast \
 
 ## Commands
 
-- **Browse** lists every item, newest change first, with a type filter defaulting to notes and a state submenu reaching the Trash. An empty search bar walks the list page by page; typing hands the text to the server's full-text search, which reaches past the loaded pages. The list is read again on every open, so a change made in another app shows the next time Browse opens, or at once with Refresh. A note can be edited, and any item tagged, trashed with an undo, or restored.
+- **Browse** lists every item, newest change first, with a type filter defaulting to notes and a state submenu reaching the Trash. An empty search bar walks the list page by page; typing hands the text to the server's full-text search, which reaches past the loaded pages. The search index leaves out the Trash, so there typing filters the loaded rows instead. The list is read again on every open, so a change made in another app shows the next time Browse opens, or at once with Refresh. A note can be edited, and any item tagged, trashed with an undo, or restored.
 - **Quick Capture** writes a note to the library, with drafts. Insert Clipboard Text brings the clipboard into the form, which is how a clipboard capture is shaped before it is saved.
 - **Clipboard Capture** saves the clipboard's text without a form: a lone web address as a bookmark, anything else as a note. A copied file is refused for now.
 

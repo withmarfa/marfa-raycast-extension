@@ -19,7 +19,8 @@ const ALL_TYPES = '';
  * Every item, newest change first, and full-text search on the same bar.
  *
  * An empty bar walks the list page by page; typing hands the text to the
- * server's search, which reaches past the loaded pages. The list is read again
+ * server's search, which reaches past the loaded pages, except in the Trash,
+ * which the search index leaves out. The list is read again
  * on every open, so a change made in another app shows the next time Browse is
  * opened, or at once with Refresh.
  */
@@ -33,6 +34,10 @@ export default function Browse() {
   // which says so, and without it types read by their identifiers.
   const types = useCachedPromise(listTypes, [], { onError: () => undefined });
   const registry = buildRegistry(types.data);
+
+  // The server's search index leaves out the Trash, so in the Trash typed text
+  // filters the loaded rows instead of asking the server.
+  const searching = query !== '' && state !== 'trashed';
 
   const listing = useCachedPromise(
     (typeFilter: string, stateFilter: StateFilter) => async (options: { cursor?: string }) => {
@@ -48,17 +53,17 @@ export default function Browse() {
       };
     },
     [type, state],
-    { execute: query === '', keepPreviousData: true, onError: () => undefined },
+    { execute: !searching, keepPreviousData: true, onError: () => undefined },
   );
 
   const search = useCachedPromise(
     (q: string, typeFilter: string, stateFilter: StateFilter) =>
       searchItems({ query: q, type: typeFilter || undefined, state: stateFilter }),
     [query, type, state],
-    { execute: query !== '', keepPreviousData: true, onError: () => undefined },
+    { execute: searching, keepPreviousData: true, onError: () => undefined },
   );
 
-  const active = query === '' ? listing : search;
+  const active = searching ? search : listing;
   const entries = active.data ?? [];
   // A failed refresh over rows already shown is a toast; with nothing to show,
   // the empty view explains it instead.
@@ -110,12 +115,12 @@ export default function Browse() {
   return (
     <List
       isLoading={active.isLoading || !answered}
-      filtering={false}
+      filtering={state === 'trashed'}
       throttle
       onSearchTextChange={(text) => setQuery(text.trim())}
       searchBarPlaceholder={state === 'active' ? 'Search' : `Search ${stateTitle}`}
       navigationTitle={state === 'active' ? undefined : stateTitle}
-      pagination={query === '' ? listing.pagination : undefined}
+      pagination={searching ? undefined : listing.pagination}
       isShowingDetail={showingDetail && entries.length > 0}
       searchBarAccessory={
         <List.Dropdown tooltip="Type" value={type} onChange={setType}>
