@@ -54,7 +54,7 @@
       "name": "manage-keys",
       "title": "Manage Keys",
       "subtitle": "Marfa",
-      "description": "List, mint, change and revoke the server's API keys, when the key in the preferences holds keys.mint",
+      "description": "List, mint, change and revoke the server's API keys, with a key holding keys.mint or the operator key",
       "mode": "view"
     },
     {

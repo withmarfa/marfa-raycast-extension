@@ -27,7 +27,7 @@ export function KeyDetail({
   own: boolean;
   onChanged: () => void;
   /** Answers whether the key was revoked, so the detail can leave a key that is gone. */
-  onRevoke: () => Promise<boolean>;
+  onRevoke?: () => Promise<boolean>;
 }) {
   const { pop } = useNavigation();
   const markdown = [
@@ -114,7 +114,8 @@ export function KeyDetail({
                 <EditKeyForm
                   apiKey={apiKey}
                   onSaved={() => {
-                    // Back to the list, which reads the key again, rather than to this now stale detail.
+                    // The form pops itself after this; this pop takes the stale detail
+                    // with it, so the edit lands on the list, which reads the key again.
                     onChanged();
                     pop();
                   }}
@@ -131,13 +132,15 @@ export function KeyDetail({
             content={apiKey.id}
             shortcut={{ modifiers: ['cmd', 'shift'], key: 'i' }}
           />
-          <Action
-            title="Revoke Key"
-            icon={Icon.Trash}
-            style={Action.Style.Destructive}
-            shortcut={Keyboard.Shortcut.Common.Remove}
-            onAction={() => void onRevoke().then((revoked) => revoked && pop())}
-          />
+          {onRevoke && (
+            <Action
+              title="Revoke Key"
+              icon={Icon.Trash}
+              style={Action.Style.Destructive}
+              shortcut={Keyboard.Shortcut.Common.Remove}
+              onAction={() => void onRevoke().then((revoked) => revoked && pop())}
+            />
+          )}
         </ActionPanel>
       }
     />

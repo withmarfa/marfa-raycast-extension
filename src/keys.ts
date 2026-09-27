@@ -174,11 +174,6 @@ export function parseSources(text: string): { sources: string[] } | { error: str
   return { sources };
 }
 
-function isEvery(map: Map | undefined, level: string): boolean {
-  const entries = Object.entries(map ?? {});
-  return entries.length > 0 && entries.every(([, held]) => held === level);
-}
-
 function sameSet(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
   const left = [...(a ?? [])].sort();
   const right = [...(b ?? [])].sort();
@@ -220,21 +215,17 @@ export function changedKeyFields(
 export function keySummary(key: ApiKey): string {
   if (key.is_operator) return 'Operator';
   const permissions = key.permissions ?? [];
+  const maps = MAPS.map((map) => Object.values((key[map.field] as Map | undefined) ?? {}));
   const content = CONTENT_MAPS.map((field) => key[field] as Map | undefined);
-  const others = ['extension_permissions', 'profile_permissions'].some(
-    (field) => Object.keys((key[field as MapField] as Map | undefined) ?? {}).length > 0,
-  );
+  const levels = maps.flat();
   if (permissions.length === PERMISSIONS.length && content.every((map) => map?.['*'] === 'write')) {
     return 'Everything';
   }
-  if (permissions.length > 0) {
-    return permissions.length === 1
-      ? `Content and ${permissions[0]}`
-      : `Content and ${String(permissions.length)} permissions`;
-  }
-  if (!others && content.every((map) => isEvery(map, 'read'))) return 'Read only';
-  if (content.every((map) => Object.keys(map ?? {}).length === 0) && !others) return 'Nothing';
-  return 'Content';
+  const reach = levels.length === 0 ? '' : levels.includes('write') ? 'Content' : 'Read only';
+  if (permissions.length === 0) return reach || 'Nothing';
+  const held =
+    permissions.length === 1 ? permissions[0] : `${String(permissions.length)} permissions`;
+  return reach ? `${reach} and ${held}` : held;
 }
 
 /**
@@ -243,7 +234,8 @@ export function keySummary(key: ApiKey): string {
  */
 export function keyRefusal(
   error: unknown,
-): { field?: 'source' | 'permissions'; message: string } | undefined {
+  submittedSource?: string,
+): { field?: 'source' | 'sources' | 'permissions'; message: string } | undefined {
   if (!(error instanceof MarfaRequestError)) return undefined;
   const details =
     (error.body as { error?: { details?: Record<string, unknown> } } | undefined)?.error?.details ??
@@ -252,6 +244,17 @@ export function keyRefusal(
     return {
       field: 'source',
       message: `${details.source} is already another key’s source; choose another`,
+    };
+  }
+  // A source the caller cannot grant, or one another key already claims as its own.
+  if (
+    error.status === 403 &&
+    typeof details.source === 'string' &&
+    details.required_scope === undefined
+  ) {
+    return {
+      field: details.source === submittedSource ? 'source' : 'sources',
+      message: error.message,
     };
   }
   if (error.status === 403 && typeof details.required_scope === 'string') {

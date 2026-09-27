@@ -142,6 +142,13 @@ function describeRefusal(error: MarfaRequestError): Failure {
   if (COLLISION_CODES.has(error.code)) {
     return { kind: 'conflict', title: 'Changed elsewhere', message: error.message };
   }
+  if (error.code === 'api_key_not_found') {
+    return {
+      kind: 'gone',
+      title: 'No longer there',
+      message: 'The key was revoked elsewhere.',
+    };
+  }
   if (error.code === 'item_not_found') {
     return {
       kind: 'gone',

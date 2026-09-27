@@ -42,6 +42,29 @@ function describeReach(reach: KeyReach): string {
   return parts.join('\n');
 }
 
+/**
+ * A refused key write, marked on its field where it has one and told in the
+ * refusal's own words; anything else as any failure is.
+ */
+async function showKeyRefusal(
+  error: unknown,
+  doing: string,
+  setErrors: (errors: Errors) => void,
+  submittedSource?: string,
+) {
+  const refusal = keyRefusal(error, submittedSource);
+  if (!refusal) {
+    await showFailure(error, doing);
+    return;
+  }
+  if (refusal.field) setErrors({ [refusal.field]: refusal.message });
+  await showToast({
+    style: Toast.Style.Failure,
+    title: `${doing} failed`,
+    message: refusal.message,
+  });
+}
+
 /** The five maps, the permissions and the claimed sources, read from the form, or what is wrong. */
 function readReach(values: Form.Values): { reach: KeyReach } | { errors: Errors } {
   const errors: Errors = {};
@@ -124,14 +147,12 @@ function TierField({ value }: { value?: Tier }) {
  * key doing the minting, since a key cannot give more than it holds.
  */
 export function CreateKeyForm({ creator, onCreated }: { creator: ApiKey; onCreated: () => void }) {
-  const { push } = useNavigation();
+  const { pop, push } = useNavigation();
   const [preset, setPreset] = useState<string>('content-write');
   const [errors, setErrors] = useState<Errors>({});
   const clear = (field: string) => setErrors((current) => ({ ...current, [field]: undefined }));
   const custom = preset === CUSTOM;
-  // The operator key holds nothing to copy, so a key copying it would hold nothing either.
-  const presets = PRESETS.filter((option) => !(creator.is_operator && option.id === 'everything'));
-  const chosen = presets.find((option) => option.id === preset);
+  const chosen = PRESETS.find((option) => option.id === preset);
 
   async function create(values: Form.Values) {
     const label = String(values.label ?? '').trim();
@@ -164,12 +185,12 @@ export function CreateKeyForm({ creator, onCreated }: { creator: ApiKey; onCreat
       });
       await toast.hide();
       onCreated();
+      // In the form's place, so going back from the key lands on the list rather than on a form already used.
+      pop();
       push(<KeyCreated label={created.label} secret={created.key} />);
     } catch (error) {
       await toast.hide();
-      const refusal = keyRefusal(error);
-      if (refusal?.field) setErrors({ [refusal.field]: refusal.message });
-      await showFailure(error, 'Minting the key');
+      await showKeyRefusal(error, 'Minting the key', setErrors, source);
     }
   }
 
@@ -199,7 +220,7 @@ export function CreateKeyForm({ creator, onCreated }: { creator: ApiKey; onCreat
       />
       <TierField />
       <Form.Dropdown id="preset" title="Reach" value={preset} onChange={setPreset}>
-        {presets.map((option) => (
+        {PRESETS.map((option) => (
           <Form.Dropdown.Item key={option.id} value={option.id} title={option.title} />
         ))}
         <Form.Dropdown.Item value={CUSTOM} title="Custom" />
@@ -209,7 +230,9 @@ export function CreateKeyForm({ creator, onCreated }: { creator: ApiKey; onCreat
           title="Holds"
           text={
             chosen.id === 'everything'
-              ? `${chosen.says}\n\n${describeReach({ ...creator, sources: undefined } as KeyReach)}`
+              ? creator.is_operator
+                ? 'Minted by the operator key, a key naming nothing holds every map at *=write and all seven permissions.'
+                : `${chosen.says}\n\n${describeReach(creator as KeyReach)}${(creator.sources ?? []).length > 0 ? `\nAlso writes as: ${(creator.sources ?? []).join(', ')}` : ''}`
               : `${chosen.says}\n\n${describeReach(presetReach(chosen.id, creator))}`
           }
         />
@@ -250,7 +273,9 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
   const clear = (field: string) => setErrors((current) => ({ ...current, [field]: undefined }));
 
   async function save(values: Form.Values) {
-    const label = String(values.label ?? '').trim();
+    const typed = String(values.label ?? '');
+    // A label left as it was stays as stored, surrounding spaces and all.
+    const label = typed.trim() === apiKey.label.trim() ? apiKey.label : typed.trim();
     const read = readReach(values);
     if (!label || 'errors' in read) {
       setErrors({
@@ -277,9 +302,7 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
       pop();
     } catch (error) {
       await toast.hide();
-      const refusal = keyRefusal(error);
-      if (refusal?.field) setErrors({ [refusal.field]: refusal.message });
-      await showFailure(error, 'Saving the key');
+      await showKeyRefusal(error, 'Saving the key', setErrors);
     }
   }
 

@@ -67,6 +67,8 @@ export default function ManageKeys() {
     self.revalidate();
   };
   const creator = self.data;
+  // An operator key can be minted only by another, so only an operator key may revoke one.
+  const mayRevoke = (key: ApiKey) => !key.is_operator || creator?.is_operator === true;
   const createAction = creator && (
     <Action.Push
       title="Create Key"
@@ -89,7 +91,8 @@ export default function ManageKeys() {
     try {
       await revokeKey(key.id);
       if (own) {
-        // Nothing can be read with it now, the list included.
+        // Nothing can be read with it now: reading this key again puts the refused-key screen up.
+        self.revalidate();
         await showToast({
           style: Toast.Style.Success,
           title: 'Revoked the key Raycast was using',
@@ -106,6 +109,7 @@ export default function ManageKeys() {
       return true;
     } catch (error) {
       await showFailure(error, 'Revoking the key');
+      refresh();
       return false;
     }
   }
@@ -160,7 +164,7 @@ export default function ManageKeys() {
                       apiKey={key}
                       own={own}
                       onChanged={refresh}
-                      onRevoke={() => revoke(key)}
+                      onRevoke={mayRevoke(key) ? () => revoke(key) : undefined}
                     />
                   }
                 />
@@ -187,15 +191,17 @@ export default function ManageKeys() {
                     onAction={refresh}
                   />
                 </ActionPanel.Section>
-                <ActionPanel.Section>
-                  <Action
-                    title="Revoke Key"
-                    icon={Icon.Trash}
-                    style={Action.Style.Destructive}
-                    shortcut={Keyboard.Shortcut.Common.Remove}
-                    onAction={() => void revoke(key)}
-                  />
-                </ActionPanel.Section>
+                {mayRevoke(key) && (
+                  <ActionPanel.Section>
+                    <Action
+                      title="Revoke Key"
+                      icon={Icon.Trash}
+                      style={Action.Style.Destructive}
+                      shortcut={Keyboard.Shortcut.Common.Remove}
+                      onAction={() => void revoke(key)}
+                    />
+                  </ActionPanel.Section>
+                )}
               </ActionPanel>
             }
           />

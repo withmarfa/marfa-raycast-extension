@@ -173,6 +173,12 @@ describe('a key in a row', () => {
     ).toBe('Content and items.purge');
     expect(keySummary(key({ type_permissions: { '*': 'write' } }))).toBe('Content');
     expect(keySummary(key())).toBe('Nothing');
+    // A narrow read-only key, a denial, and permissions with no map.
+    expect(keySummary(key({ type_permissions: { 'core.note': 'read' } }))).toBe('Read only');
+    expect(keySummary(key({ type_permissions: { '*': 'read', 'app.x': 'none' } }))).toBe(
+      'Read only',
+    );
+    expect(keySummary(key({ permissions: ['audit.read'] }))).toBe('audit.read');
   });
 });
 
@@ -201,6 +207,12 @@ describe('a refused key write', () => {
     expect(keyRefusal(refusal(403, 'x', { required_scope: 'keys.mint' }))).toEqual({
       message: 'The API Key does not hold keys.mint, so it cannot manage keys',
     });
+  });
+
+  it('names a source it cannot grant, or one another key claims, on the field that holds it', () => {
+    const claimed = refusal(403, 'Source "shared" is claimed by another key', { source: 'shared' });
+    expect(keyRefusal(claimed, 'shared')).toEqual({ field: 'source', message: claimed.message });
+    expect(keyRefusal(claimed, 'mine')).toEqual({ field: 'sources', message: claimed.message });
   });
 
   it('leaves a reach the server explains in its own words', () => {
