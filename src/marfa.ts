@@ -356,6 +356,37 @@ export async function currentKey(): Promise<ApiKey> {
   return answer(marfa().GET('/keys/current'));
 }
 
+/** Every key on the server. Needs `keys.mint` or the operator key. */
+export async function listKeys(): Promise<ApiKey[]> {
+  return rows(await answer(marfa().GET('/keys')));
+}
+
+/** What a key write may set: its label and source, its reach and its tier. */
+export type KeyBody = Omit<
+  ApiKey,
+  'id' | 'created_at' | 'last_used_at' | 'is_operator' | 'expires_at' | 'oauth_client_id'
+>;
+
+/** Mints a key. The answer carries the key itself, which the server never shows again. */
+export async function createKey(
+  body: Partial<KeyBody> & { label: string; source: string },
+): Promise<ApiKey & { key: string }> {
+  return answer(marfa().POST('/keys', { body })) as Promise<ApiKey & { key: string }>;
+}
+
+/** Changes a key in place. Its source cannot change. */
+export async function updateKey(
+  id: string,
+  body: Partial<Omit<KeyBody, 'source'>>,
+): Promise<ApiKey> {
+  return answer(marfa().PATCH('/keys/{id}', { params: { path: { id } }, body }));
+}
+
+/** Revokes a key at once: its next request is refused. */
+export async function revokeKey(id: string): Promise<void> {
+  await answer(marfa().DELETE('/keys/{id}', { params: { path: { id } } }));
+}
+
 /** Stores bytes and answers the reference an item carries them by. */
 export async function uploadBlob(bytes: Blob): Promise<{ hash: string; mime_type: string }> {
   return answer(marfa().POST('/blobs', { body: bytes, headers: { 'Content-Type': bytes.type } }));

@@ -34,6 +34,8 @@ declare namespace Preferences {
   export type ClipboardCaptureEdit = ExtensionPreferences & {}
   /** Preferences accessible in the `type-registry` command */
   export type TypeRegistry = ExtensionPreferences & {}
+  /** Preferences accessible in the `manage-keys` command */
+  export type ManageKeys = ExtensionPreferences & {}
   /** Preferences accessible in the `status` command */
   export type Status = ExtensionPreferences & {}
 }
@@ -49,6 +51,8 @@ declare namespace Arguments {
   export type ClipboardCaptureEdit = {}
   /** Arguments passed to the `type-registry` command */
   export type TypeRegistry = {}
+  /** Arguments passed to the `manage-keys` command */
+  export type ManageKeys = {}
   /** Arguments passed to the `status` command */
   export type Status = {}
 }
