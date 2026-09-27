@@ -203,7 +203,17 @@ export function refusedFields(error: unknown): Record<string, string> | undefine
   if (!Array.isArray(errors)) return undefined;
   const fields: Record<string, string> = {};
   for (const entry of errors) {
-    const { field, message } = (entry ?? {}) as { field?: unknown; message?: unknown };
+    // The item doors name the field; others name its path, such as `sources.0`.
+    const {
+      field: named,
+      path,
+      message,
+    } = (entry ?? {}) as {
+      field?: unknown;
+      path?: unknown;
+      message?: unknown;
+    };
+    const field = typeof named === 'string' ? named : path;
     if (typeof field === 'string' && typeof message === 'string' && !(field in fields)) {
       fields[field] = message;
     }

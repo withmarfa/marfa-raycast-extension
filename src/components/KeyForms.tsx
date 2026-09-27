@@ -14,13 +14,14 @@ import { showFailure } from '../feedback';
 import {
   changedKeyFields,
   formatMap,
+  isReservedSource,
+  mapIsEditable,
+  reachFromForm,
+  SOURCE_MAX_LENGTH,
   keyRefusal,
   type KeyReach,
   type MapField,
   MAPS,
-  parseMap,
-  parseSources,
-  type Permission,
   PERMISSIONS,
   type PresetId,
   presetReach,
@@ -65,22 +66,6 @@ async function showKeyRefusal(
   });
 }
 
-/** The five maps, the permissions and the claimed sources, read from the form, or what is wrong. */
-function readReach(values: Form.Values): { reach: KeyReach } | { errors: Errors } {
-  const errors: Errors = {};
-  const reach: KeyReach = {};
-  for (const map of MAPS) {
-    const parsed = parseMap(String(values[map.field] ?? ''), map.levels);
-    if ('error' in parsed) errors[map.field] = parsed.error;
-    else reach[map.field] = parsed.map;
-  }
-  const sources = parseSources(String(values.sources ?? ''));
-  if ('error' in sources) errors.sources = sources.error;
-  else reach.sources = sources.sources;
-  reach.permissions = (Array.isArray(values.permissions) ? values.permissions : []) as Permission[];
-  return Object.keys(errors).length > 0 ? { errors } : { reach };
-}
-
 function ReachFields({
   start,
   errors,
@@ -108,18 +93,27 @@ function ReachFields({
           />
         ))}
       </Form.TagPicker>
-      {MAPS.map((map) => (
-        <Form.TextArea
-          key={map.field}
-          id={map.field}
-          title={map.title}
-          placeholder={map.example}
-          info={`One pattern=level a line, such as ${map.example} or *=${map.levels[1] ?? 'read'}. The level is ${map.levels.join(', ')}.`}
-          defaultValue={formatMap(start[map.field as MapField])}
-          error={errors[map.field]}
-          onChange={() => onEdit(map.field)}
-        />
-      ))}
+      {MAPS.map((map) =>
+        mapIsEditable(start[map.field as MapField], map.levels) ? (
+          <Form.TextArea
+            key={map.field}
+            id={map.field}
+            title={map.title}
+            placeholder={map.example}
+            info={`One pattern=level a line, such as ${map.example} or *=${map.levels[1] ?? 'read'}. The level is ${map.levels.join(', ')}.`}
+            defaultValue={formatMap(start[map.field as MapField])}
+            error={errors[map.field]}
+            onChange={() => onEdit(map.field)}
+          />
+        ) : (
+          // Shown, not sent: lines could not give back exactly what is stored.
+          <Form.Description
+            key={map.field}
+            title={map.title}
+            text={`${JSON.stringify(start[map.field as MapField])}\n\nThis map holds a pattern lines cannot show exactly, so it is kept as it is. Change it with the CLI.`}
+          />
+        ),
+      )}
       <Form.TextField
         id="sources"
         title="Also Writes As"
@@ -160,13 +154,17 @@ export function CreateKeyForm({ creator, onCreated }: { creator: ApiKey; onCreat
     const found: Errors = {};
     if (!label) found.label = 'Name the key';
     if (!source) found.source = 'Give the key its own source';
-    else if (/^(oauth|connector):/.test(source))
-      found.source = 'That prefix is reserved to the server';
+    else if (isReservedSource(source)) found.source = 'That prefix is reserved to the server';
+    else if (source.length > SOURCE_MAX_LENGTH)
+      found.source = `A source is at most ${String(SOURCE_MAX_LENGTH)} characters`;
     let reach: KeyReach;
     if (custom) {
-      const read = readReach(values);
+      const read = reachFromForm(values);
       if ('errors' in read) Object.assign(found, read.errors);
       reach = 'reach' in read ? read.reach : {};
+      if (reach.sources?.includes(source)) {
+        found.sources = 'A key writes as its own source already; claim only others';
+      }
     } else {
       reach = presetReach(preset as PresetId, creator);
     }
@@ -276,7 +274,15 @@ export function EditKeyForm({ apiKey, onSaved }: { apiKey: ApiKey; onSaved: () =
     const typed = String(values.label ?? '');
     // A label left as it was stays as stored, surrounding spaces and all.
     const label = typed.trim() === apiKey.label.trim() ? apiKey.label : typed.trim();
-    const read = readReach(values);
+    // Each map's text as the form started it, so one left alone is not sent.
+    const started = Object.fromEntries(
+      MAPS.map((map) => [map.field, formatMap(apiKey[map.field] as Record<string, string>)]),
+    );
+    const read = reachFromForm(values, started);
+    if (!('errors' in read) && read.reach.sources?.includes(apiKey.source)) {
+      setErrors({ sources: 'A key writes as its own source already; claim only others' });
+      return;
+    }
     if (!label || 'errors' in read) {
       setErrors({
         ...('errors' in read ? read.errors : {}),

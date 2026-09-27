@@ -4,7 +4,10 @@ import {
   canManageKeys,
   changedKeyFields,
   formatMap,
+  isReservedSource,
   keyRefusal,
+  mapIsEditable,
+  reachFromForm,
   keySummary,
   narrowToRead,
   parseMap,
@@ -200,10 +203,12 @@ describe('a refused key write', () => {
   });
 
   it('names a permission the minting key lacks on the permissions field', () => {
-    expect(keyRefusal(refusal(403, 'x', { required_scope: 'items.purge' }))).toEqual({
-      field: 'permissions',
-      message: 'This key does not hold items.purge, so it cannot give it to another',
-    });
+    const purge = refusal(
+      403,
+      'This credential does not hold items.purge, so it cannot give a key a permission it does not hold itself.',
+      { required_scope: 'items.purge' },
+    );
+    expect(keyRefusal(purge)).toEqual({ field: 'permissions', message: purge.message });
     expect(keyRefusal(refusal(403, 'x', { required_scope: 'keys.mint' }))).toEqual({
       message: 'The API Key does not hold keys.mint, so it cannot manage keys',
     });
@@ -221,7 +226,133 @@ describe('a refused key write', () => {
       'This credential does not hold *:write, so it cannot give a key reach it does not hold itself.',
       { required_scope: '*:write' },
     );
-    expect(keyRefusal(reach)).toEqual({ message: reach.message });
+    expect(keyRefusal(reach)).toEqual({ field: 'type_permissions', message: reach.message });
+    const edge = refusal(403, 'no edges', { required_scope: 'edge.references:write' });
+    expect(keyRefusal(edge)?.field).toBe('edge_permissions');
+    expect(keyRefusal(refusal(403, 'no namespace', {}))).toEqual({ message: 'no namespace' });
     expect(keyRefusal(new Error('x'))).toBeUndefined();
+  });
+});
+
+describe('what the form reads', () => {
+  it('leaves out a map whose text is as the form started it', () => {
+    const started = { type_permissions: 'core.note=write', edge_permissions: '' };
+    const read = reachFromForm(
+      {
+        type_permissions: 'core.note=write',
+        edge_permissions: 'references=write',
+        sources: '',
+        permissions: [],
+      },
+      started,
+    );
+    expect(read).toEqual({
+      reach: { edge_permissions: { references: 'write' }, sources: [], permissions: [] },
+    });
+  });
+
+  it('sends a map it could not show, never', () => {
+    // A pattern with a trailing space is trimmed by the lines, so a label-only edit would narrow or widen it.
+    expect(mapIsEditable({ 'core.note ': 'read', '*': 'none' }, ['read', 'write', 'none'])).toBe(
+      false,
+    );
+    expect(mapIsEditable({ 'core.note': 'read' }, ['read', 'write', 'none'])).toBe(true);
+    expect(mapIsEditable(undefined, ['read', 'write'])).toBe(true);
+  });
+
+  it('reads lines split either way, trimmed, with the level after the last =', () => {
+    expect(parseMap('a=read\r\n  b = write  ', ['read', 'write'])).toEqual({
+      map: { a: 'read', b: 'write' },
+    });
+    expect(parseMap('a=b=write', ['read', 'write'])).toEqual({ map: { 'a=b': 'write' } });
+    expect(parseMap('=write', ['read', 'write'])).toEqual({
+      error: 'Line 1: expected pattern=level',
+    });
+  });
+
+  it('refuses the server’s prefixes in any case, and an overlong source', () => {
+    expect(parseSources('connector:x')).toEqual({ error: 'connector:x is reserved to the server' });
+    expect(isReservedSource('OAuth:x')).toBe(true);
+    expect(parseSources('x'.repeat(201))).toEqual({ error: 'A source is at most 200 characters' });
+  });
+});
+
+describe('an edit’s changes', () => {
+  const base = {
+    label: 'raycast',
+    default_tier: 'library' as const,
+  };
+
+  it('sends a tier, a claimed source or a permission changed, and one added on the end', () => {
+    expect(changedKeyFields(FULL, { ...base, default_tier: 'feed' })).toEqual({
+      default_tier: 'feed',
+    });
+    expect(changedKeyFields(FULL, { ...base, sources: ['other'] })).toEqual({ sources: ['other'] });
+    expect(
+      changedKeyFields(key({ permissions: ['audit.read'] }), {
+        ...base,
+        permissions: ['audit.read', 'items.purge'],
+      }),
+    ).toEqual({
+      permissions: ['audit.read', 'items.purge'],
+    });
+    expect(
+      changedKeyFields(key({ type_permissions: { a: 'read' } }), {
+        ...base,
+        type_permissions: { a: 'read', b: 'read' },
+      }),
+    ).toEqual({
+      type_permissions: { a: 'read', b: 'read' },
+    });
+    expect(
+      changedKeyFields(key({ type_permissions: { a: 'read', b: 'read' } }), {
+        ...base,
+        type_permissions: { a: 'read' },
+      }),
+    ).toEqual({
+      type_permissions: { a: 'read' },
+    });
+  });
+});
+
+describe('a key in a row, at the edges', () => {
+  it('is Everything only with all seven permissions, every content map at *=write and no denial', () => {
+    expect(keySummary({ ...FULL, permissions: FULL.permissions?.slice(1) })).toBe(
+      'Content and 6 permissions',
+    );
+    expect(
+      keySummary({ ...FULL, type_permissions: { '*': 'write', 'core.secret': 'none' } }),
+    ).not.toBe('Everything');
+    expect(keySummary({ ...FULL, metadata_permissions: { tags: 'write' } })).not.toBe('Everything');
+  });
+
+  it('reads a denial as nothing granted, and only the content maps for its reach', () => {
+    expect(keySummary(key({ type_permissions: { '*': 'none' } }))).toBe('Nothing');
+    expect(keySummary(key({ profile_permissions: { '*': 'write' } }))).toBe('Nothing');
+  });
+});
+
+describe('a refused key write, at the edges', () => {
+  const body = (status: number, details: object) =>
+    new MarfaRequestError(status, { error: { code: 'x', message: 'refused', details } });
+
+  it('reads the field a validation refusal names by its path', () => {
+    expect(keyRefusal(body(400, { errors: [{ path: 'sources.0', message: 'Too long' }] }))).toEqual(
+      {
+        field: 'sources',
+        message: 'Too long',
+      },
+    );
+    expect(
+      keyRefusal(body(400, { errors: [{ path: 'source', message: 'Too long' }] }))?.field,
+    ).toBe('source');
+  });
+
+  it('answers nothing for what it does not know, and reads a scope only on a 403', () => {
+    expect(keyRefusal(body(409, {}))).toBeUndefined();
+    expect(keyRefusal(body(400, { required_scope: 'items.purge' }))).toBeUndefined();
+    expect(keyRefusal(body(403, { required_scope: 'items.purge', source: 'x' }))?.field).toBe(
+      'permissions',
+    );
   });
 });

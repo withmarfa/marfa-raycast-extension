@@ -169,9 +169,58 @@ export function parseSources(text: string): { sources: string[] } | { error: str
         .filter(Boolean),
     ),
   ];
-  const reserved = sources.find((source) => /^(oauth|connector):/.test(source));
+  const reserved = sources.find(isReservedSource);
   if (reserved) return { error: `${reserved} is reserved to the server` };
+  const long = sources.find((source) => source.length > SOURCE_MAX_LENGTH);
+  if (long) return { error: `A source is at most ${String(SOURCE_MAX_LENGTH)} characters` };
   return { sources };
+}
+
+/** The server's bound on a source's length. */
+export const SOURCE_MAX_LENGTH = 200;
+
+/** The prefixes the server keeps for its own sources, whatever their case. */
+export function isReservedSource(source: string): boolean {
+  return /^(oauth|connector):/i.test(source);
+}
+
+/**
+ * Whether the form can show a map as lines and read back exactly the map
+ * stored. One that cannot, such as a pattern with surrounding spaces, is shown
+ * read-only and never sent, so an edit cannot rewrite it unasked.
+ */
+export function mapIsEditable(map: Map | undefined, levels: readonly string[]): boolean {
+  const read = parseMap(formatMap(map), levels);
+  return (
+    'map' in read &&
+    sameMap(read.map, map ?? {}) &&
+    Object.keys(map ?? {}).every((key) => key !== '' && !/\n/.test(key))
+  );
+}
+
+/**
+ * The reach a create or edit form holds, or what is wrong with it. A map
+ * whose text is as the form started it is left out, so an edit sends only
+ * what the person changed; so is a map the form showed read-only.
+ */
+export function reachFromForm(
+  values: Record<string, unknown>,
+  started: Partial<Record<MapField, string>> = {},
+): { reach: KeyReach } | { errors: Partial<Record<string, string>> } {
+  const errors: Partial<Record<string, string>> = {};
+  const reach: KeyReach = {};
+  for (const map of MAPS) {
+    const text = values[map.field];
+    if (typeof text !== 'string' || text === started[map.field]) continue;
+    const parsed = parseMap(text, map.levels);
+    if ('error' in parsed) errors[map.field] = parsed.error;
+    else reach[map.field] = parsed.map;
+  }
+  const sources = parseSources(String(values.sources ?? ''));
+  if ('error' in sources) errors.sources = sources.error;
+  else reach.sources = sources.sources;
+  reach.permissions = (Array.isArray(values.permissions) ? values.permissions : []) as Permission[];
+  return Object.keys(errors).length > 0 ? { errors } : { reach };
 }
 
 function sameSet(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
@@ -215,27 +264,45 @@ export function changedKeyFields(
 export function keySummary(key: ApiKey): string {
   if (key.is_operator) return 'Operator';
   const permissions = key.permissions ?? [];
-  const maps = MAPS.map((map) => Object.values((key[map.field] as Map | undefined) ?? {}));
-  const content = CONTENT_MAPS.map((field) => key[field] as Map | undefined);
-  const levels = maps.flat();
-  if (permissions.length === PERMISSIONS.length && content.every((map) => map?.['*'] === 'write')) {
+  const content = CONTENT_MAPS.map((field) => (key[field] as Map | undefined) ?? {});
+  const granted = content.flatMap((map) => Object.values(map)).filter((level) => level !== 'none');
+  const denies = content.some((map) => Object.values(map).includes('none'));
+  if (
+    permissions.length === PERMISSIONS.length &&
+    !denies &&
+    content.every((map) => map['*'] === 'write')
+  ) {
     return 'Everything';
   }
-  const reach = levels.length === 0 ? '' : levels.includes('write') ? 'Content' : 'Read only';
+  const reach = granted.length === 0 ? '' : granted.includes('write') ? 'Content' : 'Read only';
   if (permissions.length === 0) return reach || 'Nothing';
   const held =
     permissions.length === 1 ? permissions[0] : `${String(permissions.length)} permissions`;
   return reach ? `${reach} and ${held}` : held;
 }
 
+/** Which map a reach refusal is about, from its scope: `*:write` names a type, `edge.x:write` an edge. */
+function mapOfScope(scope: string): MapField | undefined {
+  if (!scope.includes(':')) return undefined;
+  if (scope.startsWith('edge')) return 'edge_permissions';
+  if (scope.startsWith('metadata')) return 'metadata_permissions';
+  if (scope.startsWith('profile')) return 'profile_permissions';
+  if (scope.startsWith('extension')) return 'extension_permissions';
+  return 'type_permissions';
+}
+
+export type KeyRefusalField = 'source' | 'sources' | 'permissions' | MapField;
+
 /**
- * A refused key write in the person's terms, and the form field it is about
- * where there is one: a source another key owns, or a reach this key lacks.
+ * A refused key write in the server's own words, and the form field it is
+ * about where there is one: a source taken or claimed elsewhere, a claim or a
+ * permission or a reach the writing key cannot grant, or a value the server's
+ * validation refused.
  */
 export function keyRefusal(
   error: unknown,
   submittedSource?: string,
-): { field?: 'source' | 'sources' | 'permissions'; message: string } | undefined {
+): { field?: KeyRefusalField; message: string } | undefined {
   if (!(error instanceof MarfaRequestError)) return undefined;
   const details =
     (error.body as { error?: { details?: Record<string, unknown> } } | undefined)?.error?.details ??
@@ -246,29 +313,38 @@ export function keyRefusal(
       message: `${details.source} is already another key’s source; choose another`,
     };
   }
-  // A source the caller cannot grant, or one another key already claims as its own.
-  if (
-    error.status === 403 &&
-    typeof details.source === 'string' &&
-    details.required_scope === undefined
-  ) {
-    return {
-      field: details.source === submittedSource ? 'source' : 'sources',
-      message: error.message,
-    };
-  }
-  if (error.status === 403 && typeof details.required_scope === 'string') {
-    const scope = details.required_scope;
-    if (scope === 'keys.mint')
+  if (error.status === 403) {
+    if (details.required_scope === 'keys.mint') {
       return { message: 'The API Key does not hold keys.mint, so it cannot manage keys' };
-    if (PERMISSIONS.some((permission) => permission.name === scope)) {
+    }
+    if (typeof details.required_scope === 'string') {
+      const scope = details.required_scope;
+      const field = PERMISSIONS.some((permission) => permission.name === scope)
+        ? 'permissions'
+        : mapOfScope(scope);
+      return { field, message: error.message };
+    }
+    if (typeof details.source === 'string') {
       return {
-        field: 'permissions',
-        message: `This key does not hold ${scope}, so it cannot give it to another`,
+        field: details.source === submittedSource ? 'source' : 'sources',
+        message: error.message,
       };
     }
-    // A reach such as `*:write`, which the server's own message explains.
     return { message: error.message };
   }
+  if (error.status === 400 && Array.isArray(details.errors)) {
+    for (const entry of details.errors as {
+      path?: unknown;
+      field?: unknown;
+      message?: unknown;
+    }[]) {
+      const at = String(entry.path ?? entry.field ?? '');
+      const message = typeof entry.message === 'string' ? entry.message : error.message;
+      if (at === 'source') return { field: 'source', message };
+      if (at.startsWith('sources')) return { field: 'sources', message };
+    }
+  }
+  if (error.status === 400 && /source/i.test(error.message))
+    return { field: 'source', message: error.message };
   return undefined;
 }
