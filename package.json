@@ -35,6 +35,25 @@
       "subtitle": "Marfa",
       "description": "Capture the clipboard's text as a note, or a link as a bookmark",
       "mode": "no-view"
+    },
+    {
+      "name": "status",
+      "title": "Status",
+      "subtitle": "Marfa",
+      "description": "Check the server, its contract and the API key",
+      "mode": "view"
+    }
+  ],
+  "tools": [
+    {
+      "name": "search-items",
+      "title": "Search Items",
+      "description": "Full-text search across the person's Marfa items, returning each item's name, text and tags."
+    },
+    {
+      "name": "capture-note",
+      "title": "Capture Note",
+      "description": "Save a note to the person's Marfa library."
     }
   ],
   "preferences": [

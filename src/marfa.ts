@@ -196,3 +196,22 @@ export async function removeTag(id: string, tag: string): Promise<void> {
 export async function listTypes(): Promise<TypeDefinition[]> {
   return rows(await answer(marfa().GET('/types')));
 }
+
+/** The Server URL as the preferences hold it, for showing, not for sending. */
+export function serverUrl(): string {
+  return getPreferenceValues<Preferences>().apiUrl.trim();
+}
+
+/** The server's own description, which needs no key. */
+export async function getInstance() {
+  return answer(marfa().GET('/'));
+}
+
+/**
+ * Whether the key is accepted, by the cheapest read it must be allowed: one
+ * row of the item list. A key holding no read at all is refused `403` here,
+ * which says as much about it as a `401` does.
+ */
+export async function checkKey(): Promise<void> {
+  await answer(marfa().GET('/items', { params: { query: { limit: 1 } } }));
+}

@@ -1,0 +1,50 @@
+# Instructions and evals for the AI tools. Kept beside package.json rather than
+# inside it, because both grow and a manifest is not where prose belongs.
+
+instructions: |
+  Marfa is the person's own store of notes, bookmarks, tasks and whatever else
+  their apps keep there. Every item has a type, a name, some text and tags.
+
+  Use search-items when the person describes something they saved. Search
+  words, not a query language, and name a type only when they named a kind of
+  item. Answer from the rows returned; each already carries its text.
+
+  Use capture-note to save a note. Write it in the person's words, with a first
+  line that names it, since every app titles a note by its first line. Add tags
+  only when they asked for them.
+
+  If a tool fails because the server or the key is not set up, say what the
+  error says to change, rather than retrying.
+
+evals:
+  - input: '@marfa find the note about the canal walk'
+    mocks:
+      search-items:
+        - id: itm_1
+          type: core.note
+          kind: Note
+          title: Canal walk
+          text: 'Sunday, from the lock to the boathouse.'
+          tags: ['walks']
+          updatedAt: '2026-09-27T10:00:00.000Z'
+    expected:
+      - callsTool:
+          name: search-items
+          arguments:
+            # `includes`, because a model may search for any of several phrasings
+            # and an eval that pins one measures the wording.
+            query:
+              includes: 'canal'
+
+  - input: '@marfa save a note saying the runner pool is fixed, tagged ops'
+    mocks:
+      capture-note:
+        id: itm_2
+        title: The runner pool is fixed
+        tags: ['ops']
+    expected:
+      - callsTool:
+          name: capture-note
+          arguments:
+            body:
+              includes: 'runner pool'
