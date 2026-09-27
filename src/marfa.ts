@@ -1,6 +1,6 @@
 import { getPreferenceValues } from '@raycast/api';
 import { createClient, type components, type MarfaClient } from '@withmarfa/client';
-import { MarfaRequestError } from './failure';
+import { MarfaRequestError, SetupError } from './failure';
 
 /**
  * The one door to the server: the generated client, and the calls this
@@ -38,13 +38,23 @@ export function marfa(): MarfaClient {
   const url = apiUrl.trim();
   const key = apiKey.trim();
   if (cached?.url !== url || cached.key !== key) {
-    cached = { url, key, client: createClient({ baseUrl: url, credential: key }) };
+    // Checked here rather than left to the request: a key no header can carry
+    // fails inside fetch with a message that quotes the header, key and all.
+    if (!/^[\x21-\x7E]+$/.test(key)) {
+      throw new SetupError(
+        'The API Key holds a character no key has. Copy it again and paste it into the extension preferences.',
+      );
+    }
+    let client: MarfaClient;
+    try {
+      client = createClient({ baseUrl: url, credential: key });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new SetupError(`The Server URL is not usable: ${reason}.`);
+    }
+    cached = { url, key, client };
   }
   return cached.client;
-}
-
-export function serverUrl(): string {
-  return getPreferenceValues<Preferences>().apiUrl.trim();
 }
 
 async function answer<T>(
@@ -56,15 +66,24 @@ async function answer<T>(
   return data;
 }
 
+function unexpected(what: string): MarfaRequestError {
+  return new MarfaRequestError(200, {
+    error: { code: 'unexpected_shape', message: `The server answered without ${what}.` },
+  });
+}
+
+function rows<T>(page: { data?: T[] }): T[] {
+  if (!Array.isArray(page.data)) throw unexpected('a list of items');
+  return page.data;
+}
+
 /**
  * The list door answers a bare item unless metadata is asked for, and this
  * extension always asks, so a bare row here means the server changed shape.
  */
 function asEntry(row: Item | Entry): Entry {
-  if ('item' in row) return row;
-  throw new MarfaRequestError(200, {
-    error: { code: 'unexpected_shape', message: 'The server listed an item without its tags.' },
-  });
+  if (typeof row === 'object' && row !== null && 'item' in row && 'metadata' in row) return row;
+  throw unexpected("an item's tags");
 }
 
 export async function listItems(options: {
@@ -88,7 +107,7 @@ export async function listItems(options: {
       },
     }),
   );
-  return { entries: page.data.map(asEntry), cursor: page.next_cursor };
+  return { entries: rows(page).map(asEntry), cursor: page.next_cursor ?? null };
 }
 
 export async function searchItems(options: {
@@ -110,12 +129,11 @@ export async function searchItems(options: {
       },
     }),
   );
-  return page.data.map(({ item, metadata }) => ({ item, metadata }));
+  return rows(page).map(asEntry);
 }
 
 export async function getItem(id: string): Promise<Entry> {
-  const detail = await answer(marfa().GET('/items/{id}', { params: { path: { id } } }));
-  return { item: detail.item, metadata: detail.metadata };
+  return asEntry(await answer(marfa().GET('/items/{id}', { params: { path: { id } } })));
 }
 
 export async function createItem(input: {
@@ -133,7 +151,7 @@ export async function createItem(input: {
       },
     }),
   );
-  return { item: created.item, metadata: created.metadata };
+  return asEntry(created);
 }
 
 /**
@@ -155,11 +173,7 @@ export async function updateItem(input: {
       body: { version: input.version, properties: input.properties },
     }),
   );
-  return {
-    item: updated.item,
-    metadata: updated.metadata,
-    resolution: updated.conflict_resolution,
-  };
+  return { ...asEntry(updated), resolution: updated.conflict_resolution };
 }
 
 export async function trashItem(id: string): Promise<void> {
@@ -180,5 +194,5 @@ export async function removeTag(id: string, tag: string): Promise<void> {
 
 /** The whole registry: the door answers every type at once, its cursor always null. */
 export async function listTypes(): Promise<TypeDefinition[]> {
-  return (await answer(marfa().GET('/types'))).data;
+  return rows(await answer(marfa().GET('/types')));
 }

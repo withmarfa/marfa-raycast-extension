@@ -29,7 +29,12 @@ export function EditNoteForm({ id, onSaved }: { id: string; onSaved: () => void 
     isLoading,
     revalidate,
   } = usePromise(async (itemId: string) => (await getItem(itemId)).item, [id], {
-    onError: (error) => void showFailure(error, 'Loading the note'),
+    // Nothing on an empty form can be saved, so a note that cannot be read
+    // closes the form rather than leaving a Save that does nothing.
+    onError: (error) => {
+      void showFailure(error, 'Opening the note');
+      pop();
+    },
   });
   const [collision, setCollision] = useState<{ mine: string; theirs: string } | undefined>();
 
@@ -110,9 +115,10 @@ function bodyText(properties: Record<string, unknown>): string {
 }
 
 /**
- * A collision the server could not settle. Nothing is merged here: the person
- * sees both texts, keeps theirs on the clipboard if they want it, and edits the
- * current version.
+ * An edit the server could not merge: a collision no merge policy settles, or
+ * one based on a version the server no longer keeps. Nothing is merged here:
+ * the person sees both texts, keeps theirs on the clipboard if they want it,
+ * and edits the current version.
  */
 function CollisionView({
   mine,
@@ -125,7 +131,7 @@ function CollisionView({
 }) {
   const markdown = [
     '## Changed elsewhere',
-    'Someone changed this note after you opened it, and the two edits collide. Your edit was not saved.',
+    'Someone changed this note after you opened it, and the server could not merge your edit into theirs. Your edit was not saved.',
     '### Now on the server',
     theirs || '_(empty)_',
     '---',

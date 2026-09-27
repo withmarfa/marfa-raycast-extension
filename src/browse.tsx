@@ -29,9 +29,9 @@ export default function Browse() {
   const [state, setState] = useState<StateFilter>('active');
   const [showingDetail, setShowingDetail] = useCachedState('browse-show-detail', true);
 
-  const types = useCachedPromise(listTypes, [], {
-    failureToastOptions: { title: 'Loading types failed' },
-  });
+  // Silent on failure: whatever stops the registry stops the listing too,
+  // which says so, and without it types read by their identifiers.
+  const types = useCachedPromise(listTypes, [], { onError: () => undefined });
   const registry = buildRegistry(types.data);
 
   const listing = useCachedPromise(

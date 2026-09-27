@@ -1,6 +1,12 @@
 import { ContractMismatchError } from '@withmarfa/client';
 import { describe, expect, it } from 'vitest';
-import { conflictCurrent, describeFailure, MarfaRequestError, SETUP_KINDS } from '../src/failure';
+import {
+  conflictCurrent,
+  describeFailure,
+  MarfaRequestError,
+  SETUP_KINDS,
+  SetupError,
+} from '../src/failure';
 
 function refusal(status: number, code: string, message = 'refused', extra: object = {}) {
   return new MarfaRequestError(status, { error: { code, message }, ...extra });
@@ -33,16 +39,44 @@ describe('a failure is sorted by what the person can do about it', () => {
     });
   });
 
-  it('an unreachable server and an unusable URL are told apart', () => {
-    const unreachable = new TypeError('fetch failed', { cause: new Error('ECONNREFUSED') });
+  it('an unreachable server, a redirect and unusable preferences are told apart', () => {
+    const unreachable = new TypeError('fetch failed', { cause: new Error('connect ECONNREFUSED') });
     expect(describeFailure(unreachable).kind).toBe('unreachable');
-    expect(describeFailure(new TypeError('Invalid URL')).kind).toBe('setup');
+    const redirect = new TypeError('fetch failed', { cause: new Error('unexpected redirect') });
+    expect(describeFailure(redirect)).toMatchObject({
+      kind: 'setup',
+      title: 'The Server URL redirects',
+    });
+    expect(describeFailure(new SetupError('The Server URL is not usable: Invalid URL.')).kind).toBe(
+      'setup',
+    );
+  });
+
+  it('a TypeError from anywhere else is not blamed on the preferences', () => {
+    const failure = describeFailure(
+      new TypeError("Cannot read properties of undefined (reading 'map')"),
+    );
+    expect(failure.kind).toBe('refused');
+    expect(failure.title).toBe('Something went wrong');
+  });
+
+  it('a note gone from under an edit is told apart from a wrong address', () => {
+    expect(describeFailure(refusal(404, 'item_not_found', 'Item x not found')).kind).toBe('gone');
+    expect(describeFailure(refusal(404, 'not_found', 'Not found')).kind).toBe('setup');
+    expect(describeFailure(new MarfaRequestError(404, '<html>404</html>')).kind).toBe('setup');
+  });
+
+  it('a proxy failing in front of the server says so, not that the server refused', () => {
+    const failure = describeFailure(new MarfaRequestError(502, '<html>Bad gateway</html>'));
+    expect(failure.title).toBe('The server failed');
+    expect(failure.message).toContain('502');
+    expect(describeFailure(refusal(500, 'internal_error', 'Boom')).message).toBe('Boom');
   });
 
   it('a body without the envelope still gives a message', () => {
-    const odd = new MarfaRequestError(502, '<html>Bad gateway</html>');
+    const odd = new MarfaRequestError(418, '<html>Teapot</html>');
     expect(odd.code).toBe('unknown');
-    expect(describeFailure(odd).message).toBe('The server answered 502.');
+    expect(describeFailure(odd).message).toBe('The server answered 418.');
   });
 
   it('only failures that stop everything own the screen', () => {
@@ -51,11 +85,14 @@ describe('a failure is sorted by what the person can do about it', () => {
 });
 
 describe('a collision shows what is on the server now', () => {
-  it('reads the current snapshot from a version conflict', () => {
-    const error = refusal(409, 'version_conflict', 'stale', {
-      current: { id: 'i1', version: 5, properties: { body: 'cli body' } },
-    });
-    expect(conflictCurrent(error)).toEqual({ version: 5, properties: { body: 'cli body' } });
+  it('reads the current snapshot from a collision and from a base the server no longer keeps', () => {
+    for (const code of ['version_conflict', 'ancestor_unavailable']) {
+      const error = refusal(409, code, 'stale', {
+        current: { id: 'i1', version: 5, properties: { body: 'cli body' } },
+      });
+      expect(conflictCurrent(error)).toEqual({ version: 5, properties: { body: 'cli body' } });
+      expect(describeFailure(error).kind).toBe('conflict');
+    }
   });
 
   it('reads nothing from any other failure', () => {

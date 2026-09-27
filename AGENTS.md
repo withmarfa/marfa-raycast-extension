@@ -23,7 +23,7 @@ Two gotchas are baked into the config and each fails quietly without them.
 **The extension speaks to a Marfa server over HTTP through `@withmarfa/client`**, the TypeScript client generated from the server's API document. There is no local copy and no sync: every command reads and writes the server directly, so it needs the server to be reachable. `src/marfa.ts` is the one door to it; every call there returns what the server answered or throws, so a view never reads an error out of a successful value.
 
 - **The contract integer is the client's to check.** A server speaking another contract makes every call throw `ContractMismatchError`, which the views show as a screen naming both numbers. Nothing here names a contract number.
-- **The server merges; the extension does not.** An edit sends only the properties the person changed, against the version the form loaded, with `conflict=auto`. A stale edit that collides on nothing lands. A collision the type's merge policy settles lands too: a note's body keeps both copies, so the other side's text stays and this edit becomes a conflicted copy, which the save reports. A collision nothing settles is refused `409`, and the editor shows both texts and saves nothing.
+- **The server merges; the extension does not.** An edit sends only the properties the person changed, against the version the form loaded, with `conflict=auto`. A stale edit that collides on nothing lands. A collision the type's merge policy settles lands too: a note's body keeps both copies, so the other side's text stays and this edit becomes a conflicted copy, which the save reports. An edit the server cannot merge is refused `409`: a collision no policy settles, or an edit based on a version the server no longer keeps (`ancestor_unavailable`, after thinning). Both carry the server's current copy, and the editor shows it beside the person's text and saves nothing.
 - **A trashed item answers `404` by id**, by design, so anything shown for a trashed item comes from the list row.
 - **Source is server-stamped** from the key, never set by the client, so everything captured here carries the key's own source.
 
@@ -48,7 +48,7 @@ marfa keys create --label raycast --source raycast \
 
 **Types come from the server's registry**, walked through `parent`, so a type declared beneath the note lists and edits as a note, and an instance's own types show their own labels. The only type identifiers named here are the two capture writes, `core.note` and `core.bookmark`.
 
-**A failure that stops everything owns the screen**: another contract, an unusable URL, an unreachable server and a refused key each replace the list with what to change, and a way to the preferences. Anything else is a toast over what is already there.
+**A failure that stops everything owns the screen**: another contract, an unusable URL or key, a URL that redirects or is not a Marfa server, an unreachable server and a refused key each replace the list with what to change, and a way to the preferences. Anything else is a toast over what is already there. `src/marfa.ts` checks the URL and the key before the client sees them, because a key no header can carry fails inside fetch with a message that quotes it.
 
 ## Testing
 
