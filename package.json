@@ -19,7 +19,7 @@
       "name": "browse",
       "title": "Browse",
       "subtitle": "Marfa",
-      "description": "Browse and search your Marfa items, and edit, tag, trash or restore them",
+      "description": "Browse and search your Marfa items; open, edit, tag, archive, reply to, annotate, trash or delete them",
       "mode": "view"
     },
     {
@@ -63,6 +63,11 @@
       "name": "search-items",
       "title": "Search Items",
       "description": "Full-text search across the person's Marfa items, returning each item's name, text and tags."
+    },
+    {
+      "name": "list-items",
+      "title": "List Items",
+      "description": "The person's most recently changed Marfa items, newest first, narrowed by type, state or tier."
     },
     {
       "name": "capture-item",

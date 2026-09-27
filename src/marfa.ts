@@ -29,7 +29,9 @@ export interface Page {
   cursor: string | null;
 }
 
-export type StateFilter = 'active' | 'archived' | 'trashed';
+/** `any` is the server's own word for every state at once. */
+export type StateFilter = 'active' | 'archived' | 'trashed' | 'any';
+export type TierFilter = 'all' | 'library' | 'feed';
 
 let cached: { url: string; key: string; client: MarfaClient } | undefined;
 
@@ -89,7 +91,9 @@ function asEntry(row: Item | Entry): Entry {
 export async function listItems(options: {
   type?: string;
   state: StateFilter;
+  tier?: TierFilter;
   cursor?: string;
+  limit?: number;
 }): Promise<Page> {
   const page = await answer(
     marfa().GET('/items', {
@@ -97,11 +101,11 @@ export async function listItems(options: {
         query: {
           type: options.type,
           state: options.state,
-          tier: 'all',
+          tier: options.tier ?? 'all',
           sort: 'updated_at',
           direction: 'desc',
           include: 'metadata',
-          limit: 50,
+          limit: options.limit ?? 50,
           cursor: options.cursor,
         },
       },
@@ -114,6 +118,7 @@ export async function searchItems(options: {
   query: string;
   type?: string;
   state: StateFilter;
+  tier?: TierFilter;
   limit?: number;
 }): Promise<Entry[]> {
   const page = await answer(
@@ -123,7 +128,7 @@ export async function searchItems(options: {
           q: options.query,
           type: options.type,
           state: options.state,
-          tier: 'all',
+          tier: options.tier ?? 'all',
           limit: options.limit ?? 50,
         },
       },
@@ -148,6 +153,8 @@ export async function createItem(input: {
   properties: Record<string, unknown>;
   tags: string[];
   tier?: Tier;
+  /** Edges the new item draws, by edge type, to the ids named: a reply's thread, an annotation's reference. */
+  edges?: Record<string, string[]>;
 }): Promise<Entry> {
   const created = await answer(
     marfa().POST('/items', {
@@ -156,6 +163,7 @@ export async function createItem(input: {
         properties: input.properties,
         tags: input.tags,
         tier: input.tier ?? captureTier(),
+        edges: input.edges,
       },
     }),
   );
@@ -174,11 +182,21 @@ export async function updateItem(input: {
   id: string;
   version: number;
   properties: Record<string, unknown>;
+  /**
+   * `replace` sends the item's whole properties, which is the only way to
+   * clear an optional field: a null under a merge is dropped. The server still
+   * merges a stale replace field by field against the version read.
+   */
+  mode?: 'merge' | 'replace';
 }): Promise<Entry & { resolution?: ConflictResolution }> {
   const updated = await answer(
     marfa().PATCH('/items/{id}', {
       params: { path: { id: input.id }, query: { conflict: 'auto' } },
-      body: { version: input.version, properties: input.properties },
+      body: {
+        version: input.version,
+        properties: input.properties,
+        properties_mode: input.mode ?? 'merge',
+      },
     }),
   );
   return { ...asEntry(updated), resolution: updated.conflict_resolution };
@@ -190,6 +208,93 @@ export async function trashItem(id: string): Promise<void> {
 
 export async function restoreItem(id: string): Promise<void> {
   await answer(marfa().POST('/items/{id}/restore', { params: { path: { id } } }));
+}
+
+/** Between active and archived; the Trash has its own doors. */
+export async function transitionItem(id: string, state: 'active' | 'archived'): Promise<void> {
+  await answer(
+    marfa().POST('/items/{id}/transition', { params: { path: { id } }, body: { state } }),
+  );
+}
+
+/** Deletes a trashed item for good. Needs `items.purge`. */
+export async function purgeItem(id: string): Promise<void> {
+  await answer(marfa().DELETE('/items/{id}/purge', { params: { path: { id } } }));
+}
+
+const EMPTY_TRASH = { action: 'purge', confirm: 'PURGE', filter: { state: 'trashed' } } as const;
+
+/** How many items emptying the Trash would delete, from a dry run that deletes nothing. */
+export async function countTrash(): Promise<number> {
+  const result = await answer(
+    marfa().POST('/items/bulk-actions', { body: { ...EMPTY_TRASH, dry_run: true } }),
+  );
+  if (!('matched' in result) || typeof result.matched !== 'number') {
+    throw unexpected('a count of the Trash');
+  }
+  return result.matched;
+}
+
+export type BulkJob = components['schemas']['BulkActionJob'];
+
+/** Starts emptying the Trash. The server answers a job, which `bulkJob` follows. */
+export async function emptyTrash(): Promise<BulkJob> {
+  const job = await answer(marfa().POST('/items/bulk-actions', { body: EMPTY_TRASH }));
+  if (!('status' in job)) throw unexpected('a job for emptying the Trash');
+  return job;
+}
+
+export async function bulkJob(id: string): Promise<BulkJob> {
+  return answer(marfa().GET('/items/bulk-actions/jobs/{id}', { params: { path: { id } } }));
+}
+
+export type Edge = components['schemas']['Edge'];
+
+/** An item's outbound edges, and its inbound ones: one page each, the most a view shows. */
+export async function listEdges(id: string): Promise<{ outbound: Edge[]; inbound: Edge[] }> {
+  const [outbound, inbound] = await Promise.all([
+    answer(marfa().GET('/items/{id}/edges', { params: { path: { id }, query: { limit: 100 } } })),
+    answer(
+      marfa().GET('/items/{id}/backrefs', { params: { path: { id }, query: { limit: 100 } } }),
+    ),
+  ]);
+  return { outbound: rows(outbound), inbound: rows(inbound) };
+}
+
+/**
+ * Items by id, in batches of the door's hundred. An id that does not resolve,
+ * a trashed one included, is left out rather than refused.
+ */
+export async function getMany(ids: readonly string[]): Promise<Item[]> {
+  const items: Item[] = [];
+  for (let start = 0; start < ids.length; start += 100) {
+    const batch = await answer(
+      marfa().POST('/items/bulk-get', { body: { ids: ids.slice(start, start + 100) } }),
+    );
+    if (!Array.isArray(batch.items)) throw unexpected('a list of items');
+    items.push(...batch.items.map((row) => ('item' in row ? row.item : row) as Item));
+  }
+  return items;
+}
+
+export type ItemVersion = {
+  id: string;
+  version: number;
+  properties: Record<string, unknown>;
+  created_at: string;
+};
+
+/** The versions the server keeps of an item, before its current one. */
+export async function listVersions(id: string): Promise<ItemVersion[]> {
+  const page = await answer(marfa().GET('/items/{id}/versions', { params: { path: { id } } }));
+  return rows(page as { data?: ItemVersion[] });
+}
+
+/** A blob's bytes. */
+export async function downloadBlob(hash: string): Promise<ArrayBuffer> {
+  return answer(
+    marfa().GET('/blobs/{hash}', { params: { path: { hash } }, parseAs: 'arrayBuffer' }),
+  ) as Promise<ArrayBuffer>;
 }
 
 export async function addTags(id: string, tags: string[]): Promise<void> {

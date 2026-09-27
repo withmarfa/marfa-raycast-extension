@@ -9,6 +9,9 @@ instructions: |
   words, not a query language, and name a type only when they named a kind of
   item. Answer from the rows returned; each already carries its text.
 
+  Use list-items when there are no words to search for: what they saved
+  lately, their tasks, what is in the feed or the Trash.
+
   Use capture-item to save anything. A note is type core.note with one
   property, body, in the person's words and in markdown, its first line naming
   it, since every app titles a note by its first line. For any other kind of
@@ -40,6 +43,24 @@ evals:
             # and an eval that pins one measures the wording.
             query:
               includes: 'canal'
+
+  - input: '@marfa what tasks did I add most recently?'
+    mocks:
+      list-items:
+        - id: itm_4
+          type: core.task
+          kind: Task
+          title: Renew the passport
+          text: ''
+          state: active
+          tier: library
+          tags: []
+          updatedAt: '2026-09-27T10:00:00.000Z'
+    expected:
+      - callsTool:
+          name: list-items
+          arguments:
+            type: core.task
 
   - input: '@marfa save a note saying the runner pool is fixed, tagged ops'
     mocks:

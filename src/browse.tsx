@@ -1,65 +1,104 @@
-import { Action, ActionPanel, Icon, Keyboard, List } from '@raycast/api';
+import {
+  Action,
+  ActionPanel,
+  Alert,
+  confirmAlert,
+  Icon,
+  Keyboard,
+  List,
+  showToast,
+  Toast,
+} from '@raycast/api';
 import { useCachedPromise, useCachedState } from '@raycast/utils';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { useEffect, useState } from 'react';
+import { describeJob, followJob } from './bulk-job';
 import { EntryListItem } from './components/EntryListItem';
 import { FailureEmptyView } from './components/FailureEmptyView';
-import { buildRegistry, NOTE_TYPE } from './display';
+import { groupByDay } from './dates';
+import { NOTE_TYPE } from './display';
 import { showFailure } from './feedback';
-import { listItems, listTypes, searchItems, type StateFilter } from './marfa';
+import {
+  bulkJob,
+  countTrash,
+  emptyTrash,
+  type Entry,
+  listItems,
+  searchItems,
+  type StateFilter,
+  type TierFilter,
+} from './marfa';
+import { useRegistry } from './use-registry';
 
 const STATES: Array<{ value: StateFilter; title: string }> = [
   { value: 'active', title: 'Active' },
   { value: 'archived', title: 'Archived' },
   { value: 'trashed', title: 'Trash' },
+  { value: 'any', title: 'All States' },
+];
+
+const TIERS: Array<{ value: TierFilter; title: string }> = [
+  { value: 'all', title: 'All Tiers' },
+  { value: 'library', title: 'Library' },
+  { value: 'feed', title: 'Feed' },
 ];
 
 const ALL_TYPES = '';
 
 /**
- * Every item, newest change first, and full-text search on the same bar.
+ * Every item, newest change first under the day it changed, and full-text
+ * search on the same bar.
  *
  * An empty bar walks the list page by page; typing hands the text to the
  * server's search, which reaches past the loaded pages, except in the Trash,
- * which the search index leaves out. The list is read again
- * on every open, so a change made in another app shows the next time Browse is
- * opened, or at once with Refresh.
+ * which the search index leaves out. The list is read again on every open, so
+ * a change made in another app shows the next time Browse is opened, or at
+ * once with Refresh.
  */
 export default function Browse() {
   const [query, setQuery] = useState('');
   const [type, setType] = useCachedState('browse-type', NOTE_TYPE);
   const [state, setState] = useState<StateFilter>('active');
+  const [tier, setTier] = useCachedState<TierFilter>('browse-tier', 'all');
   const [showingDetail, setShowingDetail] = useCachedState('browse-show-detail', true);
 
   // Silent on failure: whatever stops the registry stops the listing too,
   // which says so, and without it types read by their identifiers.
-  const types = useCachedPromise(listTypes, [], { onError: () => undefined });
-  const registry = buildRegistry(types.data);
+  const types = useRegistry();
+  const registry = types.registry;
 
   // The server's search index leaves out the Trash, so in the Trash typed text
   // filters the loaded rows instead of asking the server.
   const searching = query !== '' && state !== 'trashed';
 
   const listing = useCachedPromise(
-    (typeFilter: string, stateFilter: StateFilter) => async (options: { cursor?: string }) => {
-      const page = await listItems({
-        type: typeFilter || undefined,
-        state: stateFilter,
-        cursor: options.cursor,
-      });
-      return {
-        data: page.entries,
-        hasMore: page.cursor !== null,
-        cursor: page.cursor ?? undefined,
-      };
-    },
-    [type, state],
+    (typeFilter: string, stateFilter: StateFilter, tierFilter: TierFilter) =>
+      async (options: { cursor?: string }) => {
+        const page = await listItems({
+          type: typeFilter || undefined,
+          state: stateFilter,
+          tier: tierFilter,
+          cursor: options.cursor,
+        });
+        return {
+          data: page.entries,
+          hasMore: page.cursor !== null,
+          cursor: page.cursor ?? undefined,
+        };
+      },
+    [type, state, tier],
     { execute: !searching, keepPreviousData: true, onError: () => undefined },
   );
 
   const search = useCachedPromise(
-    (q: string, typeFilter: string, stateFilter: StateFilter) =>
-      searchItems({ query: q, type: typeFilter || undefined, state: stateFilter }),
-    [query, type, state],
+    (q: string, typeFilter: string, stateFilter: StateFilter, tierFilter: TierFilter) =>
+      searchItems({
+        query: q,
+        type: typeFilter || undefined,
+        state: stateFilter,
+        tier: tierFilter,
+      }),
+    [query, type, state, tier],
     { execute: searching, keepPreviousData: true, onError: () => undefined },
   );
 
@@ -76,6 +115,39 @@ export default function Browse() {
     active.revalidate();
     types.revalidate();
   };
+
+  async function emptyTheTrash() {
+    let count: number;
+    try {
+      count = await countTrash();
+    } catch (error) {
+      await showFailure(error, 'Counting the Trash');
+      return;
+    }
+    if (count === 0) {
+      await showToast({ style: Toast.Style.Success, title: 'The Trash is already empty' });
+      refresh();
+      return;
+    }
+    const confirmed = await confirmAlert({
+      title: 'Empty the Trash?',
+      message: `${count === 1 ? 'The 1 item' : `All ${String(count)} items`} in the Trash, in every app and not only those listed here, will be deleted for good. This cannot be undone.`,
+      primaryAction: { title: 'Empty Trash', style: Alert.ActionStyle.Destructive },
+    });
+    if (!confirmed) return;
+    const toast = await showToast({ style: Toast.Style.Animated, title: 'Emptying the Trash' });
+    try {
+      const job = await followJob(await emptyTrash(), bulkJob, (ms) => sleep(ms));
+      const result = describeJob(job);
+      toast.style = result.ok ? Toast.Style.Success : Toast.Style.Failure;
+      toast.title = result.title;
+      toast.message = result.message;
+      refresh();
+    } catch (error) {
+      await toast.hide();
+      await showFailure(error, 'Emptying the Trash');
+    }
+  }
 
   const listActions = (
     <ActionPanel.Section title="List">
@@ -105,12 +177,53 @@ export default function Browse() {
           />
         ))}
       </ActionPanel.Submenu>
+      <ActionPanel.Submenu
+        title="Show Tier"
+        icon={Icon.Layers}
+        shortcut={{ modifiers: ['cmd', 'shift'], key: 'l' }}
+      >
+        {TIERS.map((option) => (
+          <Action
+            key={option.value}
+            title={option.title}
+            icon={option.value === tier ? Icon.Checkmark : undefined}
+            onAction={() => setTier(option.value)}
+          />
+        ))}
+      </ActionPanel.Submenu>
+      {state === 'trashed' && (
+        <Action
+          title="Empty Trash"
+          icon={Icon.Trash}
+          style={Action.Style.Destructive}
+          shortcut={{ modifiers: ['cmd', 'shift'], key: 'backspace' }}
+          onAction={emptyTheTrash}
+        />
+      )}
     </ActionPanel.Section>
   );
 
   const stateTitle = STATES.find((option) => option.value === state)?.title ?? state;
+  const tierTitle = TIERS.find((option) => option.value === tier)?.title ?? tier;
+  const filterTitle = [
+    state === 'active' ? undefined : stateTitle,
+    tier === 'all' ? undefined : tierTitle,
+  ]
+    .filter(Boolean)
+    .join(', ');
   // Until the first answer arrives, an empty list is loading, not empty.
   const answered = active.data !== undefined || active.error !== undefined;
+
+  const row = (entry: Entry) => (
+    <EntryListItem
+      key={entry.item.id}
+      entry={entry}
+      registry={registry}
+      showingDetail={showingDetail}
+      onChanged={active.revalidate}
+      listActions={listActions}
+    />
+  );
 
   return (
     <List
@@ -118,8 +231,8 @@ export default function Browse() {
       filtering={state === 'trashed'}
       throttle
       onSearchTextChange={(text) => setQuery(text.trim())}
-      searchBarPlaceholder={state === 'active' ? 'Search' : `Search ${stateTitle}`}
-      navigationTitle={state === 'active' ? undefined : stateTitle}
+      searchBarPlaceholder={filterTitle ? `Search ${filterTitle}` : 'Search'}
+      navigationTitle={filterTitle || undefined}
       pagination={searching ? undefined : listing.pagination}
       isShowingDetail={showingDetail && entries.length > 0}
       searchBarAccessory={
@@ -157,16 +270,14 @@ export default function Browse() {
           }
           actions={<ActionPanel>{listActions}</ActionPanel>}
         />
+      ) : searching ? (
+        // Search answers in order of relevance, which day headings would scatter.
+        entries.map(row)
       ) : (
-        entries.map((entry) => (
-          <EntryListItem
-            key={entry.item.id}
-            entry={entry}
-            registry={registry}
-            showingDetail={showingDetail}
-            onChanged={active.revalidate}
-            listActions={listActions}
-          />
+        groupByDay(entries, (entry) => entry.item.updated_at).map(([day, rows]) => (
+          <List.Section key={day} title={day}>
+            {rows.map(row)}
+          </List.Section>
         ))
       )}
     </List>
