@@ -207,11 +207,14 @@ export async function getInstance() {
   return answer(marfa().GET('/'));
 }
 
-/**
- * Whether the key is accepted, by the cheapest read it must be allowed: one
- * row of the item list. A key holding no read at all is refused `403` here,
- * which says as much about it as a `401` does.
- */
-export async function checkKey(): Promise<void> {
-  await answer(marfa().GET('/items', { params: { query: { limit: 1 } } }));
+export type ApiKey = components['schemas']['ApiKey'];
+
+/** The key the preferences hold, as the server holds it: what it may read and write. */
+export async function currentKey(): Promise<ApiKey> {
+  return answer(marfa().GET('/keys/current'));
+}
+
+/** Stores bytes and answers the reference an item carries them by. */
+export async function uploadBlob(bytes: Blob): Promise<{ hash: string; mime_type: string }> {
+  return answer(marfa().POST('/blobs', { body: bytes, headers: { 'Content-Type': bytes.type } }));
 }

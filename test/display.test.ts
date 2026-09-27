@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRegistry,
+  captureFromFile,
   captureFromText,
   changedProperties,
   isWebUrl,
@@ -115,5 +116,34 @@ describe('what the clipboard becomes', () => {
   it('nothing but space is nothing', () => {
     expect(captureFromText(' \n\t')).toBeNull();
     expect(isWebUrl('ftp://example.com')).toBe(false);
+  });
+});
+
+describe('what a copied file becomes', () => {
+  it('an image is an image, named by its file name', () => {
+    expect(captureFromFile('/Users/someone/Desktop/Canal at dusk.PNG')).toEqual({
+      path: '/Users/someone/Desktop/Canal at dusk.PNG',
+      type: 'core.file.image',
+      mimeType: 'image/png',
+      title: 'Canal at dusk.PNG',
+    });
+  });
+
+  it('reads a file URL as its path', () => {
+    const file = captureFromFile('file:///Users/someone/Documents/Plan%20v2.pdf');
+    expect(file.path).toBe('/Users/someone/Documents/Plan v2.pdf');
+    expect(file).toMatchObject({
+      type: 'core.file',
+      mimeType: 'application/pdf',
+      title: 'Plan v2.pdf',
+    });
+  });
+
+  it('anything unknown is a file of bytes', () => {
+    expect(captureFromFile('/tmp/archive.xyz').mimeType).toBe('application/octet-stream');
+    expect(captureFromFile('/tmp/Makefile')).toMatchObject({
+      type: 'core.file',
+      title: 'Makefile',
+    });
   });
 });
