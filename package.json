@@ -140,8 +140,8 @@
     }
   ],
   "dependencies": {
-    "@raycast/api": "^2.0.5",
-    "@raycast/utils": "^2.3.0",
+    "@raycast/api": "^2.5.3",
+    "@raycast/utils": "^2.3.2",
     "@withmarfa/client": "0.0.2",
     "turndown": "7.2.4"
   },
@@ -150,10 +150,10 @@
     "@types/node": "22.19.17",
     "@types/react": "19.0.10",
     "@types/turndown": "5.0.6",
-    "eslint": "^10.8.0",
-    "prettier": "^3.9.6",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "eslint": "^10.11.0",
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
   },
   "scripts": {
     "build": "ray build -o ./dist",
