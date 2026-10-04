@@ -5,10 +5,10 @@ import type { ApiKey } from './marfa';
  * Keys as Manage Keys reads and writes them. Pure, so every preset's body,
  * every summary and every refusal is tested without a server.
  *
- * A key's reach is five maps and seven permissions. A create naming no map
- * copies the creator's maps, permissions and claimed sources; naming any map
- * takes only what it names, with no permission unless listed. The server
- * refuses a key reaching past its creator, so nothing here second-guesses it.
+ * A key's reach is five maps and seven permissions. A create naming none of
+ * the maps, the permissions or claimed sources copies the creator's whole
+ * set; naming any of them takes only what it names. The server refuses a key
+ * reaching past its creator, so nothing here second-guesses it.
  */
 
 export type Permission = NonNullable<ApiKey['permissions']>[number];
