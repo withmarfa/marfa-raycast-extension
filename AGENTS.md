@@ -1,6 +1,6 @@
 # Marfa Raycast Extension
 
-Raycast extension for capturing to Marfa and browsing what every app wrote there. Standard extension layout: npm with a committed lockfile, no workspace files.
+Raycast extension for capturing to Marfa and browsing what every app wrote there. The standard extension layout: npm with a committed lockfile, no workspace files.
 
 ## Build and run
 
