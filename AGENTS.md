@@ -101,6 +101,7 @@ Tools over the same door as the commands: **search-items**, which returns full r
 - **Build outputs to `./dist/`.** Never to the repository root: that path is destructive and removes the assets directory between runs.
 - **Lint runs relaxed**, which skips store-publish icon validation. Drop that flag if this is ever submitted to the store.
 - Comments are self-contained and explain _why_, never referencing internal trackers or project phases.
+- **Local `main`.** Once the work is merged, bring the local `main` up to date (`git pull --ff-only` on `main`) so the next piece of work starts from it.
 
 ## CI
 
