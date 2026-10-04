@@ -107,6 +107,8 @@ Tools over the same door as the commands: **search-items**, which returns full r
 
 Runs on a managed ARM runner selected by the repository's runner variable, which the workflow reads directly, so returning this repository to a local pool is a variable change and nothing else.
 
+**A change that touches only agent instructions skips the build**: `AGENTS.md`, `CLAUDE.md`, `README.md` and `LICENSE` at the root, `docs/`, `.agents/`, `.claude/`, `.codex/`, `.githooks/`, and the issue and pull request templates. On a pull request, `scripts/ci-changes.sh` decides and a path it does not name builds. On a push, the workflow's `paths-ignore` decides. Do not add `paths` to the pull request trigger: `build` is a required check, this repository has no bypass actor, and a filtered-out workflow would leave the check pending and block the merge.
+
 **The npm cache is enabled unconditionally**, which is correct here and worth stating because the sibling repositories condition theirs. Those are pnpm sharing a persistent store on a local pool, where caching costs more than it saves; this is npm on an ephemeral runner that keeps nothing between jobs, so there is nothing to condition on.
 
 ## Local install
