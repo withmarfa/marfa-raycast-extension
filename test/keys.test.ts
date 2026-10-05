@@ -31,6 +31,7 @@ function key(over: Partial<ApiKey> = {}): ApiKey {
     metadata_permissions: {},
     profile_permissions: {},
     created_at: '2026-09-27T10:00:00.000Z',
+    expires_at: null,
     last_used_at: null,
     ...over,
   };

@@ -118,8 +118,8 @@ export function ItemActions({
     });
     if (!confirmed) return;
     try {
-      // The purge door takes no version, so the item is read again first: one
-      // restored, changed and trashed again since is not what was confirmed.
+      // Read again first: an item restored, changed and trashed again since is
+      // not what was confirmed.
       const now = await trashedNow(item.id, item.updated_at);
       if (!now) {
         onChanged();
