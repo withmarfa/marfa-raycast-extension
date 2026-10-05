@@ -219,7 +219,7 @@ export async function transitionItem(id: string, state: 'active' | 'archived'): 
 
 /** Deletes a trashed item for good. Needs `items.purge`. */
 export async function purgeItem(id: string): Promise<void> {
-  await answer(marfa().DELETE('/items/{id}/purge', { params: { path: { id } } }));
+  await answer(marfa().POST('/items/{id}/purge', { params: { path: { id } } }));
 }
 
 /**
