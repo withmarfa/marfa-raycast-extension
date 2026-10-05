@@ -4,7 +4,7 @@ import { buildCaptureProperties, parseAdditionalProperties } from '../src/captur
 import { buildRegistry } from '../src/display';
 import { schema } from './fixtures';
 
-const f = (over: Record<string, unknown> = {}) => ({ type: 'string', ...over });
+const f = (over: Record<string, unknown> = {}) => ({ type: 'string', ...over }) as never;
 
 const registry = buildRegistry([
   schema('core.bookmark', {
