@@ -1,7 +1,6 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "marfa",
-  "version": "1.0.0",
   "title": "Marfa",
   "description": "Capture notes to Marfa and browse what every app wrote there",
   "icon": "icon.png",

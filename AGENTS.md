@@ -68,6 +68,7 @@ npm run build       # ray build -o ./dist
 ## Versions and releases
 
 - There is no release process. Nothing tags, publishes, or submits the extension; it is installed through dev mode.
+- `package.json` declares no `version`, as Raycast asks of an extension manifest. Do not add one.
 - `@withmarfa/client` is pinned to an exact version. Move it with `package.json` and `package-lock.json` together, then fix what the new client's types reject.
 
 ## Code Review Rules
