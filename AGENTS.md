@@ -12,7 +12,7 @@ A Raycast extension for capturing to a Marfa server and browsing what every app 
 ## Conventions
 
 - Use American English, scoped Conventional Commits, and Prettier with single quotes at 100 characters.
-- Work on a branch and reach `main` through a pull request. After a merge, run `git pull --ff-only` on `main`.
+- Work on a branch and reach `main` through a pull request. Once a branch is merged, remove its worktree with `git worktree remove`, run `git worktree prune`, and run `git pull --ff-only` on `main`. If git refuses to remove a worktree, report it rather than forcing it.
 - A comment says why, never what the code says, and names no tracker or project phase.
 - Use npm with the committed lockfile. There are no workspace files.
 
