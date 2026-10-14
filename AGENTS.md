@@ -12,7 +12,8 @@ A Raycast extension for capturing to a Marfa server and browsing what every app 
 ## Conventions
 
 - Use American English, scoped Conventional Commits, and Prettier with single quotes at 100 characters.
-- Work on a branch and reach `main` through a pull request. Once a branch is merged, remove its worktree with `git worktree remove`, run `git worktree prune`, and run `git pull --ff-only` on `main`. If git refuses to remove a worktree, report it rather than forcing it.
+- Work on a branch and reach `main` through a pull request.
+- Make worktrees in `.claude/worktrees/` (`git worktree add .claude/worktrees/<name> -b <branch> origin/main`). Once the work is merged, remove the worktree and its local branch (`git worktree remove`, then `git branch -D`, because git sees a squash-merged branch as unmerged) and run `git pull --ff-only` on `main`. If git refuses a removal, report it rather than forcing it.
 - A comment says why, never what the code says, and names no tracker or project phase.
 - Use npm with the committed lockfile. There are no workspace files.
 
