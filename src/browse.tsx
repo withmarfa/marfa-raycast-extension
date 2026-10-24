@@ -16,9 +16,9 @@ import { describeJob, followJob } from './bulk-job';
 import { EntryListItem } from './components/EntryListItem';
 import { FailureEmptyView } from './components/FailureEmptyView';
 import { groupByDay } from './dates';
-import { NOTE_TYPE } from './display';
 import { describeFailure, MarfaRequestError } from './failure';
 import { showFailure } from './feedback';
+import { exactTypeFilter } from './type-filter';
 import {
   bulkJob,
   countTrash,
@@ -59,7 +59,7 @@ const ALL_TYPES = '';
  */
 export default function Browse() {
   const [query, setQuery] = useState('');
-  const [type, setType] = useCachedState('browse-type', NOTE_TYPE);
+  const [type, setType] = useCachedState('browse-type', ALL_TYPES);
   const [state, setState] = useState<StateFilter>('active');
   const [tier, setTier] = useCachedState<TierFilter>('browse-tier', 'all');
   const [showingDetail, setShowingDetail] = useCachedState('browse-show-detail', true);
@@ -78,6 +78,7 @@ export default function Browse() {
       async (options: { cursor?: string }) => {
         const page = await listItems({
           type: typeFilter || undefined,
+          filter: exactTypeFilter(typeFilter),
           state: stateFilter,
           tier: tierFilter,
           cursor: options.cursor,
@@ -97,6 +98,7 @@ export default function Browse() {
       searchItems({
         query: q,
         type: typeFilter || undefined,
+        filter: exactTypeFilter(typeFilter),
         state: stateFilter,
         tier: tierFilter,
       }),
@@ -273,19 +275,14 @@ export default function Browse() {
       searchBarAccessory={
         <List.Dropdown tooltip="Type" value={type} onChange={setType}>
           <List.Dropdown.Item title="All Types" value={ALL_TYPES} />
-          {/* Listed before the registry arrives, so the default is always an option. */}
-          <List.Dropdown.Item title="Notes" value={NOTE_TYPE} />
           <List.Dropdown.Section>
-            {registry
-              .filterable()
-              .filter((definition) => definition.id !== NOTE_TYPE)
-              .map((definition) => (
-                <List.Dropdown.Item
-                  key={definition.id}
-                  title={registry.label(definition.id)}
-                  value={definition.id}
-                />
-              ))}
+            {registry.filterable().map((definition) => (
+              <List.Dropdown.Item
+                key={definition.id}
+                title={registry.label(definition.id)}
+                value={definition.id}
+              />
+            ))}
           </List.Dropdown.Section>
         </List.Dropdown>
       }

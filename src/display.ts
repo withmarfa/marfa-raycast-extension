@@ -85,11 +85,12 @@ export function buildRegistry(answered: readonly TypeDefinition[] | undefined): 
   }
 
   function titleOf(item: Item): string {
-    if (isNote(item.type)) return noteTitle(bodyOf(item));
+    if (item.type === NOTE_TYPE) return noteTitle(bodyOf(item));
     const field = hint(item.type, 'title_field');
     const p = item.properties;
     return (
       (field ? text(p[field]) : undefined) ??
+      (isNote(item.type) ? noteTitle(bodyOf(item)) : undefined) ??
       text(p.title) ??
       text(p.name) ??
       text(p.url) ??

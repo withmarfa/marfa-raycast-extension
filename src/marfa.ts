@@ -91,6 +91,7 @@ function asEntry(row: Item | Entry): Entry {
 
 export async function listItems(options: {
   type?: string;
+  filter?: string;
   state: StateFilter;
   tier?: TierFilter;
   cursor?: string;
@@ -101,6 +102,7 @@ export async function listItems(options: {
       params: {
         query: {
           type: options.type,
+          filter: options.filter,
           state: options.state,
           tier: options.tier ?? 'all',
           sort: 'updated_at',
@@ -118,6 +120,7 @@ export async function listItems(options: {
 export async function searchItems(options: {
   query: string;
   type?: string;
+  filter?: string;
   state: StateFilter;
   tier?: TierFilter;
   limit?: number;
@@ -128,6 +131,7 @@ export async function searchItems(options: {
         query: {
           q: options.query,
           type: options.type,
+          filter: options.filter,
           state: options.state,
           tier: options.tier ?? 'all',
           limit: options.limit ?? 50,

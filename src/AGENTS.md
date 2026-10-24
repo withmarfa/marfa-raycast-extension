@@ -26,8 +26,8 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 
 ## Notes and types
 
-- A note is named by its first line as it reads, without Markdown (`noteTitle` in `notes.ts`), as Memos WithMarfa names it. Never name a note by its stored `title`, and capture writes `body` alone.
-- Behavior follows the registry, walked through `parent`, so a type beneath `core.note` lists and edits as a note. `GET /types` answers each type as declared; `schema-fields.ts` resolves fields root first, a subtype's field replacing its ancestor's whole.
+- A plain `core.note` is named by its first line as it reads, without Markdown (`noteTitle` in `notes.ts`), as Memos WithMarfa names it. Never name a plain note by its stored `title`, and capture writes its `body` alone.
+- Behavior follows the registry, walked through `parent`, so a type beneath `core.note` uses the note editor. Its title follows the resolved `title_field` when present, then the first line of its body. `GET /types` answers each type as declared; `schema-fields.ts` resolves fields root first, a subtype's field replacing its ancestor's whole.
 - Name a type identifier only for the note, the clipboard's choices, icons, `core.event`'s zone rules, and what Reply and Annotate write.
 
 ## The capture form
@@ -52,7 +52,7 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 - **Collision overwritten.** Flag an edit that settles a collision for a type other than a note, is not sent against the version loaded, or merges in the client.
 - **Untouched value rewritten.** Flag an edit that sends a field the person did not change in any form but the stored one.
 - **Purge wider than confirmed.** Flag a permanent delete or purge without the version check, the recount, or `max_items`.
-- **Note misnamed.** Flag a note named by its `title`, or a capture that writes one.
+- **Note misnamed.** Flag a plain `core.note` named by its `title`, a note subtype that ignores its resolved `title_field`, or a capture that writes a plain note's `title`.
 - **Key widened.** Flag a key edit that can send a map or permission the person did not change.
 - **Hidden or unchecked value.** Flag a form path that sends a value not on screen, or skips a check the server makes.
 - **Key exposed.** Flag an error path that can show or log the API key.
