@@ -45,6 +45,16 @@ describe('the registry names an item', () => {
     expect(registry.isNote('core.bookmark')).toBe(false);
   });
 
+  it("uses a note-derived type's title field without changing plain-note titles", () => {
+    expect(
+      registry.titleOf(item('app.journal', { title: 'Journal entry', body: 'Body heading' })),
+    ).toBe('Journal entry');
+    expect(registry.titleOf(item('app.journal', { body: 'Body heading' }))).toBe('Body heading');
+    expect(registry.titleOf(item('core.note', { title: 'Date stamp', body: 'Body heading' }))).toBe(
+      'Body heading',
+    );
+  });
+
   it('follows the registry hints for other types, then the usual fields, then the label', () => {
     expect(registry.titleOf(item('core.email', { subject: 'Invoice', text: 'Attached' }))).toBe(
       'Invoice',
