@@ -20,29 +20,30 @@ A [Raycast](https://www.raycast.com/) extension that captures notes and other it
 
 Set these in the extension's preferences in Raycast.
 
-| Preference           | Required | Description                                                                                               |
-| -------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
-| Server URL           | Yes      | Where your Marfa server answers, such as `http://127.0.0.1:8602`.                                         |
-| API Key              | Yes      | The key minted for Raycast.                                                                               |
-| Default Capture Type | No       | The type Quick Capture starts on, as a type identifier. Defaults to `core.note`.                          |
-| Default Tier         | No       | Where captures land: the library keeps what you chose to keep, and the feed holds what arrives in volume. |
-| Default Tags         | No       | Comma-separated tags that every capture starts with.                                                      |
+| Preference           | Required | Description                                                                                                            |
+| -------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Server URL           | Yes      | Where your Marfa server answers, such as `http://127.0.0.1:8602`.                                                      |
+| API Key              | Yes      | The key minted for Raycast.                                                                                            |
+| Default Capture Type | No       | The type Create Item and Quick Capture (Edit) start on, as a type identifier. Defaults to `core.note`.                 |
+| Default Tier         | No       | Where captures land: the library keeps what you chose to keep, and the feed holds what arrives in volume.              |
+| Selected Text        | No       | Quick Capture takes the text selected in the frontmost app, and the clipboard when nothing is selected. On by default. |
+| Default Tags         | No       | Comma-separated tags that every capture starts with.                                                                   |
 
 ## Commands
 
-| Command                  | What it does                                                                                         |
-| ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| Browse                   | Browse and search your items. Open, edit, tag, archive, reply to, annotate, trash, or delete them.   |
-| Quick Capture            | Capture a note, or any type the server holds, in a form built from its schema.                       |
-| Clipboard Capture        | Capture the clipboard at once: a file, an image, a link as a bookmark, or text as a note.            |
-| Clipboard Capture (Edit) | Shape the clipboard in a capture form for any type before it is saved.                               |
-| Type Registry            | List every type the server holds and the fields each one declares.                                   |
-| Manage Keys              | List, mint, change, and revoke the server's API keys. Needs a key with `keys.mint` or `keys.manage`. |
-| Status                   | Check the server, its contract, and the API key.                                                     |
+| Command              | What it does                                                                                                   |
+| -------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Browse               | Browse and search your items. Open, edit, tag, archive, reply to, annotate, trash, or delete them.             |
+| Create Item          | Create a note, or an item of any type the server holds, in a form built from its schema.                       |
+| Quick Capture        | Capture the selected text or the clipboard at once: a file, an image, a link as a bookmark, or text as a note. |
+| Quick Capture (Edit) | Shape the selected text or the clipboard in a capture form for any type before it is saved.                    |
+| Type Registry        | List every type the server holds and the fields each one declares.                                             |
+| Manage Keys          | List, mint, change, and revoke the server's API keys. Needs a key with `keys.mint` or `keys.manage`.           |
+| Status               | Check the server, its contract, and the API key.                                                               |
 
 ## The capture form
 
-Quick Capture and Clipboard Capture (Edit) build their form from the type's schema on the server, so a type that an instance registers gets a form without any change to the extension. Each field's declared type picks its control, such as text, a Markdown area for the body, a dropdown for an enum, or a date picker. Required fields always show, and the optional ones beyond the first few wait behind a **Show More Fields** option. The form refuses what the server would refuse, such as a blank required field or a malformed URL, and marks the field. A note has a simpler form: its text, whose first line names the note, and its tags. Quick Capture keeps a draft when you close the form.
+Create Item and Quick Capture (Edit) build their form from the type's schema on the server, so a type that an instance registers gets a form without any change to the extension. Each field's declared type picks its control, such as text, a Markdown area for the body, a dropdown for an enum, or a date picker. Required fields always show, and the optional ones beyond the first few wait behind a **Show More Fields** option. The form refuses what the server would refuse, such as a blank required field or a malformed URL, and marks the field. A note has a simpler form: its text, whose first line names the note, and its tags. Create Item keeps a draft when you close the form.
 
 ## AI tools
 

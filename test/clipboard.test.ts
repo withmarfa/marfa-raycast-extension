@@ -3,6 +3,7 @@ import type { PlannedField } from '../src/capture-plan';
 import {
   captureFromFile,
   captureFromText,
+  chooseSource,
   clipboardBody,
   clipboardSeed,
   clipboardType,
@@ -169,5 +170,41 @@ describe('where the clipboard goes in a form', () => {
     expect(clipboardType({ ...file, file: '/tmp/a.png' }, 'core.task')).toBe('core.file.image');
     expect(clipboardType(link, 'core.task')).toBe('core.bookmark');
     expect(clipboardType(words, 'core.task')).toBe('core.task');
+  });
+});
+
+describe('what a quick capture takes', () => {
+  const clipboard = { text: 'On the clipboard', html: '<p>On the clipboard</p>', file: null };
+  const copiedFile = { text: 'Plan.pdf', html: '', file: 'file:///tmp/Plan.pdf' };
+
+  it('the selection when it is preferred and there is some', () => {
+    expect(chooseSource('Selected words', clipboard, true)).toEqual({
+      snapshot: { text: 'Selected words', html: '', file: null },
+      from: 'selection',
+    });
+  });
+
+  it('the clipboard when nothing is selected or the selection is blank', () => {
+    expect(chooseSource(undefined, clipboard, true)).toEqual({
+      snapshot: clipboard,
+      from: 'clipboard',
+    });
+    expect(chooseSource('', clipboard, true).from).toBe('clipboard');
+    expect(chooseSource(' \n\t ', clipboard, true).from).toBe('clipboard');
+  });
+
+  it('the clipboard when the selection is not preferred', () => {
+    expect(chooseSource('Selected words', clipboard, false).from).toBe('clipboard');
+  });
+
+  it('the selection over a copied file, as a note, since a selection holds text alone', () => {
+    const source = chooseSource('Selected words', copiedFile, true);
+    expect(source.snapshot.file).toBeNull();
+    expect(captureFromText(source.snapshot)?.type).toBe('core.note');
+  });
+
+  it('a selected web address as a bookmark', () => {
+    const source = chooseSource('https://example.org/a', clipboard, true);
+    expect(captureFromText(source.snapshot)?.type).toBe('core.bookmark');
   });
 });
