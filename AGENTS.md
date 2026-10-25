@@ -31,13 +31,12 @@ A Raycast extension for capturing to a Marfa server and browsing what every app 
 npm install
 npm run dev         # development mode in Raycast
 npm run typecheck   # tsc, faster than a build for type errors
-npm run lint        # ray lint --relaxed: ESLint and Prettier
+npm run lint        # ray lint: ESLint, Prettier, and the store's manifest and icon checks
 npm test            # vitest run
 npm run build       # ray build -o ./dist
 ```
 
 - Build only to `./dist/`. A build to the repository root deletes `assets/`.
-- Lint runs `--relaxed`, which skips the store's icon checks. Drop the flag if the extension is ever submitted to the store.
 - `@types/react` and `@types/node` are pinned to the exact versions `@raycast/api` declares. A range duplicates the React types under the API package and breaks the type check.
 - A guard runs before `typecheck`, `dev`, `test`, and `build` and fails when an installed `@withmarfa/*` package differs from the version `package-lock.json` resolved. The fix is `npm ci`. CI always installs clean, so only this guard catches a stale local tree.
 
@@ -62,13 +61,16 @@ npm run build       # ray build -o ./dist
 
 ## CI
 
-- `build` runs typecheck, lint, tests, build, and the classifier's own test on the runner the repository variable `CI_RUNNER` names.
+- `build` runs typecheck, lint, tests, build, and the classifier's own test on GitHub's `ubuntu-latest` runner.
 - `build` is a required check. On a pull request, `scripts/ci-changes.sh` skips it when every path is root `AGENTS.md`, `CLAUDE.md`, `README.md`, or `LICENSE`, `docs/`, an agent directory, or a GitHub template; any other path builds. On a push, the workflow's `paths-ignore` decides. Never add `paths` to the pull request trigger: the check would stay pending and block the merge.
 - The npm cache stays on unconditionally. The runner keeps nothing between jobs, unlike the pnpm repositories, which condition theirs.
 
 ## Versions and releases
 
-- There is no release process. Nothing tags, publishes, or submits the extension; it is installed through dev mode.
+- The Raycast Store is the release. `npm run publish` opens a draft pull request on `raycast/extensions`, which the author marks ready. Nothing tags a release here.
+- `CHANGELOG.md` headings read `## [Title] - {PR_MERGE_DATE}`, which the store's bot fills in when the pull request merges. Never write `[Unreleased]`.
+- `help.md` is the setup text beside the required preferences. `metadata/` holds the store screenshots, taken with Raycast's Capture Window command; add no other files there.
+- The license is MIT, which the store requires in `package.json`.
 - `package.json` declares no `version`, as Raycast asks of an extension manifest. Do not add one.
 - `@withmarfa/client` is pinned to an exact version. Move it with `package.json` and `package-lock.json` together, then fix what the new client's types reject.
 
