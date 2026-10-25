@@ -4,7 +4,12 @@ Capture to your own Marfa, and browse everything your apps keep there, from Rayc
 
 ## What is Marfa?
 
-Marfa is a data layer that you run yourself. It keeps your notes, tasks, bookmarks, files, and anything else you choose to store in one server that you own. Each kind of thing is a type, such as a note or a task, and the type says what an item holds. The apps you allow read and write the same items, so your data stays put when you change apps.
+Marfa is **a data layer that you run yourself**.
+
+- **One place for your data.** Your notes, tasks, bookmarks, files, and anything else you choose to store live in one server that you own.
+- **Typed items.** Each item has a type, such as a note or a task, and the type says what the item holds.
+- **Shared by your apps.** The apps you allow read and write the same items, so **your data stays put when you change apps**.
+- **Yours.** The server runs on your own computer, or on one you choose, and your data stays there.
 
 Marfa is early software. Expect breaking changes until version 1.0. To learn more, see the [Marfa docs](https://docs.marfa.so).
 
@@ -12,7 +17,7 @@ Marfa is early software. Expect breaking changes until version 1.0. To learn mor
 
 Marfa for Raycast is one of those apps. Use it as a client for the Marfa you already run, or as a place for your notes in Raycast, with Marfa behind it.
 
-- **Capture** the text you have selected, or your clipboard, to Marfa in a few keystrokes.
+- **Capture** the text you have selected, or your clipboard, to Marfa with one hotkey. Add tags, and choose where it lands.
 - **Create** a note, or an item of any type your server holds, in a form built from that type.
 - **Browse and search** your items. Open, edit, tag, archive, reply to, annotate, trash, or delete them.
 - **Look up** the types your server holds, and manage its API keys.
@@ -64,6 +69,40 @@ Open any Marfa command, and enter the **Server URL** and the **API Key**. If you
 | Default Tier         | No       | Where captures land: the library keeps what you chose to keep, the feed holds the rest. |
 | Selected Text        | No       | Quick Capture starts from the selected text when there is some. On by default.          |
 | Default Tags         | No       | Tags that every capture starts with, separated by commas.                               |
+
+## FAQ
+
+### Do I have to run Marfa myself?
+
+Yes. Marfa isn't a hosted service. You run the server on your own computer, on a home server, or on a host such as Railway. See [Deploy](https://docs.marfa.so/guides/deploy).
+
+### Where is my data?
+
+On the machine that runs your Marfa server. The extension keeps no copy.
+
+### Can I use the extension away from home?
+
+Yes, if your Mac can reach the server. Marfa can be reached over your home network, over a private network such as Tailscale, or through a Cloudflare Tunnel. The Server URL is whatever address your Mac uses to reach it.
+
+### Does it work offline?
+
+No. Every command asks your server, so a command fails when the server is unreachable. Status shows what is wrong.
+
+### What can the key do?
+
+Only what you gave it. The extension tells you which permission is missing when Marfa refuses something. To delete items for good, the key needs the permission for permanent deletes. To change the key, use the **API keys** page, or Manage Keys with a key that is allowed to.
+
+### Which types can I capture?
+
+Any type your server holds. The form is built from the type, so a type you add later gets a form with no change to the extension. See Type Registry for the types and fields.
+
+### Is it safe to try?
+
+Marfa is early software, so keep a backup of anything that matters. See [Back up and restore](https://docs.marfa.so/guides/back-up-and-restore).
+
+### Does it work on Windows?
+
+No. The extension supports macOS only.
 
 ## License
 
