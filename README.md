@@ -42,11 +42,19 @@ Open the link that the second command prints, and choose an email and password. 
 
 ### 2. Make a key for Raycast
 
-A key tells Marfa what an app may do. On your server's web page, open **API keys** and choose **Create key**. Name it `Raycast`, and give it the source `raycast`. Turn on read and write for all types, tags, and edges. To let Raycast delete items for good, also allow permanent deletes. Copy the key, because the page shows it once.
+A key tells Marfa what an app may do.
+
+1. On your server's web page, open **API keys**, and choose **Create key**.
+2. Name the key `Raycast`, and give it the source `raycast`.
+3. Turn on read and write for all types, all tags, and all edges.
+4. Optional: allow permanent deletes, so that Raycast can delete items for good.
+5. Create the key, and copy it. The page shows the key once.
 
 ### 3. Connect Raycast
 
-Open any Marfa command, and enter the **Server URL** and the **API Key**. If you installed Marfa on this Mac with the steps above, the Server URL is `http://localhost:8600`, unless the install printed another port.
+1. Open any Marfa command in Raycast.
+2. Enter the **Server URL**. If you installed Marfa on this Mac with the steps above, it is `http://localhost:8600`, unless the install printed another port.
+3. Paste the key as the **API Key**.
 
 ## Commands
 
@@ -84,9 +92,13 @@ On the machine that runs your Marfa server. The extension keeps no copy.
 
 Yes, if your Mac can reach the server. Marfa can be reached over your home network, over a private network such as Tailscale, or through a Cloudflare Tunnel. The Server URL is whatever address your Mac uses to reach it.
 
+### Can Marfa run on the same Mac as Raycast?
+
+Yes. This is the simplest setup, and the one in [Set up](#set-up). The Server URL is then `http://localhost:8600`.
+
 ### Does it work offline?
 
-No. Every command asks your server, so a command fails when the server is unreachable. Status shows what is wrong.
+Yes, when Marfa runs on the same Mac, because no command needs the internet. Ask Raycast AI is the exception, because Raycast AI needs it. When the server is on another machine, a command fails while your Mac cannot reach it. Status shows what is wrong.
 
 ### What can the key do?
 
@@ -102,7 +114,7 @@ Marfa is early software, so keep a backup of anything that matters. See [Back up
 
 ### Does it work on Windows?
 
-No. The extension supports macOS only.
+Not yet. Raycast supports Windows, but this extension has only been built and tested on macOS, so it is listed for macOS only.
 
 ## License
 
