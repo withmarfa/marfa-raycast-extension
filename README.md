@@ -68,4 +68,4 @@ Running `npm run dev` once registers the extension with Raycast. You can stop de
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
