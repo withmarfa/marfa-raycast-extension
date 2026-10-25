@@ -38,6 +38,7 @@ npm run build       # ray build -o ./dist
 
 - Build only to `./dist/`. A build to the repository root deletes `assets/`.
 - `@types/react` and `@types/node` are pinned to the exact versions `@raycast/api` declares. A range duplicates the React types under the API package and breaks the type check.
+- TypeScript stays on 6 until `@raycast/eslint-config` supports 7: its `typescript-eslint` refuses TS 7, and `ray lint` then fails.
 - A guard runs before `typecheck`, `dev`, `test`, and `build` and fails when an installed `@withmarfa/*` package differs from the version `package-lock.json` resolved. The fix is `npm ci`. CI always installs clean, so only this guard catches a stale local tree.
 
 ## Testing
