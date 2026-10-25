@@ -40,6 +40,7 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 - A rule a schema states only in prose lives in one table per rule, for `core.event` alone.
 - Additional Properties refuses a key that names an item field or a field the type declares. A value becomes a number only when it reads back the same, so `01234` stays text.
 - Quick Capture takes the selected text first, when the Selected Text preference is on (the default), and the clipboard otherwise (`capture-source.ts`, with `chooseSource` in `clipboard.ts`). A selection carries text alone, so it beats a copied file and starts a note or a bookmark. Nothing is saved until the person submits the form.
+- A stored image is drawn from a file, never a data URI: `use-image.ts` fetches it into `previews/` under `environment.supportPath`, named by its hash (`image-file.ts`), and the markdown names that file (`image-preview.ts`). A photo inlined as a data URI stalls Raycast's window. A list fetches only the selected row's picture.
 - Copied HTML becomes Markdown (`clipboard.ts`, with turndown). HTML with no formatting element is taken as plain text, since Markdown would escape every `*` and `_`.
 
 ## Keys

@@ -119,7 +119,7 @@ export function summarizeComplex(value: unknown): string {
 
 export type ImageSource =
   | { kind: 'url'; url: string }
-  | { kind: 'blob'; hash: string; mimeType: string }
+  | { kind: 'blob'; hash: string; mimeType: string; sizeBytes?: number }
   | { kind: 'data'; url: string };
 
 const COVER_URL_KEYS = ['cover_url', 'image_url', 'thumbnail_url', 'poster_url', 'artwork_url'];
@@ -133,7 +133,13 @@ export function imageSource(item: Item, registry: Registry): ImageSource | null 
   const p = item.properties;
   if (typeof p.blob_ref === 'string' && typeof p.mime_type === 'string') {
     if (p.mime_type.startsWith('image/') && p.mime_type !== 'image/svg+xml') {
-      return { kind: 'blob', hash: p.blob_ref, mimeType: p.mime_type };
+      const sizeBytes = typeof p.size_bytes === 'number' ? p.size_bytes : undefined;
+      return {
+        kind: 'blob',
+        hash: p.blob_ref,
+        mimeType: p.mime_type,
+        ...(sizeBytes ? { sizeBytes } : {}),
+      };
     }
   }
   for (const [name, field] of Object.entries(registry.fields(item.type))) {
@@ -152,9 +158,6 @@ export function imageSource(item: Item, registry: Registry): ImageSource | null 
   }
   return null;
 }
-
-/** The largest stored image the view draws inline; past it, a data URI stalls the page. */
-export const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024;
 
 export interface Relation {
   edge: Edge;

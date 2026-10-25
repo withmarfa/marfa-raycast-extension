@@ -59,6 +59,7 @@ const ALL_TYPES = '';
  */
 export default function Browse() {
   const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState<string>();
   const [type, setType] = useCachedState('browse-type', ALL_TYPES);
   const [state, setState] = useState<StateFilter>('active');
   const [tier, setTier] = useCachedState<TierFilter>('browse-tier', 'all');
@@ -257,6 +258,7 @@ export default function Browse() {
       entry={entry}
       registry={registry}
       showingDetail={showingDetail}
+      selected={entry.item.id === (selectedId ?? entries[0]?.item.id)}
       onChanged={active.revalidate}
       listActions={listActions}
     />
@@ -267,6 +269,7 @@ export default function Browse() {
       isLoading={active.isLoading || !answered}
       filtering={state === 'trashed'}
       throttle
+      onSelectionChange={(id) => setSelectedId(id ?? undefined)}
       onSearchTextChange={(text) => setQuery(text.trim())}
       searchBarPlaceholder={filterTitle ? `Search ${filterTitle}` : 'Search'}
       navigationTitle={filterTitle || undefined}
