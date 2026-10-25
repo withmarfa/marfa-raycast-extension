@@ -112,10 +112,6 @@ Any type your server holds. The form is built from the type, so a type you add l
 
 Marfa is early software, so keep a backup of anything that matters. See [Back up and restore](https://docs.marfa.so/guides/back-up-and-restore).
 
-### Does it work on Windows?
-
-Not yet. Raycast supports Windows, but this extension has only been built and tested on macOS, so it is listed for macOS only.
-
 ## License
 
 MIT. See [LICENSE](LICENSE). To work on the extension, see [AGENTS.md](AGENTS.md).
