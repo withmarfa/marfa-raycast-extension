@@ -51,6 +51,10 @@ Marfa for Raycast is one of those apps. Use it as a client for the Marfa you alr
 
 The extension keeps no copy of your data, so every command needs a server it can reach.
 
+![Browse lists your items, and shows the selected item in full.](media/browse.png)
+
+![Quick Capture opens a form built from the item's type, so you can add tags before you save.](media/quick-capture.png)
+
 ## Set up
 
 ### 1. Get a Marfa server
