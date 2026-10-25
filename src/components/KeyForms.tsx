@@ -228,9 +228,7 @@ export function CreateKeyForm({ creator, onCreated }: { creator: ApiKey; onCreat
           title="Holds"
           text={
             chosen.id === 'everything'
-              ? creator.is_operator
-                ? 'Minted by the operator key, a key naming nothing holds every map at *=write and all seven permissions.'
-                : `${chosen.says}\n\n${describeReach(creator as KeyReach)}${(creator.sources ?? []).length > 0 ? `\nAlso writes as: ${(creator.sources ?? []).join(', ')}` : ''}`
+              ? `${chosen.says}\n\n${describeReach(creator as KeyReach)}${(creator.sources ?? []).length > 0 ? `\nAlso writes as: ${(creator.sources ?? []).join(', ')}` : ''}`
               : `${chosen.says}\n\n${describeReach(presetReach(chosen.id, creator))}`
           }
         />

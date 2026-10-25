@@ -53,7 +53,7 @@
       "name": "manage-keys",
       "title": "Manage Keys",
       "subtitle": "Marfa",
-      "description": "List, mint, change and revoke the server's API keys, with a key holding keys.mint or the operator key",
+      "description": "List, mint, change and revoke the server's API keys, with a key holding keys.mint or keys.manage",
       "mode": "view"
     },
     {
@@ -141,7 +141,7 @@
   "dependencies": {
     "@raycast/api": "^2.9.0",
     "@raycast/utils": "^2.3.3",
-    "@withmarfa/client": "0.0.4",
+    "@withmarfa/client": "0.0.36",
     "turndown": "7.2.4"
   },
   "devDependencies": {
@@ -149,10 +149,10 @@
     "@types/node": "22.19.17",
     "@types/react": "19.0.10",
     "@types/turndown": "5.0.6",
-    "eslint": "^10.11.0",
-    "prettier": "^3.9.9",
+    "eslint": "^10.13.0",
+    "prettier": "^3.9.10",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.5"
   },
   "scripts": {
     "build": "ray build -o ./dist",

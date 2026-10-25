@@ -32,9 +32,6 @@ export function KeyDetail({
   const { pop } = useNavigation();
   const markdown = [
     `# ${apiKey.label}`,
-    apiKey.is_operator
-      ? 'The operator key holds no map and no permission of its own: it mints keys and manages the server, and reads no items.'
-      : '',
     ...MAPS.map((map) =>
       mapMarkdown(map.title, apiKey[map.field] as Record<string, string> | undefined),
     ),
@@ -105,24 +102,22 @@ export function KeyDetail({
       }
       actions={
         <ActionPanel>
-          {!apiKey.is_operator && (
-            <Action.Push
-              title="Edit Key"
-              icon={Icon.Pencil}
-              shortcut={Keyboard.Shortcut.Common.Edit}
-              target={
-                <EditKeyForm
-                  apiKey={apiKey}
-                  onSaved={() => {
-                    // The form pops itself after this; this pop takes the stale detail
-                    // with it, so the edit lands on the list, which reads the key again.
-                    onChanged();
-                    pop();
-                  }}
-                />
-              }
-            />
-          )}
+          <Action.Push
+            title="Edit Key"
+            icon={Icon.Pencil}
+            shortcut={Keyboard.Shortcut.Common.Edit}
+            target={
+              <EditKeyForm
+                apiKey={apiKey}
+                onSaved={() => {
+                  // The form pops itself after this; this pop takes the stale detail
+                  // with it, so the edit lands on the list, which reads the key again.
+                  onChanged();
+                  pop();
+                }}
+              />
+            }
+          />
           <Action.CopyToClipboard
             title="Copy Key as JSON"
             content={JSON.stringify(apiKey, null, 2)}
