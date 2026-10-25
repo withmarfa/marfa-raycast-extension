@@ -9,7 +9,7 @@
     "Productivity",
     "Data"
   ],
-  "license": "Apache-2.0",
+  "license": "MIT",
   "platforms": [
     "macOS"
   ],
@@ -139,8 +139,8 @@
     }
   ],
   "dependencies": {
-    "@raycast/api": "^2.5.3",
-    "@raycast/utils": "^2.3.2",
+    "@raycast/api": "^2.9.0",
+    "@raycast/utils": "^2.3.3",
     "@withmarfa/client": "0.0.4",
     "turndown": "7.2.4"
   },
@@ -158,10 +158,11 @@
     "build": "ray build -o ./dist",
     "check-withmarfa-versions": "node scripts/check-withmarfa-versions.cjs",
     "dev": "ray develop",
-    "fix-lint": "ray lint --fix --relaxed",
-    "lint": "ray lint --relaxed",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
     "prebuild": "npm run check-withmarfa-versions",
     "predev": "npm run check-withmarfa-versions",
+    "publish": "npx @raycast/api@latest publish",
     "pretest": "npm run check-withmarfa-versions",
     "pretypecheck": "npm run check-withmarfa-versions",
     "test": "vitest run",
