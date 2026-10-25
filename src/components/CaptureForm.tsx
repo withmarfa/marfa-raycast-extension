@@ -13,6 +13,7 @@ import {
 import { openAsBlob } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { useState, type ReactNode } from 'react';
+import { readClipboard } from '../capture-source';
 import { captureFormModel, initialValue, ZONE_FIELDS } from '../capture-form';
 import type { PlannedField } from '../capture-plan';
 import {
@@ -30,6 +31,7 @@ import {
   clipboardBody,
   clipboardSeed,
   type ClipboardSnapshot,
+  clipboardType,
 } from '../clipboard';
 import { parseTags, type Registry } from '../display';
 import { refusedFields } from '../failure';
@@ -54,8 +56,10 @@ export function CaptureForm(props: {
   /** Whether the form keeps a draft when closed, and the draft it was reopened with. */
   enableDrafts?: boolean;
   draftValues?: Form.Values;
-  /** The clipboard the form was opened from, to seed fields by what they are. */
+  /** The text the form was opened from, to seed fields by what they are. */
   clipboard?: ClipboardSnapshot;
+  /** Offers Fill from Clipboard, which starts the form again from what is copied. */
+  canUseClipboard?: boolean;
   navigationTitle?: string;
   /** Holds the form to its initial type, for a capture that only makes sense as one. */
   lockType?: boolean;
@@ -70,7 +74,8 @@ export function CaptureForm(props: {
   onCaptured?: (label: string) => Promise<void>;
   submitTitle?: string;
 }) {
-  const { registry, registryLoading, clipboard } = props;
+  const { registry, registryLoading } = props;
+  const [clipboard, setClipboard] = useState(props.clipboard);
   const { defaultTags } = getPreferenceValues<Preferences>();
   const zone = deviceTimeZone();
 
@@ -250,6 +255,23 @@ export function CaptureForm(props: {
     set(bodyTarget.name, before ? `${before}\n\n${text}` : text);
   }
 
+  // What is copied decides the type the way a selection does, except that a
+  // copied file beats the type, and only fields nobody has set take its seeds.
+  async function fillFromClipboard() {
+    const snapshot = await readClipboard();
+    if (!snapshot.text.trim() && !snapshot.file) {
+      await showToast({ style: Toast.Style.Failure, title: 'Nothing on the clipboard' });
+      return;
+    }
+    setClipboard(snapshot);
+    setErrors({});
+    setValues((current) => ({
+      ...current,
+      [TYPE_FIELD]: clipboardType(snapshot, typeId),
+      ...(snapshot.file ? { [FILE_FIELD]: [captureFromFile(snapshot.file).path] } : {}),
+    }));
+  }
+
   const options = registry.filterable();
   const known = options.some((type) => type.id === typeId);
 
@@ -271,6 +293,14 @@ export function CaptureForm(props: {
               icon={Icon.Clipboard}
               shortcut={{ modifiers: ['cmd', 'shift'], key: 'v' }}
               onAction={insertClipboard}
+            />
+          )}
+          {props.canUseClipboard && (
+            <Action
+              title="Fill from Clipboard"
+              icon={Icon.Clipboard}
+              shortcut={{ modifiers: ['cmd', 'shift'], key: 'u' }}
+              onAction={fillFromClipboard}
             />
           )}
           {/* Expands only: a collapsed section's controls would stop counting, and what was typed there with them. */}
