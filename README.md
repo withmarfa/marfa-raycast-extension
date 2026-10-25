@@ -1,71 +1,65 @@
 # Marfa for Raycast
 
-A [Raycast](https://www.raycast.com/) extension that captures notes and other items to a Marfa server and browses what every app wrote there. It talks to the server over HTTP through `@withmarfa/client`, so it keeps no local copy and does no syncing. Every command needs a reachable server.
+Capture to your own Marfa from anywhere on your Mac, and browse what all your apps keep there.
 
-## Requirements
+## What is Marfa?
 
-- Raycast on macOS.
-- A Marfa server that you can reach from your Mac.
-- An API key for that server. Mint one for Raycast with the `marfa` command line:
+Marfa is a shared data layer for your apps, and you run it yourself. Your notes, tasks, bookmarks, and files live in one server that you own, as typed items. Every app you allow reads and writes the same items, so your data stays put when you change apps.
 
-  ```sh
-  marfa keys create --label raycast --source raycast \
-    --type-permission '*=write' --metadata-permission '*=write' --edge-permission '*=write' \
-    --permission items.purge
-  ```
+![Raycast, your other apps, and AI agents each connect to one Marfa server that holds your notes, tasks, bookmarks, and files.](media/how-it-fits.svg)
 
-  The key decides what the extension can do. Capturing and editing need write access to types, tags, and edges. Delete Permanently and Empty Trash also need the `items.purge` permission, and Manage Keys needs the `keys.mint` or `keys.manage` permission. When the key lacks a permission, the extension names the missing one. Each key has a source of its own, so a second key for Raycast needs a different `--source`.
+The extension keeps no copy of your data, so every command needs your server to be reachable. Marfa is early software, so expect breaking changes until version 1.0.
 
-## Configuration
+## How you might use this extension
 
-Set these in the extension's preferences in Raycast.
+- **As a client for the Marfa you already run.** Raycast becomes one more way into your items. Search them, capture to them, and edit them without opening another app.
+- **As your notes in Raycast.** If you only want somewhere to put notes, Marfa is the store behind them. Your notes stay on your own machine, and any app you add later can read them.
 
-| Preference           | Required | Description                                                                                                                  |
-| -------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Server URL           | Yes      | Where your Marfa server answers, such as `http://127.0.0.1:8602`.                                                            |
-| API Key              | Yes      | The key minted for Raycast.                                                                                                  |
-| Default Capture Type | No       | The type Create Item and Quick Capture start on, as a type identifier. Defaults to `core.note`.                              |
-| Default Tier         | No       | Where captures land: the library keeps what you chose to keep, and the feed holds what arrives in volume.                    |
-| Selected Text        | No       | Quick Capture starts from the text selected in the frontmost app, and the clipboard when nothing is selected. On by default. |
-| Default Tags         | No       | Comma-separated tags that every capture starts with.                                                                         |
+## Set up
+
+You need Raycast on a Mac, and Docker or OrbStack to run the server.
+
+![Three steps: install Marfa, make a key, connect Raycast.](media/set-up.svg)
+
+1. **Install Marfa.** In Terminal, run:
+
+   ```sh
+   brew install withmarfa/tap/marfa
+   marfa server install
+   ```
+
+   Open the link the command prints, and choose an email and password. That makes you the owner of your server.
+
+2. **Make a key for Raycast.** In your server's web page, open **API keys** and choose **Create key**. Name it `Raycast` and give it the source `raycast`. Turn on read and write for all types, tags, and edges. To let Raycast delete items for good, also allow permanent deletes. Copy the key. The page shows it once.
+
+3. **Connect Raycast.** Open any Marfa command, then enter the **Server URL** (`http://localhost:8600` if you installed it on this Mac, unless the install printed another port) and the **API Key**.
+
+To reach your server from other devices, see [Deploy](https://docs.marfa.so/guides/deploy).
 
 ## Commands
 
-| Command       | What it does                                                                                         |
-| ------------- | ---------------------------------------------------------------------------------------------------- |
-| Browse        | Browse and search your items. Open, edit, tag, archive, reply to, annotate, trash, or delete them.   |
-| Create Item   | Create a note, or an item of any type the server holds, in a form built from its schema.             |
-| Quick Capture | Capture the selected text or the clipboard in a form, with the type and every field ready to change. |
-| Type Registry | List every type the server holds and the fields each one declares.                                   |
-| Manage Keys   | List, mint, change, and revoke the server's API keys. Needs a key with `keys.mint` or `keys.manage`. |
-| Status        | Check the server, its contract, and the API key.                                                     |
+| Command       | What it does                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------- |
+| Browse        | Search your items. Open, edit, tag, archive, reply to, annotate, trash, or delete them.                       |
+| Create Item   | Create a note, or an item of any type your server holds, in a form built from the type.                       |
+| Quick Capture | Capture the text you have selected, or your clipboard, in a form. A copied file or image becomes a file item. |
+| Type Registry | See every type your server holds and the fields each one declares.                                            |
+| Manage Keys   | List, make, change, and revoke API keys. Needs a key that holds `keys.mint` or `keys.manage`.                 |
+| Status        | Check your server, its contract, and your API key.                                                            |
 
-## The capture form
+Raycast AI can search, list, and capture items too. Mention `@marfa`.
 
-Create Item and Quick Capture build their form from the type's schema on the server, so a type that an instance registers gets a form without any change to the extension. Each field's declared type picks its control, such as text, a Markdown area for the body, a dropdown for an enum, or a date picker. Required fields always show, and the optional ones beyond the first few wait behind a **Show More Fields** option. The form refuses what the server would refuse, such as a blank required field or a malformed URL, and marks the field. A note has a simpler form: its text, whose first line names the note, and its tags. Create Item keeps a draft when you close the form.
+## Preferences
 
-## AI tools
-
-In Raycast AI, mention `@marfa` to use these tools. Instructions and evals are in `ai.yaml`.
-
-- **Search Items:** full-text search across your items, returning each item's name, text, and tags.
-- **List Items:** your most recently changed items, newest first, narrowed by type, state, or tier.
-- **Capture Item:** save an item of any type the server holds. It asks you to confirm the type and each value first.
-- **List Types:** list the types the server holds, or describe one type's fields and which are required.
-
-## Build and run locally
-
-```sh
-npm install
-npm run dev         # development mode in Raycast
-npm run typecheck   # type check
-npm run lint        # ESLint and Prettier
-npm test            # unit tests
-npm run build       # build into ./dist
-```
-
-Running `npm run dev` once registers the extension with Raycast. You can stop dev mode after the build message, and the extension stays installed without hot reload. Contributors and coding agents: see [AGENTS.md](AGENTS.md).
+| Preference           | Description                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| Server URL           | Where your Marfa server answers.                                                        |
+| API Key              | The key you made for Raycast.                                                           |
+| Default Capture Type | The type that Create Item and Quick Capture start on. The default is `core.note`.       |
+| Default Tier         | Where captures land: the library keeps what you chose to keep, the feed holds the rest. |
+| Selected Text        | Quick Capture starts from the selected text when there is some. On by default.          |
+| Default Tags         | Tags that every capture starts with, separated by commas.                               |
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). To work on the extension, see [AGENTS.md](AGENTS.md).
