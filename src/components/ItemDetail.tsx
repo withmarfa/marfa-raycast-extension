@@ -14,25 +14,17 @@ import { formatRelative, formatWhen } from '../dates';
 import type { Registry } from '../display';
 import { describeFailure } from '../failure';
 import { showFailure } from '../feedback';
+import { useImageUrl } from '../use-image';
 import {
   buildItemMarkdown,
   groupRelations,
-  IMAGE_PREVIEW_MAX_BYTES,
   imageSource,
   relatedIds,
   type SidebarEntry,
   sidebarEntries,
   summarizeComplex,
 } from '../item-view';
-import {
-  downloadBlob,
-  type Entry,
-  getItem,
-  getMany,
-  type Item,
-  listEdges,
-  listVersions,
-} from '../marfa';
+import { type Entry, getItem, getMany, type Item, listEdges, listVersions } from '../marfa';
 import { toTitleCase } from '../schema-fields';
 import { ItemActions } from './ItemActions';
 
@@ -41,14 +33,6 @@ const STATE_TAGS: Record<string, { text: string; color: Color }> = {
   archived: { text: 'Archived', color: Color.Blue },
   trashed: { text: 'Trashed', color: Color.Red },
 };
-
-/** A picture as markdown can draw it: a stored image fetched into a data URI, anything else as is. */
-async function loadImage(kind: string, ref: string, mimeType: string): Promise<string | null> {
-  if (kind !== 'blob') return ref;
-  const bytes = await downloadBlob(ref);
-  if (bytes.byteLength > IMAGE_PREVIEW_MAX_BYTES) return null;
-  return `data:${mimeType};base64,${Buffer.from(bytes).toString('base64')}`;
-}
 
 /**
  * One item in full: its text and picture, every property, its tags, its
@@ -87,15 +71,7 @@ export function ItemDetail({
   const trashed = item.state === 'trashed';
   // Keyed by what the picture is, so the row and the fresh read do not each fetch it.
   const source = imageSource(item, registry);
-  const image = usePromise(
-    loadImage,
-    [
-      source?.kind ?? '',
-      source ? (source.kind === 'blob' ? source.hash : source.url) : '',
-      source?.kind === 'blob' ? source.mimeType : '',
-    ],
-    { execute: source !== null, onError: () => undefined },
-  );
+  const image = useImageUrl(source, true);
   const edges = usePromise((id: string) => listEdges(id), [item.id], {
     execute: !trashed,
     onError: () => undefined,
@@ -111,7 +87,7 @@ export function ItemDetail({
     bodyField,
     titleField,
     titleIsBody: isNote,
-    imageUrl: source ? image.data : null,
+    imageUrl: image.url,
   });
   const entries = sidebarEntries(item, [bodyField, isNote ? undefined : titleField]);
   const type = registry.type(item.type);

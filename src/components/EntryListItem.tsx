@@ -5,18 +5,26 @@ import { formatWhen } from '../dates';
 import type { Registry } from '../display';
 import type { Entry } from '../marfa';
 import { ItemActions, webUrl } from './ItemActions';
+import { imageSource } from '../item-view';
+import { useImageUrl } from '../use-image';
 import { ItemDetail } from './ItemDetail';
+
+/** The tallest a picture is drawn in the list's side panel, in points. */
+const PICTURE_HEIGHT = 280;
 
 export function EntryListItem({
   entry,
   registry,
   showingDetail,
+  selected,
   onChanged,
   listActions,
 }: {
   entry: Entry;
   registry: Registry;
   showingDetail: boolean;
+  /** The row in view, the only one whose picture is fetched. */
+  selected: boolean;
   onChanged: () => void;
   listActions: ReactNode;
 }) {
@@ -26,9 +34,17 @@ export function EntryListItem({
   const url = webUrl(item);
   const trashed = item.state === 'trashed';
 
+  const source = imageSource(item, registry);
+  const picture = useImageUrl(source, showingDetail && selected, PICTURE_HEIGHT);
+  const markdown =
+    [picture.url ? `![${title.replace(/[[\]]/g, '')}](${picture.url})` : '', body]
+      .filter(Boolean)
+      .join('\n\n') || `_${registry.label(item.type)} with no text_`;
+
   const detail = (
     <List.Item.Detail
-      markdown={body || `_${registry.label(item.type)} with no text_`}
+      isLoading={picture.isLoading}
+      markdown={markdown}
       metadata={
         <List.Item.Detail.Metadata>
           <List.Item.Detail.Metadata.Label title="Type" text={registry.label(item.type)} />

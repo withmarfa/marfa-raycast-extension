@@ -171,6 +171,15 @@ describe('the picture', () => {
     ).toBeNull();
   });
 
+  it('carries the stored size, so a huge image is skipped before it is fetched', () => {
+    expect(
+      imageSource(
+        item({ blob_ref: 'h1', mime_type: 'image/png', size_bytes: 693970 }, 'core.file.image'),
+        registry,
+      ),
+    ).toEqual({ kind: 'blob', hash: 'h1', mimeType: 'image/png', sizeBytes: 693970 });
+  });
+
   it('then the thumbnail the type declares, then a cover it links to', () => {
     const both = item(
       { cover: 'data:image/png;base64,AAAA', image_url: 'https://example.org/a.png' },
