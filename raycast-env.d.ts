@@ -12,11 +12,11 @@ type ExtensionPreferences = {
   "apiUrl": string,
   /** API Key - A key minted for Raycast, for example with `marfa keys create` */
   "apiKey": string,
-  /** Default Capture Type - The type Create Item and Quick Capture start on, as a type identifier such as core.note or core.task */
+  /** Default Capture Type - The type Create Item starts on, as a type identifier such as core.note or core.task */
   "defaultCaptureType": string,
   /** Default Tier - Where captures land: the library keeps what you chose to keep, the feed holds what arrives in volume */
   "defaultTier": "library" | "feed",
-  /** Selected Text - Quick Capture starts from the text selected in the frontmost app and falls back to the clipboard when nothing is selected */
+  /** Selected Text - Create Item starts from the text selected in the frontmost app when there is some, and blank otherwise */
   "preferSelectedText": boolean,
   /** Default Tags - Comma-separated tags every capture starts with */
   "defaultTags"?: string
@@ -30,8 +30,6 @@ declare namespace Preferences {
   export type Browse = ExtensionPreferences & {}
   /** Preferences accessible in the `create-item` command */
   export type CreateItem = ExtensionPreferences & {}
-  /** Preferences accessible in the `quick-capture` command */
-  export type QuickCapture = ExtensionPreferences & {}
   /** Preferences accessible in the `type-registry` command */
   export type TypeRegistry = ExtensionPreferences & {}
   /** Preferences accessible in the `manage-keys` command */
@@ -45,8 +43,6 @@ declare namespace Arguments {
   export type Browse = {}
   /** Arguments passed to the `create-item` command */
   export type CreateItem = {}
-  /** Arguments passed to the `quick-capture` command */
-  export type QuickCapture = {}
   /** Arguments passed to the `type-registry` command */
   export type TypeRegistry = {}
   /** Arguments passed to the `manage-keys` command */
