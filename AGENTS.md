@@ -19,7 +19,7 @@ A Raycast extension for capturing to a Marfa server and browsing what every app 
 
 ## Layout
 
-- `src/`: the commands (`browse.tsx`, `quick-capture.tsx`, and the rest named in `package.json`), their views in `src/components/`, and pure modules beside them. `src/marfa.ts` is the one door to the server.
+- `src/`: the commands (`browse.tsx`, `create-item.tsx`, and the rest named in `package.json`), their views in `src/components/`, and pure modules beside them. `src/marfa.ts` is the one door to the server.
 - `src/tools/`: the AI tools. `ai.yaml`: their instructions and evals.
 - `test/`: Vitest tests, outside `src/` because `ray lint` lints every file there.
 - `scripts/`: the `@withmarfa/*` version guard and the CI change classifier.

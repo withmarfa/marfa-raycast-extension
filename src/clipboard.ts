@@ -15,25 +15,14 @@ export interface ClipboardSnapshot {
   file: string | null;
 }
 
-export interface CaptureSource {
-  snapshot: ClipboardSnapshot;
-  from: 'selection' | 'clipboard';
-}
-
 /**
- * What a quick capture takes: the selected text when it is preferred and there
- * is some, otherwise the clipboard. A selection carries text alone, so it
- * captures as a note or a bookmark even while a file sits on the clipboard.
+ * What a selection starts a capture with: its text alone, so it makes a note
+ * or a bookmark even while a file sits on the clipboard. Null when nothing is
+ * selected or the selection is blank.
  */
-export function chooseSource(
-  selection: string | undefined,
-  clipboard: ClipboardSnapshot,
-  preferSelection: boolean,
-): CaptureSource {
-  if (preferSelection && selection?.trim()) {
-    return { snapshot: { text: selection, html: '', file: null }, from: 'selection' };
-  }
-  return { snapshot: clipboard, from: 'clipboard' };
+export function selectionSnapshot(selection: string | undefined): ClipboardSnapshot | null {
+  if (!selection?.trim()) return null;
+  return { text: selection, html: '', file: null };
 }
 
 export function isWebUrl(value: string): boolean {

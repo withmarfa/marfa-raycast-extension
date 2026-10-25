@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { PlannedField } from '../src/capture-plan';
 import {
   captureFromFile,
-  chooseSource,
   clipboardBody,
   clipboardSeed,
   clipboardType,
+  selectionSnapshot,
   htmlToMarkdown,
   isWebUrl,
 } from '../src/clipboard';
@@ -163,38 +163,28 @@ describe('where the clipboard goes in a form', () => {
   });
 });
 
-describe('what a quick capture takes', () => {
-  const clipboard = { text: 'On the clipboard', html: '<p>On the clipboard</p>', file: null };
-  const copiedFile = { text: 'Plan.pdf', html: '', file: 'file:///tmp/Plan.pdf' };
-
-  it('the selection when it is preferred and there is some', () => {
-    expect(chooseSource('Selected words', clipboard, true)).toEqual({
-      snapshot: { text: 'Selected words', html: '', file: null },
-      from: 'selection',
+describe('what a selection starts a capture with', () => {
+  it('its text alone', () => {
+    expect(selectionSnapshot('Selected words')).toEqual({
+      text: 'Selected words',
+      html: '',
+      file: null,
     });
   });
 
-  it('the clipboard when nothing is selected or the selection is blank', () => {
-    expect(chooseSource(undefined, clipboard, true)).toEqual({
-      snapshot: clipboard,
-      from: 'clipboard',
-    });
-    expect(chooseSource('', clipboard, true).from).toBe('clipboard');
-    expect(chooseSource(' \n\t ', clipboard, true).from).toBe('clipboard');
+  it('nothing when nothing is selected or the selection is blank', () => {
+    expect(selectionSnapshot(undefined)).toBeNull();
+    expect(selectionSnapshot('')).toBeNull();
+    expect(selectionSnapshot(' \n\t ')).toBeNull();
   });
 
-  it('the clipboard when the selection is not preferred', () => {
-    expect(chooseSource('Selected words', clipboard, false).from).toBe('clipboard');
-  });
-
-  it('the selection over a copied file, as a note, since a selection holds text alone', () => {
-    const source = chooseSource('Selected words', copiedFile, true);
-    expect(source.snapshot.file).toBeNull();
-    expect(clipboardType(source.snapshot, 'core.note')).toBe('core.note');
+  it('a note, even while a file is copied, since a selection holds text alone', () => {
+    const snapshot = selectionSnapshot('Selected words');
+    expect(snapshot && clipboardType(snapshot, 'core.note')).toBe('core.note');
   });
 
   it('a selected web address as a bookmark', () => {
-    const source = chooseSource('https://example.org/a', clipboard, true);
-    expect(clipboardType(source.snapshot, 'core.note')).toBe('core.bookmark');
+    const snapshot = selectionSnapshot('https://example.org/a');
+    expect(snapshot && clipboardType(snapshot, 'core.note')).toBe('core.bookmark');
   });
 });

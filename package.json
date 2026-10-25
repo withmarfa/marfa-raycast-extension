@@ -25,14 +25,7 @@
       "name": "create-item",
       "title": "Create Item",
       "subtitle": "Marfa",
-      "description": "Create a note, or an item of any type the server holds, in a form built from its schema",
-      "mode": "view"
-    },
-    {
-      "name": "quick-capture",
-      "title": "Quick Capture",
-      "subtitle": "Marfa",
-      "description": "Capture the selected text or the clipboard in a form, with the type and every field ready to change before it is saved",
+      "description": "Create a note, or an item of any type the server holds, in a form built from its schema, starting from the text you have selected",
       "mode": "view"
     },
     {
@@ -98,7 +91,7 @@
     {
       "name": "defaultCaptureType",
       "title": "Default Capture Type",
-      "description": "The type Create Item and Quick Capture start on, as a type identifier such as core.note or core.task",
+      "description": "The type Create Item starts on, as a type identifier such as core.note or core.task",
       "type": "textfield",
       "required": false,
       "default": "core.note",
@@ -125,11 +118,11 @@
     {
       "name": "preferSelectedText",
       "title": "Selected Text",
-      "description": "Quick Capture starts from the text selected in the frontmost app and falls back to the clipboard when nothing is selected",
+      "description": "Create Item starts from the text selected in the frontmost app when there is some, and blank otherwise",
       "type": "checkbox",
       "required": false,
       "default": true,
-      "label": "Prefer selected text over the clipboard"
+      "label": "Start from the selected text"
     },
     {
       "name": "defaultTags",

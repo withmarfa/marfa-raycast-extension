@@ -43,8 +43,8 @@ Marfa is early software. Expect breaking changes until version 1.0. To learn mor
 
 Marfa for Raycast is one of those apps. Use it as a client for the Marfa you already run, or as a place for your notes in Raycast, with Marfa behind it.
 
-- **Capture** the text you have selected, or your clipboard, to Marfa with one hotkey. Add tags, and choose where it lands.
-- **Create** a note, or an item of any type your server holds, in a form built from that type.
+- **Capture** the text you have selected with one hotkey. Create Item opens with the text filled in, so you can add tags and choose where it lands.
+- **Create** a note, or an item of any type your server holds, in a form built from that type. Fill from Clipboard turns a copied link into a bookmark, and a copied file or image into a file.
 - **Browse and search** your items. Open, edit, tag, archive, reply to, annotate, trash, or delete them.
 - **Look up** the types your server holds, and manage its API keys.
 - **Ask Raycast AI** to search, list, and capture items. Mention `@marfa`.
@@ -52,8 +52,6 @@ Marfa for Raycast is one of those apps. Use it as a client for the Marfa you alr
 The extension keeps no copy of your data, so every command needs a server it can reach.
 
 ![Browse lists your items, and shows the selected item in full.](media/browse.png)
-
-![Quick Capture opens a form built from the item's type, so you can add tags before you save.](media/quick-capture.png)
 
 ## Set up
 
@@ -89,14 +87,13 @@ A key tells Marfa what an app may do.
 
 ## Commands
 
-| Command       | What it does                                                                                             |
-| ------------- | -------------------------------------------------------------------------------------------------------- |
-| Quick Capture | Capture the text you have selected, or your clipboard, in a form. A copied file or image becomes a file. |
-| Create Item   | Create a note, or an item of any type your server holds, in a form built from the type.                  |
-| Browse        | Search your items. Open, edit, tag, archive, reply to, annotate, trash, or delete them.                  |
-| Type Registry | See every type your server holds and the fields each one declares.                                       |
-| Manage Keys   | List, make, change, and revoke API keys. Needs a key that holds `keys.mint` or `keys.manage`.            |
-| Status        | Check your server, its contract, and your API key.                                                       |
+| Command       | What it does                                                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Create Item   | Create a note, or an item of any type your server holds, in a form built from the type. It starts from the text you have selected. |
+| Browse        | Search your items. Open, edit, tag, archive, reply to, annotate, trash, or delete them.                                            |
+| Type Registry | See every type your server holds and the fields each one declares.                                                                 |
+| Manage Keys   | List, make, change, and revoke API keys. Needs a key that holds `keys.mint` or `keys.manage`.                                      |
+| Status        | Check your server, its contract, and your API key.                                                                                 |
 
 ## Preferences
 
@@ -104,9 +101,9 @@ A key tells Marfa what an app may do.
 | -------------------- | -------- | --------------------------------------------------------------------------------------- |
 | Server URL           | Yes      | Where your Marfa server answers.                                                        |
 | API Key              | Yes      | The key you made for Raycast.                                                           |
-| Default Capture Type | No       | The type that Create Item and Quick Capture start on. The default is `core.note`.       |
+| Default Capture Type | No       | The type that Create Item starts on. The default is `core.note`.                        |
 | Default Tier         | No       | Where captures land: the library keeps what you chose to keep, the feed holds the rest. |
-| Selected Text        | No       | Quick Capture starts from the selected text when there is some. On by default.          |
+| Selected Text        | No       | Create Item starts from the selected text when there is some. On by default.            |
 | Default Tags         | No       | Tags that every capture starts with, separated by commas.                               |
 
 ## FAQ
