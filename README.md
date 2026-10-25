@@ -98,7 +98,7 @@ Yes. This is the simplest setup, and the one in [Set up](#set-up). The Server UR
 
 ### Does it work offline?
 
-Yes, when Marfa runs on the same Mac, because no command needs the internet. Ask Raycast AI is the exception, because Raycast AI needs it. When the server is on another machine, a command fails while your Mac cannot reach it. Status shows what is wrong.
+Yes, when Marfa runs on the same Mac, because the extension only talks to your server. When the server is on another machine, a command fails while your Mac cannot reach it. Status shows what is wrong.
 
 ### What can the key do?
 
