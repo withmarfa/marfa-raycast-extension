@@ -2,6 +2,32 @@
 
 Capture to your own Marfa, and browse everything your apps keep there, from Raycast.
 
+## Install
+
+This extension isn't in the Raycast Store yet. Marfa changes often, and the extension changes with it. Once Marfa reaches version 0.1 and is stable, the extension will be submitted to the store. Until then, install it from source.
+
+You need Raycast on a Mac, [Node.js](https://nodejs.org) 22.22.2 or later, and Git.
+
+1. Clone the repository, and open it:
+
+   ```sh
+   git clone https://github.com/withmarfa/marfa-raycast-extension.git
+   cd marfa-raycast-extension
+   ```
+
+2. Install the dependencies, and build the extension in development mode:
+
+   ```sh
+   npm install && npm run dev
+   ```
+
+3. Wait for the build message. The Marfa commands now appear in Raycast.
+4. Press <kbd>Ctrl</kbd>+<kbd>C</kbd> to stop development mode. The extension stays installed.
+
+To update, run `git pull` and `npm install`, then repeat steps 2 to 4.
+
+Then follow [Set up](#set-up) to connect the extension to a Marfa server.
+
 ## What is Marfa?
 
 Marfa is **a data layer that you run yourself**.

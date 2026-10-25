@@ -68,7 +68,8 @@ npm run build       # ray build -o ./dist
 
 ## Versions and releases
 
-- The Raycast Store is the release. `npm run publish` opens a draft pull request on `raycast/extensions`, which the author marks ready. Nothing tags a release here.
+- The extension is not in the Raycast Store yet. It will be submitted once Marfa reaches 0.1 and is stable. Until then the README's Install section, which builds it from source, is how people get it, and `main` is the release. Nothing tags a release here.
+- The store submission is `npm run publish`, which opens a draft pull request on `raycast/extensions` that the author marks ready. Keep the repository ready for it: strict `ray lint`, a passing `npm run build`, and the files below.
 - `CHANGELOG.md` headings read `## [Title] - {PR_MERGE_DATE}`, which the store's bot fills in when the pull request merges. Never write `[Unreleased]`.
 - `help.md` is the setup text beside the required preferences. `metadata/` holds the store screenshots, taken with Raycast's Capture Window command; add no other files there.
 - The license is MIT, which the store requires in `package.json`.
