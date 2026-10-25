@@ -14,7 +14,7 @@ A [Raycast](https://www.raycast.com/) extension that captures notes and other it
     --permission items.purge
   ```
 
-  The key decides what the extension can do. Capturing and editing need write access to types, tags, and edges. Delete Permanently and Empty Trash also need the `items.purge` permission, and Manage Keys needs the `keys.mint` permission or the operator key. When the key lacks a permission, the extension names the missing one. Each key has a source of its own, so a second key for Raycast needs a different `--source`.
+  The key decides what the extension can do. Capturing and editing need write access to types, tags, and edges. Delete Permanently and Empty Trash also need the `items.purge` permission, and Manage Keys needs the `keys.mint` or `keys.manage` permission. When the key lacks a permission, the extension names the missing one. Each key has a source of its own, so a second key for Raycast needs a different `--source`.
 
 ## Configuration
 
@@ -30,15 +30,15 @@ Set these in the extension's preferences in Raycast.
 
 ## Commands
 
-| Command                  | What it does                                                                                             |
-| ------------------------ | -------------------------------------------------------------------------------------------------------- |
-| Browse                   | Browse and search your items. Open, edit, tag, archive, reply to, annotate, trash, or delete them.       |
-| Quick Capture            | Capture a note, or any type the server holds, in a form built from its schema.                           |
-| Clipboard Capture        | Capture the clipboard at once: a file, an image, a link as a bookmark, or text as a note.                |
-| Clipboard Capture (Edit) | Shape the clipboard in a capture form for any type before it is saved.                                   |
-| Type Registry            | List every type the server holds and the fields each one declares.                                       |
-| Manage Keys              | List, mint, change, and revoke the server's API keys. Needs a key with `keys.mint`, or the operator key. |
-| Status                   | Check the server, its contract, and the API key.                                                         |
+| Command                  | What it does                                                                                         |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Browse                   | Browse and search your items. Open, edit, tag, archive, reply to, annotate, trash, or delete them.   |
+| Quick Capture            | Capture a note, or any type the server holds, in a form built from its schema.                       |
+| Clipboard Capture        | Capture the clipboard at once: a file, an image, a link as a bookmark, or text as a note.            |
+| Clipboard Capture (Edit) | Shape the clipboard in a capture form for any type before it is saved.                               |
+| Type Registry            | List every type the server holds and the fields each one declares.                                   |
+| Manage Keys              | List, mint, change, and revoke the server's API keys. Needs a key with `keys.mint` or `keys.manage`. |
+| Status                   | Check the server, its contract, and the API key.                                                     |
 
 ## The capture form
 

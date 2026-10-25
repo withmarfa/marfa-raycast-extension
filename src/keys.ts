@@ -5,7 +5,7 @@ import type { ApiKey } from './marfa';
  * Keys as Manage Keys reads and writes them. Pure, so every preset's body,
  * every summary and every refusal is tested without a server.
  *
- * A key's reach is five maps and seven permissions. A create naming none of
+ * A key's reach is five maps and a set of permissions. A create naming none of
  * the maps, the permissions or claimed sources copies the creator's whole
  * set; naming any of them takes only what it names. The server refuses a key
  * reaching past its creator, so nothing here second-guesses it.
@@ -14,13 +14,18 @@ import type { ApiKey } from './marfa';
 export type Permission = NonNullable<ApiKey['permissions']>[number];
 
 export const PERMISSIONS: readonly { name: Permission; says: string }[] = [
-  { name: 'keys.mint', says: 'Mint, change and revoke keys' },
+  { name: 'keys.mint', says: 'Mint keys within its own reach, and change and revoke those' },
+  { name: 'keys.manage', says: 'List and revoke every key, and narrow any of them' },
   { name: 'items.purge', says: 'Delete items for good, and empty the Trash' },
   { name: 'schema.write', says: 'Register and change types' },
   { name: 'webhooks.manage', says: 'Manage webhooks' },
   { name: 'config.manage', says: 'Change the server’s configuration' },
   { name: 'audit.read', says: 'Read the audit log' },
   { name: 'grants.manage', says: 'Manage what signed-in apps are granted' },
+  { name: 'connectors.manage', says: 'Manage connector registrations and their endpoints' },
+  { name: 'blobs.manage', says: 'Manage every stored file' },
+  { name: 'instance.read', says: 'Read health, metrics and background job status' },
+  { name: 'instance.maintain', says: 'Run housekeeping and cancel background jobs' },
 ];
 
 export type MapField =
@@ -77,9 +82,10 @@ const CONTENT_MAPS: readonly MapField[] = [
 
 type Map = Record<string, string>;
 
-/** Whether the key in the preferences may manage keys: the operator key, or one holding `keys.mint`. */
+/** Whether the key in the preferences may manage keys: it holds `keys.mint` or `keys.manage`. */
 export function canManageKeys(key: ApiKey): boolean {
-  return key.is_operator || (key.permissions ?? []).includes('keys.mint');
+  const held = key.permissions ?? [];
+  return held.includes('keys.mint') || held.includes('keys.manage');
 }
 
 export type PresetId = 'everything' | 'content-write' | 'content-read';
@@ -115,16 +121,14 @@ export type KeyReach = Partial<Record<MapField, Map>> & {
 };
 
 /**
- * The reach a preset asks for, from the key minting it. The operator key holds
- * nothing itself and may grant anything, so its content reaches everything.
+ * The reach a preset asks for, from the key minting it: its content maps,
+ * narrowed to read for the read-only preset.
  */
 export function presetReach(id: PresetId, creator: ApiKey): KeyReach {
   if (id === 'everything') return {};
   const reach: KeyReach = { permissions: [], sources: [] };
   for (const field of CONTENT_MAPS) {
-    const held: Map = creator.is_operator
-      ? { '*': 'write' }
-      : ((creator[field] as Map | undefined) ?? {});
+    const held: Map = (creator[field] as Map | undefined) ?? {};
     reach[field] = id === 'content-read' ? narrowToRead(held) : { ...held };
   }
   return reach;
@@ -262,7 +266,6 @@ export function changedKeyFields(
 
 /** What a key reaches, in the fewest words a list row can spare. */
 export function keySummary(key: ApiKey): string {
-  if (key.is_operator) return 'Operator';
   const permissions = key.permissions ?? [];
   const content = CONTENT_MAPS.map((field) => (key[field] as Map | undefined) ?? {});
   const granted = content.flatMap((map) => Object.values(map)).filter((level) => level !== 'none');

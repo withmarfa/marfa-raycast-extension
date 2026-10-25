@@ -360,7 +360,7 @@ export async function currentKey(): Promise<ApiKey> {
   return answer(marfa().GET('/keys/current'));
 }
 
-/** Every key on the server. Needs `keys.mint` or the operator key. */
+/** The keys the caller reaches: every key with `keys.manage`, those within its reach with `keys.mint`. */
 export async function listKeys(): Promise<ApiKey[]> {
   return rows(await answer(marfa().GET('/keys')));
 }
@@ -368,7 +368,7 @@ export async function listKeys(): Promise<ApiKey[]> {
 /** What a key write may set: its label and source, its reach and its tier. */
 export type KeyBody = Omit<
   ApiKey,
-  'id' | 'created_at' | 'last_used_at' | 'is_operator' | 'expires_at' | 'oauth_client_id'
+  'id' | 'created_at' | 'last_used_at' | 'expires_at' | 'oauth_client_id'
 >;
 
 /** Mints a key. The answer carries the key itself, which the server never shows again. */

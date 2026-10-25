@@ -43,9 +43,9 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 
 ## Keys
 
-- Manage Keys works only with the operator key or a key that holds `keys.mint`.
+- Manage Keys works only with a key that holds `keys.mint` or `keys.manage`. The server decides what each reaches: `keys.mint` the keys within its own reach, `keys.manage` every key, narrowing only. Never hide an action on a guess about that.
 - An edit sends only the fields that changed (`changedKeyFields`), because the server refuses a write naming a reach the writer lacks. A map is sent only when its text changed, and a map the lines cannot show exactly is read-only (`mapIsEditable`), so the form never widens or narrows a key. A key's source never changes.
-- Show a new key once. Offer an operator key for revoking only to another operator key, and warn before revoking the key Raycast uses.
+- Show a new key once, and warn before revoking the key Raycast uses.
 
 ## Code Review Rules
 

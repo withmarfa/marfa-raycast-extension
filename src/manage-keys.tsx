@@ -21,12 +21,12 @@ import { canManageKeys, keySummary } from './keys';
 import { type ApiKey, currentKey, listKeys, revokeKey } from './marfa';
 
 const MINT_COMMAND =
-  "marfa keys create --label raycast --source raycast-keys --type-permission '*=write' --metadata-permission '*=write' --edge-permission '*=write' --permission keys.mint";
+  "marfa keys create --label raycast --source raycast-keys --type-permission '*=write' --metadata-permission '*=write' --edge-permission '*=write' --permission keys.mint --permission keys.manage";
 
 /**
  * Every key on the server, and minting, changing and revoking them. The key
  * in the preferences decides whether any of it is possible: without
- * `keys.mint`, and not the operator key, the command says so and stops.
+ * `keys.mint` or `keys.manage`, the command says so and stops.
  */
 export default function ManageKeys() {
   const self = usePromise(currentKey, [], { onError: () => undefined });
@@ -46,7 +46,7 @@ export default function ManageKeys() {
         <List.EmptyView
           icon={{ source: Icon.Lock, tintColor: Color.Yellow }}
           title="This key cannot manage keys"
-          description={`Manage Keys needs the keys.mint permission, which the API Key “${self.data.label}” does not hold. Mint a key that holds it with the CLI, or with the operator key, and put it in the extension preferences.`}
+          description={`Manage Keys needs the keys.mint or keys.manage permission, which the API Key “${self.data.label}” holds neither of. Mint a key that holds them with the CLI and put it in the extension preferences.`}
           actions={
             <ActionPanel>
               <Action.CopyToClipboard title="Copy the Mint Command" content={MINT_COMMAND} />
@@ -67,8 +67,6 @@ export default function ManageKeys() {
     self.revalidate();
   };
   const creator = self.data;
-  // An operator key can be minted only by another, so only an operator key may revoke one.
-  const mayRevoke = (key: ApiKey) => !key.is_operator || creator?.is_operator === true;
   const createAction = creator && (
     <Action.Push
       title="Create Key"
@@ -137,11 +135,7 @@ export default function ManageKeys() {
             key={key.id}
             icon={{
               source: Icon.Key,
-              tintColor: key.is_operator
-                ? Color.Purple
-                : (key.permissions ?? []).length > 0
-                  ? Color.Orange
-                  : Color.SecondaryText,
+              tintColor: (key.permissions ?? []).length > 0 ? Color.Orange : Color.SecondaryText,
             }}
             title={key.label}
             subtitle={key.source}
@@ -164,18 +158,16 @@ export default function ManageKeys() {
                       apiKey={key}
                       own={own}
                       onChanged={refresh}
-                      onRevoke={mayRevoke(key) ? () => revoke(key) : undefined}
+                      onRevoke={() => revoke(key)}
                     />
                   }
                 />
-                {!key.is_operator && (
-                  <Action.Push
-                    title="Edit Key"
-                    icon={Icon.Pencil}
-                    shortcut={Keyboard.Shortcut.Common.Edit}
-                    target={<EditKeyForm apiKey={key} onSaved={refresh} />}
-                  />
-                )}
+                <Action.Push
+                  title="Edit Key"
+                  icon={Icon.Pencil}
+                  shortcut={Keyboard.Shortcut.Common.Edit}
+                  target={<EditKeyForm apiKey={key} onSaved={refresh} />}
+                />
                 {createAction}
                 <ActionPanel.Section>
                   <Action.CopyToClipboard
@@ -191,17 +183,15 @@ export default function ManageKeys() {
                     onAction={refresh}
                   />
                 </ActionPanel.Section>
-                {mayRevoke(key) && (
-                  <ActionPanel.Section>
-                    <Action
-                      title="Revoke Key"
-                      icon={Icon.Trash}
-                      style={Action.Style.Destructive}
-                      shortcut={Keyboard.Shortcut.Common.Remove}
-                      onAction={() => void revoke(key)}
-                    />
-                  </ActionPanel.Section>
-                )}
+                <ActionPanel.Section>
+                  <Action
+                    title="Revoke Key"
+                    icon={Icon.Trash}
+                    style={Action.Style.Destructive}
+                    shortcut={Keyboard.Shortcut.Common.Remove}
+                    onAction={() => void revoke(key)}
+                  />
+                </ActionPanel.Section>
               </ActionPanel>
             }
           />

@@ -23,7 +23,6 @@ function key(over: Partial<ApiKey> = {}): ApiKey {
     source: 'raycast',
     sources: [],
     default_tier: 'library',
-    is_operator: false,
     permissions: [],
     type_permissions: {},
     extension_permissions: {},
@@ -46,6 +45,11 @@ const FULL = key({
     'config.manage',
     'audit.read',
     'grants.manage',
+    'keys.manage',
+    'connectors.manage',
+    'blobs.manage',
+    'instance.read',
+    'instance.maintain',
   ],
   type_permissions: { '*': 'write' },
   metadata_permissions: { '*': 'write' },
@@ -55,9 +59,11 @@ const FULL = key({
 });
 
 describe('who may manage keys', () => {
-  it('a key holding keys.mint, and the operator key, which holds nothing', () => {
+  it('a key holding keys.mint or keys.manage', () => {
     expect(canManageKeys(FULL)).toBe(true);
-    expect(canManageKeys(key({ is_operator: true }))).toBe(true);
+    expect(canManageKeys(key({ permissions: ['keys.manage'] }))).toBe(true);
+    expect(canManageKeys(key({ permissions: ['keys.mint'] }))).toBe(true);
+    expect(canManageKeys(key({ permissions: ['items.purge'] }))).toBe(false);
     expect(canManageKeys(key({ type_permissions: { '*': 'write' } }))).toBe(false);
     expect(canManageKeys(key({ permissions: undefined }))).toBe(false);
   });
@@ -100,13 +106,9 @@ describe('the presets', () => {
     });
   });
 
-  it('from the operator key, which holds nothing but may grant anything, content reaches everything', () => {
-    expect(presetReach('content-write', key({ is_operator: true })).type_permissions).toEqual({
-      '*': 'write',
-    });
-    expect(presetReach('content-read', key({ is_operator: true })).edge_permissions).toEqual({
-      '*': 'read',
-    });
+  it('from a key holding no map, content reaches nothing', () => {
+    expect(presetReach('content-write', key()).type_permissions).toEqual({});
+    expect(presetReach('content-read', key()).edge_permissions).toEqual({});
   });
 });
 
@@ -162,7 +164,6 @@ describe('an edit', () => {
 describe('a key in a row', () => {
   it('is summed up by what it reaches', () => {
     expect(keySummary(FULL)).toBe('Everything');
-    expect(keySummary(key({ is_operator: true }))).toBe('Operator');
     expect(
       keySummary(
         key({
@@ -317,9 +318,9 @@ describe('an edit’s changes', () => {
 });
 
 describe('a key in a row, at the edges', () => {
-  it('is Everything only with all seven permissions, every content map at *=write and no denial', () => {
+  it('is Everything only with every permission, every content map at *=write and no denial', () => {
     expect(keySummary({ ...FULL, permissions: FULL.permissions?.slice(1) })).toBe(
-      'Content and 6 permissions',
+      'Content and 11 permissions',
     );
     expect(
       keySummary({ ...FULL, type_permissions: { '*': 'write', 'core.secret': 'none' } }),
