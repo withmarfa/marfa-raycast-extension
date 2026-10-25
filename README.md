@@ -66,7 +66,7 @@ brew install withmarfa/tap/marfa
 marfa server install
 ```
 
-Open the link that the second command prints, and choose an email and password. That makes you the owner of your server. To run Marfa somewhere else, see [Deploy](https://docs.marfa.so/guides/deploy).
+Open the link that the second command prints, and choose an email and password. That makes you the owner of your server. To run Marfa somewhere else, see [Deploy](https://docs.marfa.so/run/deploy).
 
 ### 2. Make a key for Raycast
 
@@ -110,7 +110,7 @@ A key tells Marfa what an app may do.
 
 ### Do I have to run Marfa myself?
 
-Yes. Marfa isn't a hosted service. You run the server on your own computer, on a home server, or on a host such as Railway. See [Deploy](https://docs.marfa.so/guides/deploy).
+Yes. Marfa isn't a hosted service. You run the server on your own computer, on a home server, or on a host such as Railway. See [Deploy](https://docs.marfa.so/run/deploy).
 
 ### Where is my data?
 
@@ -138,7 +138,7 @@ Any type your server holds. The form is built from the type, so a type you add l
 
 ### Is it safe to try?
 
-Marfa is early software, so keep a backup of anything that matters. See [Back up and restore](https://docs.marfa.so/guides/back-up-and-restore).
+Marfa is early software, so keep a backup of anything that matters. See [Back up and restore](https://docs.marfa.so/run/back-up-and-restore).
 
 ## License
 
