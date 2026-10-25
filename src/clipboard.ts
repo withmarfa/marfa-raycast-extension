@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import TurndownService from 'turndown';
 import type { PlannedField } from './capture-plan';
-import { BOOKMARK_TYPE, FILE_TYPE, IMAGE_TYPE, NOTE_TYPE } from './display';
+import { BOOKMARK_TYPE, FILE_TYPE, IMAGE_TYPE } from './display';
 
 /**
  * What is on the clipboard, and where each part of it belongs. Pure: reading
@@ -177,17 +177,6 @@ export function clipboardBody(snapshot: Pick<ClipboardSnapshot, 'text' | 'html'>
   const text = snapshot.text.trim();
   if (!snapshot.html.trim()) return text;
   return htmlToMarkdown(snapshot.html) ?? text;
-}
-
-/** What a clipboard's text becomes: a lone web address a bookmark, anything else a note. */
-export function captureFromText(
-  snapshot: Pick<ClipboardSnapshot, 'text' | 'html'>,
-): { type: string; properties: Record<string, unknown>; noun: string } | null {
-  const text = snapshot.text.trim();
-  if (isWebUrl(text)) return { type: BOOKMARK_TYPE, properties: { url: text }, noun: 'Bookmark' };
-  const body = clipboardBody(snapshot);
-  if (!body) return null;
-  return { type: NOTE_TYPE, properties: { body }, noun: 'Note' };
 }
 
 const MIME_BY_EXTENSION: Record<string, string> = {

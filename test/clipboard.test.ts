@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { PlannedField } from '../src/capture-plan';
 import {
   captureFromFile,
-  captureFromText,
   chooseSource,
   clipboardBody,
   clipboardSeed,
@@ -14,25 +13,16 @@ import {
 const text = (value: string) => ({ text: value, html: '' });
 
 describe('what the clipboard becomes', () => {
-  it('a lone web address is a bookmark', () => {
-    expect(captureFromText(text('  https://example.com/a?b=1 \n'))).toEqual({
-      type: 'core.bookmark',
-      properties: { url: 'https://example.com/a?b=1' },
-      noun: 'Bookmark',
-    });
-  });
-
-  it('anything else is a note, including text that holds a link', () => {
-    expect(captureFromText(text('Read https://example.com later'))?.type).toBe('core.note');
-    expect(captureFromText(text('mailto:someone@example.com'))?.type).toBe('core.note');
-    expect(captureFromText(text('line one\nline two'))?.properties).toEqual({
-      body: 'line one\nline two',
-    });
-  });
-
-  it('nothing but space is nothing', () => {
-    expect(captureFromText(text(' \n\t'))).toBeNull();
+  it('a lone web address is a link, however it was copied', () => {
+    expect(isWebUrl('https://example.com/a?b=1')).toBe(true);
+    expect(isWebUrl('Read https://example.com later')).toBe(false);
+    expect(isWebUrl('mailto:someone@example.com')).toBe(false);
     expect(isWebUrl('ftp://example.com')).toBe(false);
+  });
+
+  it('keeps the lines of plain text', () => {
+    expect(clipboardBody(text('line one\nline two'))).toBe('line one\nline two');
+    expect(clipboardBody(text(' \n\t'))).toBe('');
   });
 });
 
@@ -116,19 +106,19 @@ describe('copied HTML', () => {
     expect(htmlToMarkdown(html)).toBe('Plain and *leaning*');
   });
 
-  it('makes a note of formatted text, and a bookmark of a lone link however it was copied', () => {
+  it('turns formatted text into Markdown, and still sees a lone link however it was copied', () => {
+    expect(clipboardBody({ text: 'Plan\nGo now', html: '<h1>Plan</h1><p>Go <b>now</b></p>' })).toBe(
+      '# Plan\n\nGo **now**',
+    );
     expect(
-      captureFromText({ text: 'Plan\nGo now', html: '<h1>Plan</h1><p>Go <b>now</b></p>' }),
-    ).toEqual({
-      type: 'core.note',
-      properties: { body: '# Plan\n\nGo **now**' },
-      noun: 'Note',
-    });
-    expect(
-      captureFromText({
-        text: 'https://example.org',
-        html: '<a href="https://example.org">https://example.org</a>',
-      })?.type,
+      clipboardType(
+        {
+          text: 'https://example.org',
+          html: '<a href="https://example.org">https://example.org</a>',
+          file: null,
+        },
+        'core.note',
+      ),
     ).toBe('core.bookmark');
   });
 });
@@ -200,11 +190,11 @@ describe('what a quick capture takes', () => {
   it('the selection over a copied file, as a note, since a selection holds text alone', () => {
     const source = chooseSource('Selected words', copiedFile, true);
     expect(source.snapshot.file).toBeNull();
-    expect(captureFromText(source.snapshot)?.type).toBe('core.note');
+    expect(clipboardType(source.snapshot, 'core.note')).toBe('core.note');
   });
 
   it('a selected web address as a bookmark', () => {
     const source = chooseSource('https://example.org/a', clipboard, true);
-    expect(captureFromText(source.snapshot)?.type).toBe('core.bookmark');
+    expect(clipboardType(source.snapshot, 'core.note')).toBe('core.bookmark');
   });
 });
