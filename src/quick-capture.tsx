@@ -1,72 +1,32 @@
-import { getPreferenceValues, showHUD, showToast, Toast } from '@raycast/api';
-import { openAsBlob } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { Form, getPreferenceValues } from '@raycast/api';
+import { usePromise } from '@raycast/utils';
 import { readCaptureSource } from './capture-source';
-import { captureFromFile, captureFromText } from './clipboard';
-import { IMAGE_TYPE, parseTags } from './display';
-import { showFailure } from './feedback';
-import { createItem, uploadBlob } from './marfa';
+import { clipboardType } from './clipboard';
+import { CaptureForm } from './components/CaptureForm';
+import { NOTE_TYPE } from './display';
+import { useRegistry } from './use-registry';
 
 /**
- * The selected text, or the clipboard, captured without a form: a copied file
- * as a file, an image as an image, a lone web address as a bookmark, and any
- * other text as a note, its formatting kept as markdown. Quick Capture (Edit)
- * shapes it first.
+ * The selected text, or the clipboard, in a capture form to shape before it
+ * lands: a copied file starts as a file, a lone link as a bookmark, and
+ * anything else as the Default Capture Type, each field seeded from it by
+ * what it is.
  */
-export default async function QuickCapture() {
-  const { defaultTags, preferSelectedText } = getPreferenceValues<Preferences>();
-  const tags = parseTags(defaultTags);
-  const { snapshot } = await readCaptureSource();
+export default function QuickCapture() {
+  const { defaultCaptureType } = getPreferenceValues<Preferences>();
+  const { registry, isLoading } = useRegistry();
+  const source = usePromise(readCaptureSource);
 
-  // Checked before the text, since a copied file also offers its name as text.
-  if (snapshot.file) {
-    const file = captureFromFile(snapshot.file);
-    // A folder opens as a blob too, and only fails once fetch reads it, as a
-    // transport error that would blame the server.
-    if (!(await stat(file.path).catch(() => undefined))?.isFile()) {
-      await showToast({
-        style: Toast.Style.Failure,
-        title: 'Only files can be captured',
-        message: `${file.title} is a folder or cannot be read.`,
-      });
-      return;
-    }
-    const toast = await showToast({
-      style: Toast.Style.Animated,
-      title: 'Uploading',
-      message: file.title,
-    });
-    try {
-      const bytes = await openAsBlob(file.path, { type: file.mimeType });
-      const { hash } = await uploadBlob(bytes);
-      await createItem({
-        type: file.type,
-        properties: { blob_ref: hash, mime_type: file.mimeType, title: file.title },
-        tags,
-      });
-      await toast.hide();
-      await showHUD(file.type === IMAGE_TYPE ? 'Image captured' : 'File captured');
-    } catch (error) {
-      await toast.hide();
-      await showFailure(error, `Capturing ${file.title}`);
-    }
-    return;
-  }
+  // A form control takes its starting value once, so nothing renders until
+  // the text is read.
+  if (!source.data) return <Form isLoading />;
 
-  const capture = captureFromText(snapshot);
-  if (!capture) {
-    await showToast({
-      style: Toast.Style.Failure,
-      title: preferSelectedText
-        ? 'Nothing selected or on the clipboard'
-        : 'Nothing to capture on the clipboard',
-    });
-    return;
-  }
-  try {
-    await createItem({ type: capture.type, properties: capture.properties, tags });
-    await showHUD(`${capture.noun} captured`);
-  } catch (error) {
-    await showFailure(error, `Capturing the ${capture.noun.toLowerCase()}`);
-  }
+  return (
+    <CaptureForm
+      registry={registry}
+      registryLoading={isLoading}
+      initialType={clipboardType(source.data.snapshot, defaultCaptureType?.trim() || NOTE_TYPE)}
+      clipboard={source.data.snapshot}
+    />
+  );
 }

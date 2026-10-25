@@ -32,14 +32,7 @@
       "name": "quick-capture",
       "title": "Quick Capture",
       "subtitle": "Marfa",
-      "description": "Capture the selected text or the clipboard at once: a file, an image, a link as a bookmark, or text as a note",
-      "mode": "no-view"
-    },
-    {
-      "name": "quick-capture-edit",
-      "title": "Quick Capture (Edit)",
-      "subtitle": "Marfa",
-      "description": "Shape the selected text or the clipboard in a capture form for any type before it is saved",
+      "description": "Capture the selected text or the clipboard in a form, with the type and every field ready to change before it is saved",
       "mode": "view"
     },
     {
@@ -105,7 +98,7 @@
     {
       "name": "defaultCaptureType",
       "title": "Default Capture Type",
-      "description": "The type Create Item and Quick Capture (Edit) start on, as a type identifier such as core.note or core.task",
+      "description": "The type Create Item and Quick Capture start on, as a type identifier such as core.note or core.task",
       "type": "textfield",
       "required": false,
       "default": "core.note",
@@ -132,7 +125,7 @@
     {
       "name": "preferSelectedText",
       "title": "Selected Text",
-      "description": "Quick Capture takes the text selected in the frontmost app and falls back to the clipboard when nothing is selected",
+      "description": "Quick Capture starts from the text selected in the frontmost app and falls back to the clipboard when nothing is selected",
       "type": "checkbox",
       "required": false,
       "default": true,
