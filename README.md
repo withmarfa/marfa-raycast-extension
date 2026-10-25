@@ -71,10 +71,11 @@ Open the link that the second command prints, and choose an email and password. 
 A key tells Marfa what an app may do.
 
 1. On your server's web page, open **API keys**, and choose **Create key**.
-2. Name the key `Raycast`, and give it the source `raycast`.
-3. Turn on read and write for all types, all tags, and all edges.
-4. Optional: allow permanent deletes, so that Raycast can delete items for good.
-5. Create the key, and copy it. The page shows the key once.
+2. Under **Details**, name the key `Raycast`.
+3. Under **Access**, which starts with everything off, turn on read and write for all types, all tags, and all edges.
+4. Optional: also allow permanent deletes, so that Raycast can delete items for good.
+5. Under **Advanced**, set the source to `raycast`.
+6. Create the key, and copy it from **Copy your key**. The page shows the key once.
 
 ### 3. Connect Raycast
 
