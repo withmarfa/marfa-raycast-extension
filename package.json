@@ -22,24 +22,24 @@
       "mode": "view"
     },
     {
-      "name": "quick-capture",
-      "title": "Quick Capture",
+      "name": "create-item",
+      "title": "Create Item",
       "subtitle": "Marfa",
-      "description": "Capture a note, or any type the server holds, in a form built from its schema",
+      "description": "Create a note, or an item of any type the server holds, in a form built from its schema",
       "mode": "view"
     },
     {
-      "name": "clipboard-capture",
-      "title": "Clipboard Capture",
+      "name": "quick-capture",
+      "title": "Quick Capture",
       "subtitle": "Marfa",
-      "description": "Capture the clipboard at once: a file, an image, a link as a bookmark, or text as a note",
+      "description": "Capture the selected text or the clipboard at once: a file, an image, a link as a bookmark, or text as a note",
       "mode": "no-view"
     },
     {
-      "name": "clipboard-capture-edit",
-      "title": "Clipboard Capture (Edit)",
+      "name": "quick-capture-edit",
+      "title": "Quick Capture (Edit)",
       "subtitle": "Marfa",
-      "description": "Shape the clipboard in a capture form for any type before it is saved",
+      "description": "Shape the selected text or the clipboard in a capture form for any type before it is saved",
       "mode": "view"
     },
     {
@@ -105,7 +105,7 @@
     {
       "name": "defaultCaptureType",
       "title": "Default Capture Type",
-      "description": "The type Quick Capture starts on, as a type identifier such as core.note or core.task",
+      "description": "The type Create Item and Quick Capture (Edit) start on, as a type identifier such as core.note or core.task",
       "type": "textfield",
       "required": false,
       "default": "core.note",
@@ -128,6 +128,15 @@
           "value": "feed"
         }
       ]
+    },
+    {
+      "name": "preferSelectedText",
+      "title": "Selected Text",
+      "description": "Quick Capture takes the text selected in the frontmost app and falls back to the clipboard when nothing is selected",
+      "type": "checkbox",
+      "required": false,
+      "default": true,
+      "label": "Prefer selected text over the clipboard"
     },
     {
       "name": "defaultTags",
