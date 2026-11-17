@@ -103,7 +103,7 @@ describe('a failure is sorted by what the person can do about it', () => {
     expect(describeFailure(refusal(404, 'key_not_found'))).toEqual({
       kind: 'gone',
       title: 'No longer there',
-      message: 'The key was revoked elsewhere.',
+      message: 'This key is no longer available to manage.',
     });
   });
 

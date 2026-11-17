@@ -47,8 +47,6 @@ export function marfa(): MarfaClient {
   const url = apiUrl.trim();
   const key = apiKey.trim();
   if (cached?.url !== url || cached.key !== key) {
-    // Checked here rather than left to the request: a key no header can carry
-    // fails inside fetch with a message that quotes the header, key and all.
     if (!/^[\x21-\x7E]+$/.test(key)) {
       throw new SetupError(
         'The API Key holds a character no key has. Copy it again and paste it into the extension preferences.',
@@ -59,7 +57,9 @@ export function marfa(): MarfaClient {
       client = createClient({ baseUrl: url, credential: key });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      throw new SetupError(`The Server URL is not usable: ${reason}.`);
+      throw new SetupError(
+        `Check the Server URL and API Key in the extension preferences. ${reason}.`,
+      );
     }
     cached = { url, key, client };
   }
@@ -251,12 +251,7 @@ export async function countTrash(): Promise<{ count: number; ids: string[] }> {
 
 export type BulkJob = components['schemas']['BulkActionJob'];
 
-/**
- * Starts emptying the Trash, refusing if it matches more than the count the
- * person confirmed. The job matches again when it starts, and the door takes
- * no list of ids, so the caller counts again just before and starts it only
- * when the same items are there.
- */
+/** The server refuses the purge if the Trash exceeds the confirmed count. */
 export async function emptyTrash(confirmed: number): Promise<BulkJob> {
   const job = await answer(
     marfa().POST('/items/bulk-actions', { body: emptyTrashBody(confirmed) }),
@@ -265,10 +260,7 @@ export async function emptyTrash(confirmed: number): Promise<BulkJob> {
   return job;
 }
 
-/**
- * A trashed item as the server holds it now, read by id with `state=trashed`;
- * undefined when it is no longer in the Trash.
- */
+/** Returns undefined if the key can no longer read this item in the Trash. */
 export async function trashedNow(id: string): Promise<Item | undefined> {
   try {
     return (await getItem(id, 'trashed')).item;

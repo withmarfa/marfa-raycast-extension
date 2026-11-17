@@ -146,7 +146,7 @@ function describeRefusal(error: MarfaRequestError): Failure {
     return {
       kind: 'gone',
       title: 'No longer there',
-      message: 'The key was revoked elsewhere.',
+      message: 'This key is no longer available to manage.',
     };
   }
   if (error.code === 'item_not_found') {

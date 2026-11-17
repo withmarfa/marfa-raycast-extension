@@ -148,8 +148,7 @@ export default function Browse() {
     const toast = await showToast({ style: Toast.Style.Animated, title: 'Emptying the Trash' });
     let started;
     try {
-      // The purge matches again when it starts and takes no ids, so it starts
-      // only when the Trash holds the very items the person confirmed.
+      // The same count can describe different items.
       const now = await countTrash();
       if (!sameIds(now.ids, counted.ids)) {
         toast.style = Toast.Style.Failure;

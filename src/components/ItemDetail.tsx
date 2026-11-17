@@ -34,11 +34,6 @@ const STATE_TAGS: Record<string, { text: string; color: Color }> = {
   trashed: { text: 'Trashed', color: Color.Red },
 };
 
-/**
- * One item in full: its text and picture, every property, its tags, its
- * relations and where it came from. Read afresh on open; a trashed item is
- * read with `state=trashed`, since the server answers it no other way.
- */
 export function ItemDetail({
   entry,
   registry,
@@ -49,7 +44,6 @@ export function ItemDetail({
   onChanged: () => void;
 }) {
   const { pop } = useNavigation();
-  // A 404 means the item was purged or moved since the row was read, so the row is what there is.
   const fresh = usePromise(
     async (id: string, state: string) => {
       try {
@@ -93,7 +87,6 @@ export function ItemDetail({
   const state = STATE_TAGS[item.state] ?? { text: item.state, color: Color.SecondaryText };
 
   function changed() {
-    // Read again even in the Trash: a restore makes the item readable by id.
     fresh.revalidate();
     if (!trashed) edges.revalidate();
     onChanged();
