@@ -54,6 +54,11 @@ export const RESERVED_ITEM_FIELDS: ReadonlySet<string> = new Set([
   'schema_version',
   'capture_latitude',
   'capture_longitude',
+  'read_only',
+  'last_activity_at',
+  'trashed_at',
+  'trashed_by_cascade',
+  'trashed_with',
 ]);
 
 /** The server's own bound on a `parent` chain. */
