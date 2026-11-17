@@ -22,7 +22,7 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 ## Deleting
 
 - Delete Permanently checks that the item is still visible in the Trash at the version the person saw. It sends that version with the purge so the server can reject a later edit.
-- Empty Trash confirms the dry-run count, compares the IDs from a second dry run with `sameIds`, and sends the confirmed count as `max_items`. The server selects matching items when it receives the purge request.
+- Empty Trash counts with a dry run and confirms that count. Just before purging it counts again and starts only when the same items are there (`sameIds`). The purge names the confirmed IDs as `expected_ids`, with `max_items` equal to their count: the server takes only items both listed and in the Trash when the job is queued, so an item trashed after the confirmation is never deleted. The server does not refuse a changed Trash; it takes fewer items, so the job's `matched` below the confirmed count is reported to the person (`describeJob`), as a Trash that changed with nothing deleted when it is zero.
 
 ## Notes and types
 
@@ -53,7 +53,7 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 
 - **Collision overwritten.** Flag an edit that settles a collision for a type other than a note, is not sent against the version loaded, or merges in the client.
 - **Untouched value rewritten.** Flag an edit that sends a field the person did not change in any form but the stored one.
-- **Purge wider than confirmed.** Flag a permanent delete or purge without the version check, the recount, or `max_items`.
+- **Purge wider than confirmed.** Flag a permanent delete or purge without the version check, the recount, `max_items`, or the confirmed IDs as `expected_ids`.
 - **Note misnamed.** Flag a plain `core.note` named by its `title`, a note subtype that ignores its resolved `title_field`, or a capture that writes a plain note's `title`.
 - **Key widened.** Flag a key edit that can send a map or permission the person did not change.
 - **Hidden or unchecked value.** Flag a form path that sends a value not on screen, or skips a check the server makes.

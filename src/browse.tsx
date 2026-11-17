@@ -12,11 +12,11 @@ import {
 import { useCachedPromise, useCachedState } from '@raycast/utils';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { useEffect, useState } from 'react';
-import { describeJob, followJob } from './bulk-job';
+import { describeJob, followJob, TRASH_CHANGED } from './bulk-job';
 import { EntryListItem } from './components/EntryListItem';
 import { FailureEmptyView } from './components/FailureEmptyView';
 import { groupByDay } from './dates';
-import { describeFailure, MarfaRequestError } from './failure';
+import { describeFailure } from './failure';
 import { showFailure } from './feedback';
 import { exactTypeFilter } from './type-filter';
 import {
@@ -148,32 +148,25 @@ export default function Browse() {
     const toast = await showToast({ style: Toast.Style.Animated, title: 'Emptying the Trash' });
     let started;
     try {
-      // The same count can describe different items.
+      // Stop early, with nothing sent, when the Trash is no longer what the
+      // person confirmed. A change after this count is held off by the ids
+      // the purge names, and reported from the job.
       const now = await countTrash();
       if (!sameIds(now.ids, counted.ids)) {
         toast.style = Toast.Style.Failure;
-        toast.title = 'The Trash changed since it was counted';
-        toast.message = 'Nothing was deleted. Empty it again to confirm what is there now.';
+        toast.title = TRASH_CHANGED.title;
+        toast.message = TRASH_CHANGED.message;
         refresh();
         return;
       }
-      started = await emptyTrash(count);
+      started = await emptyTrash(counted.ids);
     } catch (error) {
       await toast.hide();
-      if (error instanceof MarfaRequestError && error.code === 'bulk_cap_exceeded') {
-        await showToast({
-          style: Toast.Style.Failure,
-          title: 'The Trash changed since it was counted',
-          message: 'Nothing was deleted. Empty it again to confirm what is there now.',
-        });
-        refresh();
-        return;
-      }
       await showFailure(error, 'Emptying the Trash');
       return;
     }
     try {
-      const result = describeJob(await followJob(started, bulkJob, (ms) => sleep(ms)));
+      const result = describeJob(await followJob(started, bulkJob, (ms) => sleep(ms)), count);
       toast.style = result.ok ? Toast.Style.Success : Toast.Style.Failure;
       toast.title = result.title;
       // A narrower key purges only the types it may write; say what it left.

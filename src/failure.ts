@@ -156,6 +156,15 @@ function describeRefusal(error: MarfaRequestError): Failure {
       message: 'It was moved to Trash or deleted elsewhere.',
     };
   }
+  // A job the server no longer holds: the Trash was emptied meanwhile, or the
+  // server forgot a finished job. The URL is right.
+  if (error.code === 'bulk_job_not_found') {
+    return {
+      kind: 'gone',
+      title: 'No longer there',
+      message: 'The server no longer knows this job. Refresh to see what the Trash holds.',
+    };
+  }
   // A route the server does not have, or a 404 from something that is not a
   // Marfa server at all: the URL points at the wrong place.
   if (error.status === 404) {

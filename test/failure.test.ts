@@ -107,6 +107,16 @@ describe('a failure is sorted by what the person can do about it', () => {
     });
   });
 
+  it('a job the server no longer knows is an ordinary failure, not a wrong address', () => {
+    const failure = describeFailure(refusal(404, 'bulk_job_not_found', 'No such job'));
+    expect(failure).toEqual({
+      kind: 'gone',
+      title: 'No longer there',
+      message: 'The server no longer knows this job. Refresh to see what the Trash holds.',
+    });
+    expect(SETUP_KINDS.has(failure.kind)).toBe(false);
+  });
+
   it('a refused write names each field and why, as the server gave them', () => {
     const invalid = new MarfaRequestError(400, {
       error: {

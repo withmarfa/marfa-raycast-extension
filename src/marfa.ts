@@ -243,18 +243,28 @@ export async function purgeItem(id: string, version: number): Promise<void> {
  */
 export async function countTrash(): Promise<{ count: number; ids: string[] }> {
   const result = await answer(marfa().POST('/items/bulk-actions', { body: countTrashBody() }));
-  if (!('matched' in result) || typeof result.matched !== 'number' || 'status' in result) {
-    throw unexpected('a count of the Trash');
+  if (
+    !('matched' in result) ||
+    typeof result.matched !== 'number' ||
+    'status' in result ||
+    !Array.isArray(result.ids)
+  ) {
+    throw unexpected('a count of the Trash with its items');
   }
-  return { count: result.matched, ids: result.ids ?? [] };
+  return { count: result.matched, ids: result.ids };
 }
 
 export type BulkJob = components['schemas']['BulkActionJob'];
 
-/** The server refuses the purge if the Trash exceeds the confirmed count. */
-export async function emptyTrash(confirmed: number): Promise<BulkJob> {
+/**
+ * Starts emptying the Trash of the items the person confirmed. The job matches
+ * again when it starts and takes only those items still in the Trash, so what
+ * changed since is never deleted; the caller counts again just before, to stop
+ * and say so when the Trash is no longer what was confirmed.
+ */
+export async function emptyTrash(confirmedIds: readonly string[]): Promise<BulkJob> {
   const job = await answer(
-    marfa().POST('/items/bulk-actions', { body: emptyTrashBody(confirmed) }),
+    marfa().POST('/items/bulk-actions', { body: emptyTrashBody(confirmedIds) }),
   );
   if (!('status' in job)) throw unexpected('a job for emptying the Trash');
   return job;

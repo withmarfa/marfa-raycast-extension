@@ -84,3 +84,29 @@ describe('what it says', () => {
     });
   });
 });
+
+describe('when the Trash changed after the person confirmed', () => {
+  it('says so, and that nothing was deleted, when none of the confirmed items remained', () => {
+    expect(describeJob(job({ status: 'completed', matched: 0, succeeded: 0 }), 3)).toEqual({
+      ok: false,
+      title: 'The Trash changed since it was counted',
+      message: 'Nothing was deleted. Empty it again to confirm what is there now.',
+    });
+  });
+
+  it('says how many of the confirmed items had already left the Trash', () => {
+    expect(
+      describeJob(job({ status: 'completed', matched: 2, processed: 2, succeeded: 2 }), 3),
+    ).toEqual({
+      ok: true,
+      title: 'Trash emptied',
+      message: '2 deleted; 1 of the 3 counted had left the Trash already',
+    });
+  });
+
+  it('adds nothing when every confirmed item was there', () => {
+    expect(
+      describeJob(job({ status: 'completed', matched: 3, processed: 3, succeeded: 3 }), 3),
+    ).toEqual({ ok: true, title: 'Trash emptied', message: '3 deleted' });
+  });
+});
