@@ -8,7 +8,7 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 - `marfa.ts` checks the URL and key before the client sees them, because a key no header can carry fails inside `fetch` with a message that quotes it.
 - The client checks the contract and throws `ContractMismatchError` on a mismatch. Name no contract number here.
 - The server stamps `source` from the key. Never send one.
-- A trashed item answers `404` by ID unless the request names `state=trashed`, and the extension reads one from its list row, so anything shown for a trashed item comes from there.
+- A trashed item answers `404` by ID unless the request names `state=trashed`, so `getItem` takes the state and the Trash views read by ID with it (`trashedNow`).
 - A failure that stops everything (another contract, an unusable URL or key, a redirect or a server that is not Marfa, an unreachable server, a refused key) replaces the view with what to change and a way to the preferences. Anything else is a toast. `failure.ts` sorts them.
 - A refusal names the missing permission. Never hide an action because the key might lack it.
 
@@ -21,7 +21,7 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 
 ## Deleting
 
-- Delete Permanently finds the item again in the Trash and deletes it only if it is the version the person saw. One purged elsewhere meanwhile counts as done.
+- Delete Permanently reads the item again by ID with `state=trashed`, deletes it only if it is the version the person saw, and sends that `version` to the purge so the server holds it to the same. One purged elsewhere meanwhile counts as done.
 - Empty Trash counts with a dry run and confirms that count. Just before purging it counts again and starts only when the same items are there (`sameIds`), and it sends `max_items` equal to the confirmed count.
 
 ## Notes and types

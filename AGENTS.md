@@ -33,7 +33,7 @@ npm run dev         # development mode in Raycast
 npm run typecheck   # tsc, faster than a build for type errors
 npm run lint        # ray lint: ESLint, Prettier, and the store's manifest and icon checks
 npm test            # vitest run
-npm run test:live   # live/: every server call against a throwaway server (MARFA_LIVE_URL, MARFA_LIVE_KEY, MARFA_LIVE_ADMIN_KEY)
+npm run test:live   # live/: every server call against a throwaway server; see Testing
 npm run build       # ray build -o ./dist
 ```
 
@@ -47,7 +47,8 @@ npm run build       # ray build -o ./dist
 - Automated tests cover pure logic only: values in, values out. Do not harness component rendering; move the part worth testing into a pure function.
 - A tested module never imports `@raycast/api`, which ships types and no runtime. Icons live in `src/appearance.ts`, apart from the registry, for that reason.
 - `vitest.config.mts` pins a time zone with an offset and a locale, so a date that assumes UTC fails here.
-- A change works only once it is run against a real server. Boot one from the monorepo with `core/scripts/server-up.sh`, mint a key, and point the extension's preferences at it.
+- A change works only once it is run against a real server. Take a release archive from withmarfa/marfa (`marfa-<version>-<platform>.tar.gz`, holding `marfa-server` and `marfa`), run `marfa server run` on a folder of its own with `marfa.env` holding `MARFA_AUTH_SECRET` and `MARFA_KEY_SALT`, claim the owner and mint the keys through the server's private socket (`marfa --socket <folder>/data/control/marfa.sock`), and point the extension's preferences at it. Never use a server that holds real data.
+- `npm run test:live` runs every call `src/marfa.ts` makes, the AI tools, and the failure sorting through the real code against such a server. It reads `MARFA_LIVE_URL`, `MARFA_LIVE_KEY` (a Raycast key, below) and `MARFA_LIVE_ADMIN_KEY` (a key with `keys.mint` and `keys.manage`, and write on every map), and writes to the server. Run it on a throwaway server, with the release's `marfa` at the version `@withmarfa/client` is pinned to, after any change to `src/marfa.ts` or a client move.
 - A key for Raycast needs a source of its own, which no other key may share. Content work needs write on types, tags, and edges; Delete Permanently and Empty Trash need `items.purge`:
 
   ```sh
