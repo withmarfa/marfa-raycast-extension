@@ -32,6 +32,12 @@ export interface Page {
 
 /** `any` is the server's own word for every state at once. */
 export type StateFilter = 'active' | 'archived' | 'trashed' | 'any';
+
+/** What search answers: it never matches the Trash, and a list of states asks for several at once. */
+export type SearchState = 'active' | 'archived' | 'active,archived';
+
+/** What Browse offers: whatever search answers, and the Trash, which only a listing reaches. */
+export type BrowseState = SearchState | 'trashed';
 export type TierFilter = 'all' | 'library' | 'feed';
 
 let cached: { url: string; key: string; client: MarfaClient } | undefined;
@@ -92,7 +98,7 @@ function asEntry(row: Item | Entry): Entry {
 export async function listItems(options: {
   type?: string;
   filter?: string;
-  state: StateFilter;
+  state: StateFilter | BrowseState;
   tier?: TierFilter;
   cursor?: string;
   limit?: number;
@@ -121,7 +127,7 @@ export async function searchItems(options: {
   query: string;
   type?: string;
   filter?: string;
-  state: StateFilter;
+  state: SearchState;
   tier?: TierFilter;
   limit?: number;
 }): Promise<Entry[]> {

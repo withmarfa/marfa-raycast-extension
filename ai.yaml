@@ -10,7 +10,8 @@ instructions: |
   item. Answer from the rows returned; each already carries its text.
 
   Use list-items when there are no words to search for: what they saved
-  lately, their tasks, what is in the feed or the Trash.
+  lately, their tasks, what is in the feed or the Trash. Search never finds
+  anything in the Trash, so list it with state trashed instead.
 
   Use capture-item to save anything. A note is type core.note with one
   property, body, in the person's words and in markdown, its first line naming
