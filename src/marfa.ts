@@ -1,6 +1,6 @@
 import { getPreferenceValues } from '@raycast/api';
 import { createClient, type components, type MarfaClient } from '@withmarfa/client';
-import { MarfaRequestError, SetupError } from './failure';
+import { describeFailure, MarfaRequestError, SetupError } from './failure';
 import { countTrashBody, editRequest, emptyTrashBody } from './requests';
 
 /**
@@ -148,8 +148,10 @@ export async function searchItems(options: {
   return rows(page).map(asEntry);
 }
 
-export async function getItem(id: string): Promise<Entry> {
-  return asEntry(await answer(marfa().GET('/items/{id}', { params: { path: { id } } })));
+export async function getItem(id: string, state?: 'trashed'): Promise<Entry> {
+  return asEntry(
+    await answer(marfa().GET('/items/{id}', { params: { path: { id }, query: { state } } })),
+  );
 }
 
 export type Tier = components['schemas']['Tier'];
@@ -264,16 +266,16 @@ export async function emptyTrash(confirmed: number): Promise<BulkJob> {
 }
 
 /**
- * A trashed item as the server holds it now, found in the Trash listing since
- * a trashed item answers no read by id; undefined when it is no longer there.
+ * A trashed item as the server holds it now, read by id with `state=trashed`;
+ * undefined when it is no longer in the Trash.
  */
-export async function trashedNow(id: string, since: string): Promise<Item | undefined> {
-  const page = await answer(
-    marfa().GET('/items', {
-      params: { query: { state: 'trashed', updated_after: since, limit: 100 } },
-    }),
-  );
-  return rows(page as { data?: Item[] }).find((row) => row.id === id);
+export async function trashedNow(id: string): Promise<Item | undefined> {
+  try {
+    return (await getItem(id, 'trashed')).item;
+  } catch (error) {
+    if (describeFailure(error).kind === 'gone') return undefined;
+    throw error;
+  }
 }
 
 export async function bulkJob(id: string): Promise<BulkJob> {

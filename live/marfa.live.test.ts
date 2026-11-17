@@ -281,12 +281,12 @@ describe('trash, restore, archive and purge', () => {
     expect((await marfa.getItem(created.item.id)).item.state).toBe('active');
   });
 
-  it('trashes, finds the trashed row, restores', async () => {
+  it('trashes, reads it by id with state=trashed, restores', async () => {
     const created = await note(`trash ${stamp}`);
     await marfa.trashItem(created.item.id);
     const err = await refusal(marfa.getItem(created.item.id));
     expect(failure.describeFailure(err).kind).toBe('gone');
-    const now = await marfa.trashedNow(created.item.id, created.item.updated_at);
+    const now = await marfa.trashedNow(created.item.id);
     expect(now?.state).toBe('trashed');
     expect(now?.version).toBe(created.item.version);
     await marfa.restoreItem(created.item.id);
@@ -301,7 +301,7 @@ describe('trash, restore, archive and purge', () => {
       400,
     );
     await marfa.purgeItem(created.item.id, created.item.version);
-    expect(await marfa.trashedNow(created.item.id, created.item.updated_at)).toBeUndefined();
+    expect(await marfa.trashedNow(created.item.id)).toBeUndefined();
     const again = await refusal(marfa.purgeItem(created.item.id, created.item.version));
     expect(describeFailure(again).kind).toBe('gone');
   });
@@ -434,7 +434,7 @@ describe('the AI tools', () => {
     const unique = `okapi${stamp}`;
     await note(`About the ${unique}`, ['tooltag']);
     const types = await listTypes({});
-    expect(types.length).toBeGreaterThan(5);
+    expect(Array.isArray(types) && types.length).toBeGreaterThan(5);
     const one = await listTypes({ type: 'core.note' });
     expect(JSON.stringify(one)).toContain('body');
     const recent = await listItems({ limit: 5 });

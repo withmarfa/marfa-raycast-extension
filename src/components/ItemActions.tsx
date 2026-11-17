@@ -120,7 +120,7 @@ export function ItemActions({
     try {
       // Read again first: an item restored, changed and trashed again since is
       // not what was confirmed.
-      const now = await trashedNow(item.id, item.updated_at);
+      const now = await trashedNow(item.id);
       if (!now) {
         onChanged();
         await showToast({

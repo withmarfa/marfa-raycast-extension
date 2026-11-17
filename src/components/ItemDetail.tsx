@@ -36,9 +36,8 @@ const STATE_TAGS: Record<string, { text: string; color: Color }> = {
 
 /**
  * One item in full: its text and picture, every property, its tags, its
- * relations and where it came from. Read afresh on open, except in the Trash,
- * where the server answers a trashed item only in a listing, so the row is
- * what there is.
+ * relations and where it came from. Read afresh on open; a trashed item is
+ * read with `state=trashed`, since the server answers it no other way.
  */
 export function ItemDetail({
   entry,
@@ -50,19 +49,18 @@ export function ItemDetail({
   onChanged: () => void;
 }) {
   const { pop } = useNavigation();
-  // A trashed item answers 404 by id, so that answer means the row is still what there is.
+  // A 404 means the item was purged or moved since the row was read, so the row is what there is.
   const fresh = usePromise(
-    async (id: string) => {
+    async (id: string, state: string) => {
       try {
-        return await getItem(id);
+        return await getItem(id, state === 'trashed' ? 'trashed' : undefined);
       } catch (error) {
         if (describeFailure(error).kind === 'gone') return undefined;
         throw error;
       }
     },
-    [entry.item.id],
+    [entry.item.id, entry.item.state],
     {
-      execute: entry.item.state !== 'trashed',
       onError: (error) => void showFailure(error, 'Reading the item'),
     },
   );
