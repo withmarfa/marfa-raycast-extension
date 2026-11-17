@@ -178,10 +178,10 @@ export function groupRelations(edges: {
     else groups.set(title, [relation]);
   };
   for (const edge of edges.outbound) {
-    add(`${edge.edge_type}: links to`, { edge, otherId: edge.target_id, direction: 'outbound' });
+    add(`${edge.edge_type}: links to`, { edge, otherId: edge.to_id, direction: 'outbound' });
   }
   for (const edge of edges.inbound) {
-    add(`${edge.edge_type}: linked from`, { edge, otherId: edge.source_id, direction: 'inbound' });
+    add(`${edge.edge_type}: linked from`, { edge, otherId: edge.from_id, direction: 'inbound' });
   }
   return [...groups.entries()].map(([title, relations]) => ({ title, relations }));
 }
@@ -202,7 +202,7 @@ export function threadPlacement(
   outbound: readonly Edge[],
   rootInbound: (root: string) => readonly Edge[],
 ): { root: string; position: number } {
-  const root = outbound.find((edge) => edge.edge_type === 'in-thread')?.target_id ?? itemId;
+  const root = outbound.find((edge) => edge.edge_type === 'in-thread')?.to_id ?? itemId;
   const positions = rootInbound(root)
     .filter((edge) => edge.edge_type === 'in-thread')
     .map((edge) => Number(edge.properties.position))

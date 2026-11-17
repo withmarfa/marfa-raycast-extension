@@ -227,9 +227,12 @@ export async function transitionItem(id: string, state: 'active' | 'archived'): 
   );
 }
 
-/** Deletes a trashed item for good. Needs `items.purge`. */
-export async function purgeItem(id: string): Promise<void> {
-  await answer(marfa().POST('/items/{id}/purge', { params: { path: { id } } }));
+/**
+ * Deletes a trashed item for good, only if it still holds the version the
+ * person saw (trashing leaves the version as it was). Needs `items.purge`.
+ */
+export async function purgeItem(id: string, version: number): Promise<void> {
+  await answer(marfa().POST('/items/{id}/purge', { params: { path: { id }, query: { version } } }));
 }
 
 /**
@@ -292,8 +295,8 @@ export async function listEdges(id: string): Promise<{ outbound: Edge[]; inbound
 
 /** Draws one edge, with properties an item's inline edges cannot carry. */
 export async function createEdge(edge: {
-  source_id: string;
-  target_id: string;
+  from_id: string;
+  to_id: string;
   edge_type: string;
   properties?: Record<string, unknown>;
 }): Promise<void> {
@@ -310,8 +313,7 @@ export async function getMany(ids: readonly string[]): Promise<Item[]> {
     const batch = await answer(
       marfa().POST('/items/bulk-get', { body: { ids: ids.slice(start, start + 100) } }),
     );
-    if (!Array.isArray(batch.items)) throw unexpected('a list of items');
-    items.push(...(batch.items as Item[]));
+    items.push(...rows(batch));
   }
   return items;
 }

@@ -33,8 +33,8 @@ function item(properties: Record<string, unknown>, type = 'core.note'): Item {
 function edge(source: string, target: string, type: string): Edge {
   return {
     id: `${source}-${target}`,
-    source_id: source,
-    target_id: target,
+    from_id: source,
+    to_id: target,
     edge_type: type,
     properties: {},
     created_at: '2026-09-05T10:00:00.000Z',

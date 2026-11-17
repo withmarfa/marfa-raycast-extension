@@ -136,7 +136,7 @@
   "dependencies": {
     "@raycast/api": "^2.10.1",
     "@raycast/utils": "^2.3.3",
-    "@withmarfa/client": "0.0.45",
+    "@withmarfa/client": "0.0.76",
     "turndown": "7.2.4"
   },
   "devDependencies": {

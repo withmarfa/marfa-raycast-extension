@@ -206,8 +206,8 @@ export function CaptureForm(props: {
       if (props.link) {
         try {
           await createEdge({
-            source_id: created.item.id,
-            target_id: props.link.to,
+            from_id: created.item.id,
+            to_id: props.link.to,
             edge_type: props.link.edgeType,
             properties: props.link.properties,
           });
