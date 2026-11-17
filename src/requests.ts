@@ -15,9 +15,14 @@ export function countTrashBody() {
   return { ...TRASH, dry_run: true, max_items: BULK_MAX_ITEMS } as const;
 }
 
-/** Empties the Trash, refusing if it matches more than the count confirmed. */
-export function emptyTrashBody(confirmed: number) {
-  return { ...TRASH, max_items: confirmed } as const;
+/**
+ * Empties the Trash of the items the person confirmed and no others. The
+ * server takes only the items both listed and in the Trash when the job is
+ * queued, so one trashed elsewhere since is left, and one restored is skipped.
+ * The cap holds the job to the count confirmed besides.
+ */
+export function emptyTrashBody(confirmedIds: readonly string[]) {
+  return { ...TRASH, max_items: confirmedIds.length, expected_ids: [...confirmedIds] };
 }
 
 /**

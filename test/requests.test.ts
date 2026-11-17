@@ -20,13 +20,21 @@ describe('counting the Trash', () => {
 });
 
 describe('emptying the Trash', () => {
-  it('purges the Trash alone, refusing more than the count confirmed, and is no dry run', () => {
-    expect(emptyTrashBody(3)).toEqual({
+  it('purges only the items confirmed, capped at their count, and is no dry run', () => {
+    expect(emptyTrashBody(['a', 'b', 'c'])).toEqual({
       action: 'purge',
       confirm: 'PURGE',
       filter: { state: 'trashed' },
       max_items: 3,
+      expected_ids: ['a', 'b', 'c'],
     });
+  });
+
+  it('does not share the list it was given', () => {
+    const confirmed = ['a'];
+    const body = emptyTrashBody(confirmed);
+    confirmed.push('b');
+    expect(body.expected_ids).toEqual(['a']);
   });
 
   it('starts only on the very items counted', () => {

@@ -27,18 +27,39 @@ export async function followJob(
   return current;
 }
 
-/** What a finished, or still running, job says to the person. */
-export function describeJob(job: BulkJob): { ok: boolean; title: string; message: string } {
+/** Said when the Trash no longer holds what the person confirmed and nothing was deleted. */
+export const TRASH_CHANGED = {
+  title: 'The Trash changed since it was counted',
+  message: 'Nothing was deleted. Empty it again to confirm what is there now.',
+} as const;
+
+/**
+ * What a finished, or still running, job says to the person. `confirmed` is
+ * how many items they agreed to delete: the server leaves any of them that
+ * left the Trash meanwhile, so the job can match fewer.
+ */
+export function describeJob(
+  job: BulkJob,
+  confirmed?: number,
+): { ok: boolean; title: string; message: string } {
   const deleted = job.result?.succeeded ?? job.succeeded;
   const failed = job.result?.errored ?? job.errored;
   const counted = `${String(deleted)} deleted${failed > 0 ? `, ${String(failed)} could not be` : ''}`;
   switch (job.status) {
-    case 'completed':
+    case 'completed': {
+      if (confirmed !== undefined && confirmed > 0 && job.matched === 0) {
+        return { ok: false, ...TRASH_CHANGED };
+      }
+      const left = confirmed !== undefined ? confirmed - job.matched : 0;
       return {
         ok: failed === 0,
         title: failed === 0 ? 'Trash emptied' : 'Trash partly emptied',
-        message: counted,
+        message:
+          left > 0
+            ? `${counted}; ${String(left)} of the ${String(confirmed)} counted had left the Trash already`
+            : counted,
       };
+    }
     case 'failed':
       return { ok: false, title: 'Emptying the Trash failed', message: job.error ?? counted };
     case 'canceled':
