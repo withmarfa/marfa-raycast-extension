@@ -42,12 +42,11 @@ async function refusal(call: Promise<unknown>) {
 }
 
 afterAll(async () => {
-  // Leave the throwaway server tidy for a rerun.
   for (const id of made) await marfa.trashItem(id).catch(() => undefined);
 });
 
 describe('the server and the key', () => {
-  it('describes itself without a key', async () => {
+  it('reads the server version, instance ID, and contract', async () => {
     const instance = await marfa.getInstance();
     expect(instance.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(typeof instance.instance_id).toBe('string');
@@ -118,14 +117,14 @@ describe('capture and read', () => {
     expect(typed.entries.every((e) => e.item.type === 'core.task')).toBe(true);
   });
 
-  it('rejects the old boolean forms and unknown parameters, so none are sent', async () => {
+  it('rejects an unknown item-list parameter', async () => {
     const response = await fetch(`${url}/items?state=active&bogus=1`, {
       headers: { Authorization: `Bearer ${key}` },
     });
     expect(response.status).toBe(400);
   });
 
-  it('searches by text and by tag', async () => {
+  it('finds a note by its text and returns its tags', async () => {
     const unique = `zebrafinch${stamp}`;
     const created = await note(`A note about ${unique}`, [`tag${stamp}`]);
     const found = await marfa.searchItems({ query: unique, state: 'active' });
@@ -251,8 +250,6 @@ describe('edits', () => {
     );
     const described = describeFailure(error);
     expect(described.kind).toBe('refused');
-    // eslint-disable-next-line no-console
-    console.log('refused task body', JSON.stringify((error as { body: unknown }).body));
     expect(refusedFields(error)).toBeDefined();
   });
 });
@@ -452,7 +449,7 @@ describe('the AI tools', () => {
       tags: ['toolcapture'],
     });
     expect(JSON.stringify(noteResult)).toContain('toolcapture');
-    const eventResult = await capture({
+    await capture({
       type: 'core.event',
       properties: [
         { name: 'title', value: `Event ${stamp}` },
@@ -460,13 +457,9 @@ describe('the AI tools', () => {
         { name: 'ends_at', value: '2026-12-01T11:00:00Z' },
       ],
     });
-    // eslint-disable-next-line no-console
-    console.log('event tool result', JSON.stringify(eventResult));
     const events = await marfa.listItems({ state: 'active', type: 'core.event' });
     const stored = events.entries.find((e) => e.item.properties.title === `Event ${stamp}`);
     expect(stored).toBeDefined();
-    // eslint-disable-next-line no-console
-    console.log('event stored', JSON.stringify(stored?.item.properties));
   });
 });
 
@@ -478,15 +471,9 @@ describe('failures', () => {
     expect(describeFailure(wrapped).kind).toBe('unauthorized');
   });
 
-  it('a key without the permission is forbidden and names it', async () => {
+  it('classifies a refused key listing as forbidden', async () => {
     const error = await refusal(marfa.listKeys());
     expect(describeFailure(error).kind).toBe('forbidden');
-    // eslint-disable-next-line no-console
-    console.log(
-      'forbidden',
-      JSON.stringify(describeFailure(error)),
-      JSON.stringify((error as { body: unknown }).body),
-    );
   });
 
   it('a mismatched contract is a contract failure, and the server refuses a wrong one with 412', async () => {
@@ -540,14 +527,10 @@ describe('keys, with a key that may manage them', () => {
       expect(edited.label).toBe(`live ${stamp} edited`);
       await marfa.revokeKey(minted.id);
       const afterwards = await refusal(marfa.revokeKey(minted.id));
-      // eslint-disable-next-line no-console
-      console.log('second revoke', JSON.stringify((afterwards as { body: unknown }).body));
       expect(describeFailure(afterwards).kind).toBe('gone');
       const clash = await refusal(
         marfa.createKey({ label: 'clash', source: 'raycast', permissions: [] }),
       );
-      // eslint-disable-next-line no-console
-      console.log('source clash', JSON.stringify((clash as { body: unknown }).body));
       expect(describeFailure(clash).kind).toBe('refused');
       expect((await import('../src/keys')).keyRefusal(clash, 'raycast')?.field).toBe('source');
     } finally {

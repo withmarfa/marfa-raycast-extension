@@ -6,7 +6,7 @@ import { defineConfig } from 'vitest/config';
  * it. `ray build` compiles only the manifest's entry points, so where the
  * tests sit never reaches the build.
  *
- * Only modules that never import `@raycast/api` are tested: that package ships
+ * Unit tests cover modules without runtime imports of `@raycast/api`. That package ships
  * types and no runtime, since Raycast injects one when it builds. Anything
  * worth testing is written as a pure function in a module of its own.
  */

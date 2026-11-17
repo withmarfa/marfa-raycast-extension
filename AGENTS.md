@@ -44,11 +44,11 @@ npm run build       # ray build -o ./dist
 
 ## Testing
 
-- Automated tests cover pure logic only: values in, values out. Do not harness component rendering; move the part worth testing into a pure function.
-- A tested module never imports `@raycast/api`, which ships types and no runtime. Icons live in `src/appearance.ts`, apart from the registry, for that reason.
+- Unit tests in `test/` cover pure logic. Keep data decisions in pure functions so they can be tested without rendering a component.
+- Unit-tested modules use only type imports from `@raycast/api`. Raycast supplies the runtime, so the live suite mocks its preference reader when loading the extension.
 - `vitest.config.mts` pins a time zone with an offset and a locale, so a date that assumes UTC fails here.
-- A change works only once it is run against a real server. Take a release archive from withmarfa/marfa (`marfa-<version>-<platform>.tar.gz`, holding `marfa-server` and `marfa`), run `marfa server run` on a folder of its own with `marfa.env` holding `MARFA_AUTH_SECRET` and `MARFA_KEY_SALT`, claim the owner and mint the keys through the server's private socket (`marfa --socket <folder>/data/control/marfa.sock`), and point the extension's preferences at it. Never use a server that holds real data.
-- `npm run test:live` runs every call `src/marfa.ts` makes, the AI tools, and the failure sorting through the real code against such a server. It reads `MARFA_LIVE_URL`, `MARFA_LIVE_KEY` (a Raycast key, below) and `MARFA_LIVE_ADMIN_KEY` (a key with `keys.mint` and `keys.manage`, and write on every map), and writes to the server. Run it on a throwaway server, with the release's `marfa` at the version `@withmarfa/client` is pinned to, after any change to `src/marfa.ts` or a client move.
+- After a change to `src/marfa.ts` or a client upgrade, test against a disposable Marfa server from the release matching the client pin. The suite empties its Trash. Extract the release archive and start `marfa-server` with its own database, blob directory, private socket, port, and secrets. The server repository's `scripts/release/prove-reading.sh` shows the environment for an isolated process. Use the matching `marfa --socket <socket>` with `setup claim` and `keys create`.
+- Set `MARFA_LIVE_URL` to that server, `MARFA_LIVE_KEY` to the Raycast key below, and `MARFA_LIVE_ADMIN_KEY` to a second key with `keys.mint`, `keys.manage`, and `*=read` on types. Run `npm run test:live` to exercise the server calls, AI tools, and error handling. To try the commands in Raycast, enter the disposable server's URL and Raycast key in the extension preferences.
 - A key for Raycast needs a source of its own, which no other key may share. Content work needs write on types, tags, and edges; Delete Permanently and Empty Trash need `items.purge`:
 
   ```sh
@@ -82,7 +82,7 @@ npm run build       # ray build -o ./dist
 
 Report only a problem you can show: name the input, state, or step, and what goes wrong. Leave formatting and lint to CI. `src/AGENTS.md` and `src/tools/AGENTS.md` add rules for their code.
 
-- **Raycast in a tested module.** Flag a module under test that imports `@raycast/api`, directly or through another module.
+- **Raycast in a tested module.** Flag a module covered by the unit suite that imports the `@raycast/api` runtime, directly or through another module.
 - **Untested logic in a view.** Flag a decision about data, such as what to send or how to read a refusal, written inside a component where no test can reach it.
 - **Dates assuming UTC.** Flag date handling that reads or writes a local day or time without the zone.
 - **Guard or pins weakened.** Flag a change that skips the version guard, loosens the pinned type packages, or builds anywhere but `./dist/`.
