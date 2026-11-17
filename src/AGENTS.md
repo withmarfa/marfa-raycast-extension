@@ -8,7 +8,7 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 - `marfa.ts` checks the URL and key before the client sees them, because a key no header can carry fails inside `fetch` with a message that quotes it.
 - The client checks the contract and throws `ContractMismatchError` on a mismatch. Name no contract number here.
 - The server stamps `source` from the key. Never send one.
-- A trashed item answers `404` by ID, so anything shown for a trashed item comes from its list row.
+- A trashed item answers `404` by ID unless the request names `state=trashed`, and the extension reads one from its list row, so anything shown for a trashed item comes from there.
 - A failure that stops everything (another contract, an unusable URL or key, a redirect or a server that is not Marfa, an unreachable server, a refused key) replaces the view with what to change and a way to the preferences. Anything else is a toast. `failure.ts` sorts them.
 - A refusal names the missing permission. Never hide an action because the key might lack it.
 

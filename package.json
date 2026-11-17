@@ -161,6 +161,7 @@
     "pretest": "npm run check-withmarfa-versions",
     "pretypecheck": "npm run check-withmarfa-versions",
     "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.mts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },

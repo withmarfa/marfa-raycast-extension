@@ -33,6 +33,7 @@ npm run dev         # development mode in Raycast
 npm run typecheck   # tsc, faster than a build for type errors
 npm run lint        # ray lint: ESLint, Prettier, and the store's manifest and icon checks
 npm test            # vitest run
+npm run test:live   # live/: every server call against a throwaway server (MARFA_LIVE_URL, MARFA_LIVE_KEY, MARFA_LIVE_ADMIN_KEY)
 npm run build       # ray build -o ./dist
 ```
 
