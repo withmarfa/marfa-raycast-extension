@@ -59,25 +59,30 @@ The extension keeps no copy of your data, so every command needs a server it can
 
 Skip this step if you already run Marfa.
 
-On a Mac with Docker or OrbStack, run these commands in Terminal:
+On an Apple silicon Mac, follow the Marfa installation instructions to get the CLI and server. [Install Marfa](https://github.com/withmarfa/marfa#try-it-locally).
+
+Start a local server:
 
 ```sh
-brew install withmarfa/tap/marfa
-marfa server install
+marfa server install --access local
 ```
 
-Open the link that the second command prints, and choose an email and password. That makes you the owner of your server. To run Marfa somewhere else, see [Deploy](https://docs.marfa.so/run/deploy).
+Open the link that the command prints, and choose an email and password. That makes you the owner of your server. To run Marfa somewhere else, see [Deploy](https://docs.marfa.so/run/deploy).
 
 ### 2. Make a key for Raycast
 
 A key tells Marfa what an app may do.
 
-1. On your server's web page, open **API keys**, and choose **Create key**.
-2. Under **Details**, name the key `Raycast`.
-3. Under **Access**, which starts with everything off, turn on read and write for all types, all tags, and all edges.
-4. Optional: also allow permanent deletes, so that Raycast can delete items for good.
-5. Under **Advanced**, set the source to `raycast`.
-6. Create the key, and copy it from **Copy your key**. The page shows the key once.
+For the local install above, run this command as the account that runs Marfa. Omit `--permission items.purge` if you want to keep permanent deletion off.
+
+```sh
+marfa --socket "$HOME/marfa-server/data/control/marfa.sock" keys create \
+  --label Raycast --source raycast \
+  --type-permission '*=write' --metadata-permission '*=write' --edge-permission '*=write' \
+  --permission items.purge
+```
+
+Copy the key from the first line of output. Marfa shows it once. To mint the key remotely, use the same `keys create` command with a CLI credential for that server that holds `keys.mint` and can grant the requested access.
 
 ### 3. Connect Raycast
 
@@ -130,7 +135,7 @@ Yes, when Marfa runs on the same Mac, because the extension only talks to your s
 
 ### What can the key do?
 
-Only what you gave it. The extension tells you which permission is missing when Marfa refuses something. To delete items for good, the key needs the permission for permanent deletes. To change the key, use the **API keys** page, or Manage Keys with a key that is allowed to.
+Only what you gave it. The extension tells you which permission is missing when Marfa refuses something. To delete items for good, the key needs `items.purge`. To change the key, use `marfa keys update` or the extension's Manage Keys command with a credential that can manage it.
 
 ### Which types can I capture?
 

@@ -120,7 +120,7 @@ export function ItemActions({
     try {
       // Read again first: an item restored, changed and trashed again since is
       // not what was confirmed.
-      const now = await trashedNow(item.id, item.updated_at);
+      const now = await trashedNow(item.id);
       if (!now) {
         onChanged();
         await showToast({
@@ -139,7 +139,7 @@ export function ItemActions({
         });
         return;
       }
-      await purgeItem(item.id);
+      await purgeItem(item.id, item.version);
       onChanged();
       onGone?.();
       await showToast({ style: Toast.Style.Success, title: 'Deleted permanently', message: title });
@@ -308,7 +308,7 @@ function LinkedCapture({
   const thread = usePromise(
     async (id: string) => {
       const here = await listEdges(id);
-      const root = here.outbound.find((edge) => edge.edge_type === 'in-thread')?.target_id ?? id;
+      const root = here.outbound.find((edge) => edge.edge_type === 'in-thread')?.to_id ?? id;
       const inbound = root === id ? here.inbound : (await listEdges(root)).inbound;
       return threadPlacement(id, here.outbound, () => inbound);
     },

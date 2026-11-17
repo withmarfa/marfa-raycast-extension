@@ -100,10 +100,10 @@ describe('a failure is sorted by what the person can do about it', () => {
   });
 
   it('a key gone from under a revoke or an edit is gone, not a wrong address', () => {
-    expect(describeFailure(refusal(404, 'api_key_not_found'))).toEqual({
+    expect(describeFailure(refusal(404, 'key_not_found'))).toEqual({
       kind: 'gone',
       title: 'No longer there',
-      message: 'The key was revoked elsewhere.',
+      message: 'This key is no longer available to manage.',
     });
   });
 

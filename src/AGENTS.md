@@ -5,10 +5,10 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 ## The server
 
 - `marfa.ts` is the one door to the server. Every call there returns what the server answered or throws, so a view never reads an error out of a successful value. Call the server nowhere else.
-- `marfa.ts` checks the URL and key before the client sees them, because a key no header can carry fails inside `fetch` with a message that quotes it.
+- `marfa.ts` trims the preferences and requires a nonempty key of visible ASCII characters. The client validates the server URL and bearer token. Error messages must never include the key.
 - The client checks the contract and throws `ContractMismatchError` on a mismatch. Name no contract number here.
 - The server stamps `source` from the key. Never send one.
-- A trashed item answers `404` by ID, so anything shown for a trashed item comes from its list row.
+- Reading a trashed item by ID requires a state filter that includes `trashed`. Item Detail reads with `state=any`, so a restored item shows as restored and only a deleted one answers `404 item_not_found`, which closes the detail (`detail-read.ts`). The Delete Permanently check reads with `state=trashed`, so an item no longer in the Trash is refused.
 - A failure that stops everything (another contract, an unusable URL or key, a redirect or a server that is not Marfa, an unreachable server, a refused key) replaces the view with what to change and a way to the preferences. Anything else is a toast. `failure.ts` sorts them.
 - A refusal names the missing permission. Never hide an action because the key might lack it.
 
@@ -21,8 +21,8 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 
 ## Deleting
 
-- Delete Permanently finds the item again in the Trash and deletes it only if it is the version the person saw. One purged elsewhere meanwhile counts as done.
-- Empty Trash counts with a dry run and confirms that count. Just before purging it counts again and starts only when the same items are there (`sameIds`), and it sends `max_items` equal to the confirmed count.
+- Delete Permanently checks that the item is still visible in the Trash at the version the person saw. It sends that version with the purge so the server can reject a later edit.
+- Empty Trash confirms the dry-run count, compares the IDs from a second dry run with `sameIds`, and sends the confirmed count as `max_items`. The server selects matching items when it receives the purge request.
 
 ## Notes and types
 

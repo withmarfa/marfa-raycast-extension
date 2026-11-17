@@ -6,13 +6,15 @@ import {
   Icon,
   Keyboard,
   List,
+  showToast,
+  Toast,
   useNavigation,
 } from '@raycast/api';
 import { usePromise } from '@raycast/utils';
 import { typeIcon } from '../appearance';
 import { formatRelative, formatWhen } from '../dates';
+import { readForDetail } from '../detail-read';
 import type { Registry } from '../display';
-import { describeFailure } from '../failure';
 import { showFailure } from '../feedback';
 import { useImageUrl } from '../use-image';
 import {
@@ -34,12 +36,6 @@ const STATE_TAGS: Record<string, { text: string; color: Color }> = {
   trashed: { text: 'Trashed', color: Color.Red },
 };
 
-/**
- * One item in full: its text and picture, every property, its tags, its
- * relations and where it came from. Read afresh on open, except in the Trash,
- * where the server answers a trashed item only in a listing, so the row is
- * what there is.
- */
 export function ItemDetail({
   entry,
   registry,
@@ -50,23 +46,20 @@ export function ItemDetail({
   onChanged: () => void;
 }) {
   const { pop } = useNavigation();
-  // A trashed item answers 404 by id, so that answer means the row is still what there is.
-  const fresh = usePromise(
-    async (id: string) => {
-      try {
-        return await getItem(id);
-      } catch (error) {
-        if (describeFailure(error).kind === 'gone') return undefined;
-        throw error;
-      }
+  const fresh = usePromise((id: string) => readForDetail(id, getItem), [entry.item.id], {
+    onData: (read) => {
+      if (read.kind !== 'gone') return;
+      onChanged();
+      pop();
+      void showToast({
+        style: Toast.Style.Failure,
+        title: 'No longer there',
+        message: 'It was deleted elsewhere.',
+      });
     },
-    [entry.item.id],
-    {
-      execute: entry.item.state !== 'trashed',
-      onError: (error) => void showFailure(error, 'Reading the item'),
-    },
-  );
-  const current = fresh.data ?? entry;
+    onError: (error) => void showFailure(error, 'Reading the item'),
+  });
+  const current = fresh.data?.kind === 'present' ? fresh.data.entry : entry;
   const { item, metadata } = current;
   const trashed = item.state === 'trashed';
   // Keyed by what the picture is, so the row and the fresh read do not each fetch it.
@@ -95,7 +88,6 @@ export function ItemDetail({
   const state = STATE_TAGS[item.state] ?? { text: item.state, color: Color.SecondaryText };
 
   function changed() {
-    // Read again even in the Trash: a restore makes the item readable by id.
     fresh.revalidate();
     if (!trashed) edges.revalidate();
     onChanged();

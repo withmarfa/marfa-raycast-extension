@@ -220,6 +220,22 @@ describe('additional properties', () => {
     });
   });
 
+  it('refuses every first-class item field the server reserves', () => {
+    for (const name of [
+      'read_only',
+      'last_activity_at',
+      'trashed_at',
+      'trashed_by_cascade',
+      'trashed_with',
+      'capture_latitude',
+      'schema_version',
+    ]) {
+      expect(parseAdditionalProperties(`${name}: true`)).toEqual({
+        error: `Line 1: "${name}" is an item field`,
+      });
+    }
+  });
+
   it('refuses an item field, a repeat and a line without a colon', () => {
     expect(parseAdditionalProperties('occurred_at: now')).toEqual({
       error: 'Line 1: "occurred_at" is an item field',

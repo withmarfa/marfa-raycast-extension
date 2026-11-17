@@ -33,20 +33,22 @@ npm run dev         # development mode in Raycast
 npm run typecheck   # tsc, faster than a build for type errors
 npm run lint        # ray lint: ESLint, Prettier, and the store's manifest and icon checks
 npm test            # vitest run
+npm run test:live   # live/: every server call against a throwaway server; see Testing
 npm run build       # ray build -o ./dist
 ```
 
 - Build only to `./dist/`. A build to the repository root deletes `assets/`.
 - `@types/react` and `@types/node` are pinned to the exact versions `@raycast/api` declares. A range duplicates the React types under the API package and breaks the type check.
 - TypeScript stays on 6 until `@raycast/eslint-config` supports 7: its `typescript-eslint` refuses TS 7, and `ray lint` then fails.
-- A guard runs before `typecheck`, `dev`, `test`, and `build` and fails when an installed `@withmarfa/*` package differs from the version `package-lock.json` resolved. The fix is `npm ci`. CI always installs clean, so only this guard catches a stale local tree.
+- A guard runs before `typecheck`, `dev`, `test`, `test:live`, and `build` and fails when an installed `@withmarfa/*` package differs from the version `package-lock.json` resolved. The fix is `npm ci`. CI always installs clean, so only this guard catches a stale local tree.
 
 ## Testing
 
-- Automated tests cover pure logic only: values in, values out. Do not harness component rendering; move the part worth testing into a pure function.
-- A tested module never imports `@raycast/api`, which ships types and no runtime. Icons live in `src/appearance.ts`, apart from the registry, for that reason.
+- Unit tests in `test/` cover pure logic. Keep data decisions in pure functions so they can be tested without rendering a component.
+- Unit-tested modules use only type imports from `@raycast/api`. Raycast supplies the runtime, so the live suite mocks its preference reader when loading the extension.
 - `vitest.config.mts` pins a time zone with an offset and a locale, so a date that assumes UTC fails here.
-- A change works only once it is run against a real server. Boot one from the monorepo with `core/scripts/server-up.sh`, mint a key, and point the extension's preferences at it.
+- After a change to `src/marfa.ts` or a client upgrade, test against a disposable Marfa server from the release matching the client pin. The suite empties its Trash. Extract the release archive and start `marfa-server` with its own database, blob directory, private socket, port, and secrets. The server repository's `scripts/release/prove-reading.sh` shows the environment for an isolated process. Use the matching `marfa --socket <socket>` with `setup claim` and `keys create`.
+- Set `MARFA_LIVE_URL` to that server, `MARFA_LIVE_KEY` to the Raycast key below, and `MARFA_LIVE_ADMIN_KEY` to a second key with `keys.mint`, `keys.manage`, and `*=read` on types. Run `npm run test:live` to exercise the server calls, AI tools, and error handling. To try the commands in Raycast, enter the disposable server's URL and Raycast key in the extension preferences.
 - A key for Raycast needs a source of its own, which no other key may share. Content work needs write on types, tags, and edges; Delete Permanently and Empty Trash need `items.purge`:
 
   ```sh
@@ -80,7 +82,7 @@ npm run build       # ray build -o ./dist
 
 Report only a problem you can show: name the input, state, or step, and what goes wrong. Leave formatting and lint to CI. `src/AGENTS.md` and `src/tools/AGENTS.md` add rules for their code.
 
-- **Raycast in a tested module.** Flag a module under test that imports `@raycast/api`, directly or through another module.
+- **Raycast in a tested module.** Flag a module covered by the unit suite that imports the `@raycast/api` runtime, directly or through another module.
 - **Untested logic in a view.** Flag a decision about data, such as what to send or how to read a refusal, written inside a component where no test can reach it.
 - **Dates assuming UTC.** Flag date handling that reads or writes a local day or time without the zone.
 - **Guard or pins weakened.** Flag a change that skips the version guard, loosens the pinned type packages, or builds anywhere but `./dist/`.
