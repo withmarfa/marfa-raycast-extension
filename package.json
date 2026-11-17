@@ -159,6 +159,7 @@
     "predev": "npm run check-withmarfa-versions",
     "publish": "npx @raycast/api@latest publish",
     "pretest": "npm run check-withmarfa-versions",
+    "pretest:live": "npm run check-withmarfa-versions",
     "pretypecheck": "npm run check-withmarfa-versions",
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.mts",
