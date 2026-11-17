@@ -8,7 +8,7 @@ type Input = {
    * unless the person named a kind of item.
    */
   type?: string;
-  /** `active` unless the person asked about archived or trashed items; `any` for every state. */
+  /** `active` unless the person asked about archived or trashed items; `any` for every state, the Trash included. */
   state?: 'active' | 'archived' | 'trashed' | 'any';
   /** `library` for what the person kept, `feed` for what arrived in volume; omit for both. */
   tier?: 'library' | 'feed' | 'all';

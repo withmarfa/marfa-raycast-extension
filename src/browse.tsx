@@ -26,17 +26,18 @@ import {
   type Entry,
   listItems,
   searchItems,
-  type StateFilter,
+  type BrowseState,
   type TierFilter,
 } from './marfa';
 import { sameIds } from './requests';
 import { useRegistry } from './use-registry';
 
-const STATES: Array<{ value: StateFilter; title: string }> = [
+// Search never matches the Trash, so every choice but Trash is one it answers.
+const STATES: Array<{ value: BrowseState; title: string }> = [
   { value: 'active', title: 'Active' },
   { value: 'archived', title: 'Archived' },
+  { value: 'active,archived', title: 'All Except Trash' },
   { value: 'trashed', title: 'Trash' },
-  { value: 'any', title: 'All States' },
 ];
 
 const TIERS: Array<{ value: TierFilter; title: string }> = [
@@ -61,7 +62,7 @@ export default function Browse() {
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string>();
   const [type, setType] = useCachedState('browse-type', ALL_TYPES);
-  const [state, setState] = useState<StateFilter>('active');
+  const [state, setState] = useState<BrowseState>('active');
   const [tier, setTier] = useCachedState<TierFilter>('browse-tier', 'all');
   const [showingDetail, setShowingDetail] = useCachedState('browse-show-detail', true);
 
@@ -75,7 +76,7 @@ export default function Browse() {
   const searching = query !== '' && state !== 'trashed';
 
   const listing = useCachedPromise(
-    (typeFilter: string, stateFilter: StateFilter, tierFilter: TierFilter) =>
+    (typeFilter: string, stateFilter: BrowseState, tierFilter: TierFilter) =>
       async (options: { cursor?: string }) => {
         const page = await listItems({
           type: typeFilter || undefined,
@@ -95,14 +96,17 @@ export default function Browse() {
   );
 
   const search = useCachedPromise(
-    (q: string, typeFilter: string, stateFilter: StateFilter, tierFilter: TierFilter) =>
-      searchItems({
-        query: q,
-        type: typeFilter || undefined,
-        filter: exactTypeFilter(typeFilter),
-        state: stateFilter,
-        tier: tierFilter,
-      }),
+    (q: string, typeFilter: string, stateFilter: BrowseState, tierFilter: TierFilter) =>
+      // Search never reaches the Trash, which is listed instead.
+      stateFilter === 'trashed'
+        ? Promise.resolve([])
+        : searchItems({
+            query: q,
+            type: typeFilter || undefined,
+            filter: exactTypeFilter(typeFilter),
+            state: stateFilter,
+            tier: tierFilter,
+          }),
     [query, type, state, tier],
     { execute: searching, keepPreviousData: true, onError: () => undefined },
   );
