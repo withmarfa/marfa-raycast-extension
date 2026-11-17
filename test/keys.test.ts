@@ -12,6 +12,7 @@ import {
   narrowToRead,
   parseMap,
   parseSources,
+  PERMISSIONS,
   presetReach,
 } from '../src/keys';
 import type { ApiKey } from '../src/marfa';
@@ -50,6 +51,8 @@ const FULL = key({
     'blobs.manage',
     'instance.read',
     'instance.maintain',
+    'backups.manage',
+    'sign_ins.manage',
   ],
   type_permissions: { '*': 'write' },
   metadata_permissions: { '*': 'write' },
@@ -158,6 +161,37 @@ describe('an edit', () => {
     ).toEqual({
       label: 'laptop',
     });
+  });
+});
+
+describe('the permissions a key can hold', () => {
+  it('are the server’s whole catalogue', () => {
+    expect(PERMISSIONS.map((permission) => permission.name).sort()).toEqual([
+      'audit.read',
+      'backups.manage',
+      'blobs.manage',
+      'config.manage',
+      'connectors.manage',
+      'grants.manage',
+      'instance.maintain',
+      'instance.read',
+      'items.purge',
+      'keys.manage',
+      'keys.mint',
+      'schema.write',
+      'sign_ins.manage',
+      'webhooks.manage',
+    ]);
+  });
+
+  it('are all held by Everything, and a key missing one is not Everything', () => {
+    expect(keySummary(FULL)).toBe('Everything');
+    const without = (name: string) => ({
+      ...FULL,
+      permissions: FULL.permissions?.filter((held) => held !== name),
+    });
+    expect(keySummary(without('backups.manage'))).toBe('Content and 13 permissions');
+    expect(keySummary(without('sign_ins.manage'))).toBe('Content and 13 permissions');
   });
 });
 
@@ -320,7 +354,7 @@ describe('an edit’s changes', () => {
 describe('a key in a row, at the edges', () => {
   it('is Everything only with every permission, every content map at *=write and no denial', () => {
     expect(keySummary({ ...FULL, permissions: FULL.permissions?.slice(1) })).toBe(
-      'Content and 11 permissions',
+      'Content and 13 permissions',
     );
     expect(
       keySummary({ ...FULL, type_permissions: { '*': 'write', 'core.secret': 'none' } }),

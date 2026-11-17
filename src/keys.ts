@@ -13,20 +13,27 @@ import type { ApiKey } from './marfa';
 
 export type Permission = NonNullable<ApiKey['permissions']>[number];
 
-export const PERMISSIONS: readonly { name: Permission; says: string }[] = [
-  { name: 'keys.mint', says: 'Mint keys within its own reach, and change and revoke those' },
-  { name: 'keys.manage', says: 'List and revoke every key, and narrow any of them' },
-  { name: 'items.purge', says: 'Delete items for good, and empty the Trash' },
-  { name: 'schema.write', says: 'Register and change types' },
-  { name: 'webhooks.manage', says: 'Manage webhooks' },
-  { name: 'config.manage', says: 'Change the server’s configuration' },
-  { name: 'audit.read', says: 'Read the audit log' },
-  { name: 'grants.manage', says: 'Manage what signed-in apps are granted' },
-  { name: 'connectors.manage', says: 'Manage connector registrations and their endpoints' },
-  { name: 'blobs.manage', says: 'Manage every stored file' },
-  { name: 'instance.read', says: 'Read health, metrics and background job status' },
-  { name: 'instance.maintain', says: 'Run housekeeping and cancel background jobs' },
-];
+/** Every permission the server knows, so a new one in the client's types fails the type check here. */
+const PERMISSION_SAYS: Record<Permission, string> = {
+  'keys.mint': 'Mint keys within its own reach, and change and revoke those',
+  'keys.manage': 'List and revoke every key, and narrow any of them',
+  'items.purge': 'Delete items for good, and empty the Trash',
+  'schema.write': 'Register and change types',
+  'webhooks.manage': 'Manage webhooks',
+  'config.manage': 'Change the server’s configuration',
+  'audit.read': 'Read the audit log',
+  'grants.manage': 'Manage what signed-in apps are granted',
+  'connectors.manage': 'Manage connector registrations and their endpoints',
+  'blobs.manage': 'Manage every stored file',
+  'instance.read': 'Read health, metrics and background job status',
+  'instance.maintain': 'Run housekeeping and cancel background jobs',
+  'backups.manage': 'List, take and adopt backups',
+  'sign_ins.manage': 'List, rename and end sign-ins, and manage the owner’s passkeys',
+};
+
+export const PERMISSIONS: readonly { name: Permission; says: string }[] = (
+  Object.entries(PERMISSION_SAYS) as [Permission, string][]
+).map(([name, says]) => ({ name, says }));
 
 export type MapField =
   | 'type_permissions'
