@@ -148,7 +148,7 @@ export async function searchItems(options: {
   return rows(page).map(asEntry);
 }
 
-export async function getItem(id: string, state?: 'trashed'): Promise<Entry> {
+export async function getItem(id: string, state?: 'trashed' | 'any'): Promise<Entry> {
   return asEntry(
     await answer(marfa().GET('/items/{id}', { params: { path: { id }, query: { state } } })),
   );

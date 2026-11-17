@@ -286,8 +286,11 @@ describe('trash, restore, archive and purge', () => {
     const now = await marfa.trashedNow(created.item.id);
     expect(now?.state).toBe('trashed');
     expect(now?.version).toBe(created.item.version);
+    expect((await marfa.getItem(created.item.id, 'any')).item.state).toBe('trashed');
     await marfa.restoreItem(created.item.id);
     expect((await marfa.getItem(created.item.id)).item.state).toBe('active');
+    expect((await marfa.getItem(created.item.id, 'any')).item.state).toBe('active');
+    expect(await marfa.trashedNow(created.item.id)).toBeUndefined();
   });
 
   it('purges a trashed item only at the version the person saw', async () => {
@@ -299,6 +302,7 @@ describe('trash, restore, archive and purge', () => {
     );
     await marfa.purgeItem(created.item.id, created.item.version);
     expect(await marfa.trashedNow(created.item.id)).toBeUndefined();
+    expect(describeFailure(await refusal(marfa.getItem(created.item.id, 'any'))).kind).toBe('gone');
     const again = await refusal(marfa.purgeItem(created.item.id, created.item.version));
     expect(describeFailure(again).kind).toBe('gone');
   });

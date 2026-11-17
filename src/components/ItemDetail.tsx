@@ -6,13 +6,15 @@ import {
   Icon,
   Keyboard,
   List,
+  showToast,
+  Toast,
   useNavigation,
 } from '@raycast/api';
 import { usePromise } from '@raycast/utils';
 import { typeIcon } from '../appearance';
 import { formatRelative, formatWhen } from '../dates';
+import { readForDetail } from '../detail-read';
 import type { Registry } from '../display';
-import { describeFailure } from '../failure';
 import { showFailure } from '../feedback';
 import { useImageUrl } from '../use-image';
 import {
@@ -44,21 +46,20 @@ export function ItemDetail({
   onChanged: () => void;
 }) {
   const { pop } = useNavigation();
-  const fresh = usePromise(
-    async (id: string, state: string) => {
-      try {
-        return await getItem(id, state === 'trashed' ? 'trashed' : undefined);
-      } catch (error) {
-        if (describeFailure(error).kind === 'gone') return undefined;
-        throw error;
-      }
+  const fresh = usePromise((id: string) => readForDetail(id, getItem), [entry.item.id], {
+    onData: (read) => {
+      if (read.kind !== 'gone') return;
+      onChanged();
+      pop();
+      void showToast({
+        style: Toast.Style.Failure,
+        title: 'No longer there',
+        message: 'It was deleted elsewhere.',
+      });
     },
-    [entry.item.id, entry.item.state],
-    {
-      onError: (error) => void showFailure(error, 'Reading the item'),
-    },
-  );
-  const current = fresh.data ?? entry;
+    onError: (error) => void showFailure(error, 'Reading the item'),
+  });
+  const current = fresh.data?.kind === 'present' ? fresh.data.entry : entry;
   const { item, metadata } = current;
   const trashed = item.state === 'trashed';
   // Keyed by what the picture is, so the row and the fresh read do not each fetch it.

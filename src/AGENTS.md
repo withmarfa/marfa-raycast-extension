@@ -8,7 +8,7 @@ Rules for the commands, views, and pure modules in `src/`. The root `AGENTS.md` 
 - `marfa.ts` trims the preferences and requires a nonempty key of visible ASCII characters. The client validates the server URL and bearer token. Error messages must never include the key.
 - The client checks the contract and throws `ContractMismatchError` on a mismatch. Name no contract number here.
 - The server stamps `source` from the key. Never send one.
-- Reading a trashed item by ID requires a state filter that includes `trashed`. Item Detail and the Delete Permanently check use `state=trashed`. A restored or purged item then returns `404 item_not_found`.
+- Reading a trashed item by ID requires a state filter that includes `trashed`. Item Detail reads with `state=any`, so a restored item shows as restored and only a deleted one answers `404 item_not_found`, which closes the detail (`detail-read.ts`). The Delete Permanently check reads with `state=trashed`, so an item no longer in the Trash is refused.
 - A failure that stops everything (another contract, an unusable URL or key, a redirect or a server that is not Marfa, an unreachable server, a refused key) replaces the view with what to change and a way to the preferences. Anything else is a toast. `failure.ts` sorts them.
 - A refusal names the missing permission. Never hide an action because the key might lack it.
 
