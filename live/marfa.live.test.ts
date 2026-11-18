@@ -113,8 +113,12 @@ describe('capture and read', () => {
       type: undefined,
     });
     expect(filtered.entries.every((e) => e.item.type === 'core.note')).toBe(true);
-    const typed = await marfa.listItems({ state: 'active', type: 'core.task' });
-    expect(typed.entries.every((e) => e.item.type === 'core.task')).toBe(true);
+    const tasks = await marfa.listItems({
+      state: 'active',
+      filter: exactTypeFilter('core.task'),
+      type: undefined,
+    });
+    expect(tasks.entries.every((e) => e.item.type === 'core.task')).toBe(true);
   });
 
   it('rejects an unknown item-list parameter', async () => {
@@ -312,7 +316,7 @@ describe('trash, restore, archive and purge', () => {
     const before = await marfa.countTrash();
     if (before.count > 0) {
       const job = await followJob(
-        await marfa.emptyTrash(before.count),
+        await marfa.emptyTrash(before.ids),
         marfa.bulkJob,
         (ms) => new Promise((r) => setTimeout(r, ms)),
       );
@@ -327,17 +331,17 @@ describe('trash, restore, archive and purge', () => {
     const counted = await marfa.countTrash();
     expect(counted.count).toBe(3);
     expect(counted.ids.sort()).toEqual([...ids].sort());
-    const tooFew = await refusal(marfa.emptyTrash(2));
-    expect(tooFew).toBeInstanceOf(failure.MarfaRequestError);
-    expect((tooFew as InstanceType<typeof failure.MarfaRequestError>).code).toBe(
-      'bulk_cap_exceeded',
-    );
-    expect((await marfa.countTrash()).count, 'a refused empty must delete nothing').toBe(3);
-    const job = await followJob(
-      await marfa.emptyTrash(3),
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const partial = await followJob(
+      await marfa.emptyTrash(counted.ids.slice(0, 2)),
       marfa.bulkJob,
-      (ms) => new Promise((r) => setTimeout(r, ms)),
+      sleep,
     );
+    expect(partial.status).toBe('completed');
+    expect((await marfa.countTrash()).ids, 'only the two confirmed items go').toEqual(
+      counted.ids.slice(2),
+    );
+    const job = await followJob(await marfa.emptyTrash(counted.ids.slice(2)), marfa.bulkJob, sleep);
     expect(job.status).toBe('completed');
     expect(describeJob(job)).toMatchObject({ ok: true, title: 'Trash emptied' });
     expect((await marfa.countTrash()).count).toBe(0);
