@@ -67,7 +67,7 @@ Start a local server:
 marfa server install --access local
 ```
 
-Open the link that the command prints, and choose an email and password. That makes you the owner of your server. To run Marfa somewhere else, see [Deploy](https://docs.marfa.so/run/deploy).
+Open the link that the command prints, and choose an email and password. That makes you the owner of your server. To run Marfa somewhere else, see [Run Marfa on Railway or a server](https://docs.marfa.so/run/run-on-a-server).
 
 ### 2. Make a key for Raycast
 
@@ -115,7 +115,7 @@ Copy the key from the first line of output. Marfa shows it once. To mint the key
 
 ### Do I have to run Marfa myself?
 
-Yes. Marfa isn't a hosted service. You run the server on your own computer, on a home server, or on a host such as Railway. See [Deploy](https://docs.marfa.so/run/deploy).
+Yes. Marfa isn't a hosted service. You run the server on your own computer, on a home server, or on a host such as Railway. See [Run Marfa on Railway or a server](https://docs.marfa.so/run/run-on-a-server).
 
 ### Where is my data?
 
